@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Elsewhere | A wider world",
-  description: "Follow your curiosity around an interactive 3D globe. Eight countries, a world of stories.",
+  description: "Follow your curiosity around an interactive 3D globe. Ten country stories, thirty questions, and trails that connect them.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

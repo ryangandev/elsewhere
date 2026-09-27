@@ -1,34 +1,85 @@
 # Prototype verification
 
-This file records release checks, not user acceptance.
+This document records local release checks, not production deployment or user acceptance.
 
-## Scope
+## Second edition - 2026-09-27
 
-Verify real browser interactions for direct country selection, search, country focus, overview-to-topic transitions, route overlays, return navigation, zoom, random selection, and mobile reading.
-Validate that the globe remains present when a country or a topic is open.
-Check keyboard dismissal and the empty search state.
+The second edition adds connected exploration while preserving the globe as the persistent home.
+It expands editorial coverage to ten countries and thirty questions.
 
-## Known limits
+### Automated validation
 
-Only eight countries have full editorial coverage.
-The map uses simplified Natural Earth boundaries, with a separate selectable Singapore marker.
-Illustrative map paths explain a relationship and are not precise navigation routes.
-Population values are a dated 2024 reference, not live statistics.
-The interface is English-only.
-AI conversation is described as a future capability; no model is connected.
-The globe needs WebGL; if initialization fails, country stories remain available through the interface.
+- TypeScript passes with `npx tsc --noEmit`.
+- ESLint passes with `npm run lint`, with no warnings.
+- Seven Node tests pass with `npm test`.
+- All thirty topic links round-trip through URL serialization and validation.
+- All trail stops and related-story links resolve to actual content.
+- The location directory contains unique IDs and finite geographic coordinates.
+- Invalid countries return home; invalid topics return to the corresponding country overview.
+- Invalid trail associations are dropped rather than displaying a mismatched trail.
+- Saved data is validated, deduplicated, and bounded; malformed data cannot break the interface.
+- Production build completes successfully.
+- Vinext's route-classification notice is informational and remains a framework limitation.
 
-## Browser checks completed
+### Desktop browser flows
 
-- Desktop 1440 × 960: all eight profiles opened through search; each exposes three distinct questions.
-- Search: an unknown query shows an empty state, and Enter selects a filtered result.
-- Singapore: direct selection, contextual neighboring labels, and the shipping topic.
-- France: overseas topic widens the camera to show the Atlantic relationship.
-- Mobile 390 × 844: no horizontal overflow, map retained above the reading panel, topic shortcut, topic expansion, back, and close.
-- Globe: pointer drag changes the visible region; zoom controls respond.
-- Browser console: no errors or warnings during the exercised flows.
-- TypeScript: `npx tsc --noEmit` passes.
-- The 3D engine is lazy-loaded independently of the interface, with the linked Three.js renderer retained together to preserve initialization order.
-- Production build completes successfully; the framework’s route-classification notice is informational.
-- Production-bundle testing caught and corrected a renderer initialization cycle introduced by aggressive chunking.
-- Verified the map marker hit area explicitly; country buttons opt back into pointer events above the transparent label layer.
+- All ten country profiles opened through search.
+- All thirty questions opened through their country panels and returned to the correct overview.
+- Country-name queries prioritize overviews; natural question queries show relevant editorial topics.
+- `Why is Singapore so rich?` surfaces the wealth exploration.
+- Searching Canada opens its location guide, highlights Canada, and suggests nearby editorial stories.
+- Unknown search text shows a useful empty state and allows another search.
+- Search opens with input focus; keyboard Enter selects the result.
+- The water trail links Singapore, Malaysia, Indonesia, and Turkey while preserving context in the URL.
+- Topic geography chips and globe labels focus a place; the explanation offers a return to the full connection.
+- Saving a topic persists after refresh and appears in Your atlas.
+- The share button confirms a copied link for the current country, topic, and trail.
+- Recent exploration lists visited destinations.
+- Browser back/forward restores the previous country, topic, and trail.
+- Zooming before switching countries no longer replays the old zoom command over the new camera transition.
+- The production bundle initializes the globe, renders routes, and restores browser history.
+- The production-preview browser reported no console errors or warnings during exercised flows.
+- Rebuilding while the local preview was running left stale asset references; restarting the preview restored the globe and current resources.
+- The initialization-failure interface kept the story readable during that stale-resource failure, and the final restarted preview loaded successfully.
+
+### Mobile browser flows
+
+Verified at an effective CSS viewport of 390 × 844.
+
+- No horizontal document overflow.
+- The globe remains visible above country and topic reading panels.
+- The fixed curiosity shortcut reveals the country’s questions.
+- Country overview to shipping topic to geographic context works within the existing view.
+- The panel can collapse for a larger map and expand to resume reading.
+- Search, its empty state, keyboard selection, and country restoration work at this width.
+
+### Reliability improvements
+
+- Missing Natural Earth label coordinates were replaced with a directory derived from actual geometry.
+- Topic identities are permanent content IDs rather than title-derived or positional URL identities.
+- Camera controls are independent of destination changes.
+- Geographic-place focus zooms closer relative to its story view, including already-close island views.
+- Map captions and breadcrumbs have contrast-preserving surfaces over bright terrain.
+- The renderer caps pixel density and pauses animation while the document is hidden.
+- Globe initialization failure retains the reading interface, with a retry affordance.
+- Clipboard failure opens a selectable link instead of falsely claiming success.
+- Storage failure keeps a session-only library and explains the persistence limit.
+
+The WebGL context-loss, storage-denial, and clipboard-denial recovery branches are implemented but were not forced in the final browser session.
+The mobile browser check does not replace testing on a physical phone.
+
+### Local evidence
+
+- `outputs/v2-browser-coverage.json` records the thirty topic titles opened in the browser.
+- `outputs/elsewhere-v2-mobile.png` captures the mobile shipping-topic view.
+- `outputs/elsewhere-v2-explore.png` captures the production-preview exploration view.
+
+## Known boundaries
+
+The map directory is a simplified selection of countries and territories, not comprehensive political coverage.
+Only ten destinations have full editorial profiles.
+Search retrieves existing content and does not generate answers.
+Population and Indonesia’s capital are dated references.
+Bookmarks and history are local to a browser and origin, with no account sync.
+Source links and map paths are explained in the interface.
+This iteration is locally implemented and verified; it has not been committed, pushed, or deployed to the existing private site.
