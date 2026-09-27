@@ -37,6 +37,7 @@ After rebuilding, restart `npm start` so the preview loads the new asset manifes
 - Cross-country recommendations explain why the next question is connected to the current one.
 - Search accepts country names, selected aliases, and keywords in natural questions.
 - The bundled Natural Earth directory contains 178 selectable locations, including the additional Singapore marker.
+- Every mapped country has a white center marker; names appear when the projected land area and available space allow, and hover or keyboard focus reveals any smaller country's name.
 - Places without a full profile have a location guide and nearby editorial destinations instead of an interruption dialog.
 - Stable links preserve country, question, and trail; refresh and browser back/forward restore the view.
 - Your atlas saves countries and questions locally, with recent exploration and a home-screen continuation entry.

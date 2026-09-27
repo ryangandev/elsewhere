@@ -82,4 +82,18 @@ Search retrieves existing content and does not generate answers.
 Population and Indonesia’s capital are dated references.
 Bookmarks and history are local to a browser and origin, with no account sync.
 Source links and map paths are explained in the interface.
-This iteration is locally implemented and verified; it has not been committed, pushed, or deployed to the existing private site.
+The second edition was committed locally as `38095a4`; it has not been pushed or deployed to the existing private site.
+
+## Country markers - 2026-09-27
+
+Every directory destination now has a white center marker, including places without editorial coverage.
+The location and land area come from each country's largest polygon, with Singapore's explicit marker retained.
+Large projected land areas show names when there is room; smaller or crowded locations keep a white dot and reveal their names on hover or keyboard focus.
+Names adapt to zoom, rotation, and window size, with collision checks between country names.
+
+- Keyboard focus on Nepal reveals the country-name popup; activating it opens Nepal's location guide.
+- The overview and closer country view show different name densities without horizontal overflow.
+- Country markers remain visible alongside Singapore's contextual water labels and shipping route.
+- TypeScript, ESLint, seven existing tests, and the production build pass.
+
+These marker changes are locally implemented and remain uncommitted, following the requested order of committing the second edition before making this adjustment.

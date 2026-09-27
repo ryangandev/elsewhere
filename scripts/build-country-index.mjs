@@ -9,7 +9,8 @@ const index = source.features.map(feature => {
   const mainland = polygons.sort((a, b) => geoArea(b) - geoArea(a))[0];
   const [lng, lat] = geoCentroid(mainland);
   return { id: feature.properties.ADM0_A3, name: feature.properties.ADMIN,
-    region: feature.properties.SUBREGION, lat: +lat.toFixed(3), lng: +lng.toFixed(3) };
+    region: feature.properties.SUBREGION, lat: +lat.toFixed(3), lng: +lng.toFixed(3),
+    area: +geoArea(mainland).toFixed(8) };
 }).sort((a, b) => a.name.localeCompare(b.name));
 writeFileSync(new URL('../app/country-index.json', import.meta.url), JSON.stringify(index, null, 2) + '\n');
 console.log(`Indexed ${index.length} Natural Earth countries and territories.`);

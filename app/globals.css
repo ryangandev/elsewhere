@@ -43,6 +43,37 @@
 .globe-pin.context-label:hover { color: #f6f3d7; background: #142e3bc7; border-color: #cedbbc33; }
 .globe-pin.context-label.active { border: 1px solid #d6ddab77; background: #142e3be8; }
 .globe-pin.water-label.active { font-size: 15px; }
+
+/* Country centers remain discoverable at every scale. */
+.globe-pin.country-marker,
+.globe-pin.country-marker.active {
+  width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+  display: grid; place-items: center; background: transparent; box-shadow: none;
+  color: #fff; cursor: pointer; font-size: 12px; letter-spacing: .35px;
+}
+.country-dot {
+  display: block; width: 5px; height: 5px; border-radius: 50%; background: #fff;
+  box-shadow: 0 0 0 1px #183143b3, 0 1px 5px #000b;
+  transition: box-shadow .15s, transform .15s;
+}
+.country-marker-name {
+  position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);
+  padding: 2px 0; font: 500 12px/1.4 Arial, sans-serif; white-space: nowrap;
+  color: #fff; text-shadow: 0 1px 3px #000, 0 0 9px #071924;
+  opacity: 0; visibility: hidden; pointer-events: none;
+}
+.country-marker.show-country-name .country-marker-name { opacity: 1; visibility: visible; }
+.country-marker:hover .country-marker-name,
+.country-marker:focus-visible .country-marker-name {
+  opacity: 1; visibility: visible; padding: 7px 11px; border-radius: 6px;
+  background: #f6f8f2; color: #20352e; text-shadow: none;
+  box-shadow: 0 4px 18px #0005; font-size: 13px;
+}
+.country-marker:hover .country-dot,
+.country-marker:focus-visible .country-dot { transform: scale(1.3); box-shadow: 0 0 0 5px #ffffff26, 0 1px 5px #000b; }
+.country-marker.active .country-dot { box-shadow: 0 0 0 4px #dce8bf45, 0 1px 5px #000b; }
+.country-marker:focus-visible { outline: 2px solid #eef5dd; outline-offset: 2px; }
+.country-marker:hover, .country-marker:focus-visible { z-index: 1000 !important; }
 .map-controls button:first-child { align-items: center; height: 37px; padding-top: 0; }
 .map-controls button:disabled { opacity: .35; }
 .map-caption { max-width: min(450px, calc(100% - 565px)); }
