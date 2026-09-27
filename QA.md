@@ -28,5 +28,7 @@ The globe needs WebGL; if initialization fails, country stories remain available
 - Globe: pointer drag changes the visible region; zoom controls respond.
 - Browser console: no errors or warnings during the exercised flows.
 - TypeScript: `npx tsc --noEmit` passes.
-- The 3D engine is lazy-loaded and split into cacheable chunks; its largest linked rendering chunk is about 536 kB before compression, under an explicit 600 kB graphics budget.
+- The 3D engine is lazy-loaded independently of the interface, with the linked Three.js renderer retained together to preserve initialization order.
 - Production build completes successfully; the framework’s route-classification notice is informational.
+- Production-bundle testing caught and corrected a renderer initialization cycle introduced by aggressive chunking.
+- Verified the map marker hit area explicitly; country buttons opt back into pointer events above the transparent label layer.

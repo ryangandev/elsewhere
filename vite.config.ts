@@ -1,4 +1,3 @@
-import { fileURLToPath } from "node:url";
 import vinext from "vinext";
 import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json";
@@ -52,20 +51,16 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
-    resolve: {
-      // Use source modules so the renderer can split into cacheable chunks.
-      alias: [{ find: /^three$/, replacement: fileURLToPath(new URL('./node_modules/three/src/Three.js', import.meta.url)) }],
-    },
     build: {
-      // The lazy WebGL engine is ~536 kB before gzip; other chunks stay below 250 kB.
-      chunkSizeWarningLimit: 600,
+      // Keep Three.js together: splitting its linked renderer internals creates cycles.
+      // The engine is loaded on demand, independently of the editorial interface.
+      chunkSizeWarningLimit: 1200,
       rolldownOptions: {
         output: {
           codeSplitting: {
             groups: [
-              { name: 'three-engine', test: /node_modules\/three\//, maxSize: 450000 },
+              { name: 'three-engine', test: /node_modules\/three\// },
               { name: 'geo-index', test: /node_modules\/h3-js\// },
-              { name: 'globe-layers', test: /node_modules\/(three-globe|three-render-objects|three-conic-polygon-geometry|three-geojson-geometry|three-slippy-map-globe)\//, maxSize: 350000 },
             ],
           },
         },
