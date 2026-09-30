@@ -44,36 +44,20 @@
 .globe-pin.context-label.active { border: 1px solid #d6ddab77; background: #142e3be8; }
 .globe-pin.water-label.active { font-size: 15px; }
 
-/* Country centers remain discoverable at every scale. */
-.globe-pin.country-marker,
-.globe-pin.country-marker.active {
-  width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
-  display: grid; place-items: center; background: transparent; box-shadow: none;
-  color: #fff; cursor: pointer; font-size: 12px; letter-spacing: .35px;
-}
-.country-dot {
-  display: block; width: 5px; height: 5px; border-radius: 50%; background: #fff;
-  box-shadow: 0 0 0 1px #183143b3, 0 1px 5px #000b;
-  transition: box-shadow .15s, transform .15s;
-}
-.country-marker-name {
-  position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);
-  padding: 2px 0; font: 500 12px/1.4 Arial, sans-serif; white-space: nowrap;
-  color: #fff; text-shadow: 0 1px 3px #000, 0 0 9px #071924;
+/* Country names belong to the land, with no permanent point markers. */
+.atlas-country-name {
+  border: 0; padding: 2px 3px; background: transparent; white-space: nowrap;
+  color: #263f39; font: 500 14px/1.35 Arial, sans-serif; letter-spacing: .25px;
+  text-shadow: 0 1px 3px #e9eddaaa, 0 0 6px #e9edda66;
   opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .22s ease, visibility .22s ease, color .15s;
 }
-.country-marker.show-country-name .country-marker-name { opacity: 1; visibility: visible; }
-.country-marker:hover .country-marker-name,
-.country-marker:focus-visible .country-marker-name {
-  opacity: 1; visibility: visible; padding: 7px 11px; border-radius: 6px;
-  background: #f6f8f2; color: #20352e; text-shadow: none;
-  box-shadow: 0 4px 18px #0005; font-size: 13px;
-}
-.country-marker:hover .country-dot,
-.country-marker:focus-visible .country-dot { transform: scale(1.3); box-shadow: 0 0 0 5px #ffffff26, 0 1px 5px #000b; }
-.country-marker.active .country-dot { box-shadow: 0 0 0 4px #dce8bf45, 0 1px 5px #000b; }
-.country-marker:focus-visible { outline: 2px solid #eef5dd; outline-offset: 2px; }
-.country-marker:hover, .country-marker:focus-visible { z-index: 1000 !important; }
+.atlas-country-name.is-visible { visibility: visible; pointer-events: auto; }
+.atlas-country-name.is-selected { color: #233d2d; font-weight: 600; }
+.atlas-country-name:hover { color: #112f25; }
+.atlas-country-name:focus-visible { outline: 2px solid #344f3d; outline-offset: 3px; border-radius: 3px; }
+.atlas-country-name:active { transform: none; }
+@media (prefers-reduced-motion: reduce) { .atlas-country-name { transition: none; } }
 .map-controls button:first-child { align-items: center; height: 37px; padding-top: 0; }
 .map-controls button:disabled { opacity: .35; }
 .map-caption { max-width: min(450px, calc(100% - 565px)); }
@@ -297,3 +281,67 @@
 }
 .focus-context { display: block; font-size: 12px; line-height: 1.7; color: #a6bdbb; margin-top: 8px; max-width: 345px; }
 @media (max-width: 800px) { .focus-context { display: none; } }
+
+/* Only a selected tiny country needs a callout over the surrounding sea. */
+.atlas-country-name.is-callout {
+  background: #f0f2e5; border-radius: 4px; padding: 5px 8px;
+  color: #233d2d; text-shadow: none; box-shadow: 0 2px 12px #061b2833;
+}
+.globe-pin.context-label {
+  color: #eef1e4; background: #17333bc9; border: 1px solid #edf0dc18;
+  box-shadow: 0 2px 12px #00131b18; text-shadow: none; font-size: 12px; letter-spacing: .35px;
+}
+.globe-pin.water-label { color: #d2e3e7; background: #15333b85; font-size: 15px; }
+
+.globe-render .float-tooltip-kap { padding: 0; background: transparent; border: 0; }
+
+/* Optional diagnostics: isolated from the globe's React render lifecycle. */
+.map-controls .performance-toggle { font: 600 10px Arial, sans-serif; letter-spacing: .2px; }
+.map-controls .performance-toggle[aria-pressed=true] { background: #ccdab8; color: #243d32; }
+.performance-monitor { position: fixed; z-index: 20; left: 24px; top: 114px; width: 252px; max-height: calc(100svh - 134px); overflow: auto; padding: 15px; border: 1px solid #58706b; border-radius: 10px; background: #10272bf5; color: #e7ede0; box-shadow: 0 8px 28px #0003; font: 11px/1.4 Arial, sans-serif; touch-action: auto; }
+.performance-heading { display: flex; justify-content: space-between; align-items: center; }
+.performance-heading strong { font-size: 12px; font-weight: 500; }
+.performance-heading button { border: 0; background: transparent; color: #adc3ba; padding: 3px; display: flex; }
+.performance-phase { color: #a6beb3; font-size: 10px; margin: 10px 0 5px; }
+.performance-fps { display: flex; gap: 7px; align-items: baseline; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.performance-fps > strong { font-size: 35px; font-weight: 500; line-height: 1.15; color: #dceabf; }
+.performance-fps.is-slow > strong { color: #f1bb8a; }
+.performance-fps > span { font-size: 10px; color: #aec1b3; }
+.performance-fps > small { width: 100%; color: #91ada2; font-size: 10px; margin-top: -4px; }
+.performance-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin: 14px 0; padding: 12px 0; border-block: 1px solid #ffffff12; }
+.performance-metrics dt { color: #a2b8ac; font-size: 10px; }
+.performance-metrics dd { font-size: 13px; margin: 3px 0 0; font-variant-numeric: tabular-nums; }
+.performance-budget, .performance-method { color: #91a99f; font-size: 10px; line-height: 1.5; margin: 8px 0; }
+.performance-actions { display: flex; gap: 7px; margin: 12px 0; }
+.performance-actions button { border: 1px solid #cbd6b944; background: #d4dfbf; color: #243c31; padding: 8px 10px; border-radius: 5px; font-size: 11px; }
+.performance-actions button:first-child { flex: 1; }
+.performance-actions button:last-child { display: grid; place-items: center; background: transparent; color: #d4dfbf; }
+.performance-detail { color: #b4c7bd; font: 10px/1.65 Arial, sans-serif; margin: 0; font-variant-numeric: tabular-nums; }
+.performance-method { margin-bottom: 0; }
+@media (max-width: 800px) { .performance-monitor { top: 77px; left: 14px; width: 232px; padding: 12px; max-height: calc(100svh - 94px); } }
+.performance-comparison { border-top: 1px solid #ffffff12; padding: 9px 0; margin-top: 10px; color: #afc5b9; font-size: 10px; }
+.performance-comparison summary { cursor: pointer; }
+.performance-comparison label { display: block; margin-top: 9px; }
+.performance-comparison select { display: block; width: 100%; margin-top: 4px; padding: 6px; border: 1px solid #6b807455; border-radius: 4px; background: #132c31; color: #e7ede0; font: 11px Arial, sans-serif; }
+.performance-comparison p { line-height: 1.5; margin: 8px 0 0; }
+.performance-manual { width: 100%; margin-top: 7px; padding: 7px; border: 1px solid #ffffff24; border-radius: 5px; background: transparent; color: #c8d8cb; font: 10px Arial, sans-serif; }
+.performance-manual:disabled { opacity: .45; }
+.performance-comparison .performance-label-toggle { display: flex; align-items: center; gap: 6px; }
+.performance-label-toggle input { accent-color: #cbd5b7; }
+.globe-render[data-basemap=texture] .atlas-country-name { color: #f0f3e9; text-shadow: 0 1px 3px #071923, 0 0 6px #071923d9; }
+.globe-render[data-basemap=texture] .atlas-country-name:hover { color: #fff7cd; }
+.globe-render[data-basemap=texture] .atlas-country-name:focus-visible { outline-color: #eef2d3; }
+.globe-render[data-basemap=texture] .atlas-country-name.is-selected { color: #fff4c4; }
+.globe-render[data-basemap=texture] .atlas-country-name.is-callout { color: #24392c; text-shadow: none; }
+.texture-tooltip { position: absolute; z-index: 2; pointer-events: none; white-space: nowrap; }
+
+.language-toggle { white-space: nowrap; border: 1px solid #b7b6a980; border-radius: 20px; padding: 7px 12px; }
+.reference-population { margin: 20px 0; padding: 16px 0; border-top: 1px solid var(--line, #d5d7cc); border-bottom: 1px solid var(--line, #d5d7cc); display: grid; gap: 7px; }
+.reference-population > span { font-size: 11px; letter-spacing: .08em; color: #687469; }
+.reference-population > strong { font-size: 25px; font-weight: 500; }
+.reference-population > small { color: #687469; font-size: 11px; line-height: 1.7; }
+.learning-prompts { margin: 28px 0; }
+html[lang="zh-CN"] .country-title { letter-spacing: 0; font-size: 36px; }
+html[lang="zh-CN"] .discovery h1 { font-size: clamp(42px, 4.2vw, 64px); line-height: 1.2; }
+html[lang="zh-CN"] .topic-heading { letter-spacing: 0; line-height: 1.45; }
+@media (max-width: 640px) { .language-toggle { display: inline-flex !important; font-size: 11px; padding: 6px 8px; } .topbar .header-actions { gap: 5px; } }

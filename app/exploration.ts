@@ -1,4 +1,7 @@
 import { countries, type Country, type Place } from './data';
+import { chineseProfiles } from './chinese-content';
+import { topicLabel } from './localized-content';
+import { countryBasics, countryName, regionName, type Locale } from './locale-data';
 import mapIndex from './country-index.json';
 
 export type Destination = { countryId: string; topicId?: string; trailId?: string };
@@ -130,18 +133,18 @@ export function linkedCountry(place: Place) { return countries.find(country => c
 const aliases: Record<string, string> = { SGP: '新加坡 rich wealthy wealth port shipping 华人 富有 航运', CHN: '中国 china manufacturing 工厂 制造', USA: '美国 usa america us dollar 美元', JPN: '日本 japan aging aged ageing old 老龄化', TUR: '土耳其 türkiye turkey strait 海峡', BRA: '巴西 brasil brazil rainforest amazon 亚马逊', FRA: '法国 france french', IND: '印度 india monsoon 季风', MYS: '马来西亚 malaysia chips semiconductors', IDN: '印尼 印度尼西亚 indonesia islands' };
 const stopWords = new Set(['why', 'how', 'what', 'does', 'did', 'is', 'a', 'an', 'the', 'so', 'of', 'in', 'to', 'are', 'do', 'can', 'become', 'it']);
 export type SearchResult = { destination: Destination; title: string; subtitle: string; kind: 'story' | 'country' | 'map'; score: number };
-export function searchAtlas(query: string, countryId?: string): SearchResult[] {
+export function searchAtlas(query: string, countryId?: string, locale: Locale = 'en'): SearchResult[] {
   const tokens = query.toLowerCase().replace(/[?？.,!]/g, '').split(/\s+/).filter(t => t && !stopWords.has(t));
   const match = (value: string) => tokens.reduce((score, token) => score + (value.toLowerCase().includes(token) ? 1 : 0), 0);
   if (!tokens.length) return [];
   const results: SearchResult[] = [];
   for (const country of directory) {
     const profile = getCountry(country.id);
-    const countryScore = match(`${country.name} ${country.id} ${aliases[country.id] ?? ''}`);
-    if (countryScore) results.push({ destination: { countryId: country.id }, title: country.name, subtitle: `${country.region} · ${profile ? 'Country story' : 'Locate on the globe'}`, kind: profile ? 'country' : 'map', score: countryScore * 4 });
+    const countryScore = match(`${country.name} ${countryBasics[country.id]?.nameZh ?? ''} ${country.id} ${aliases[country.id] ?? ''}`);
+    if (countryScore) results.push({ destination: { countryId: country.id }, title: countryName(country.id, country.name, locale), subtitle: `${regionName(country.region, locale)} · ${locale === 'zh' ? profile ? '编辑概览' : '基础概览' : profile ? 'Country story' : 'Basic overview'}`, kind: profile ? 'country' : 'map', score: countryScore * 4 });
     profile?.topics.forEach((topic, index) => {
-      const topicScore = match(`${topic.title} ${topic.category} ${topic.intro} ${topic.sections.map(s => s.text).join(' ')}`);
-      if (topicScore || countryScore) results.push({ destination: topicDestination(profile, index), title: topic.title, subtitle: `${profile.name} · ${topic.category}`, kind: 'story', score: topicScore * 3 + countryScore + (country.id === countryId ? 2 : 0) });
+      const topicScore = match(`${chineseProfiles[country.id]?.topics[index]?.join(' ') ?? ''} ${topic.title} ${topic.category} ${topic.intro} ${topic.sections.map(s => s.text).join(' ')}`);
+      if (topicScore || countryScore) results.push({ destination: topicDestination(profile, index), title: topicLabel(profile, topic, locale), subtitle: `${countryName(country.id, profile.name, locale)} · ${locale === 'zh' ? '编辑问题' : topic.category}`, kind: 'story', score: topicScore * 3 + countryScore + (country.id === countryId ? 2 : 0) });
     });
   }
   return results.sort((a, b) => b.score - a.score).slice(0, 16);

@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocale, countryName } from './locale';
+import { topicLabel } from './localized-content';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { destinationKey, destinationUrl, directory, getCountry, getTopic, readDestination, validDestination, type Destination } from './exploration';
 
@@ -44,6 +46,7 @@ const emptySnapshot = () => '';
 const locationSnapshot = () => window.location.search;
 
 export function useAtlas() {
+  const { locale } = useLocale();
   const search = useSyncExternalStore(subscribeLocation, locationSnapshot, emptySnapshot);
   const saved = useSyncExternalStore(subscribeLibrary, snapshot, emptySnapshot);
   const destination = readDestination(search);
@@ -59,10 +62,14 @@ export function useAtlas() {
   useEffect(() => {
     const current = readDestination(search);
     if (current) updateLibrary(library => ({ ...library, recent: [current, ...library.recent.filter(item => destinationKey(item) !== destinationKey(current))].slice(0, 20) }));
-    const country = getCountry(current?.countryId);
-    const topic = getTopic(current);
-    document.title = topic ? `${topic.title} | Elsewhere` : current ? `${country?.name ?? directory.find(item => item.id === current.countryId)?.name} | Elsewhere` : 'Elsewhere | A wider world';
   }, [search]);
+  useEffect(() => {
+    const current = readDestination(search);
+    const country = getCountry(current?.countryId);
+    const entry = directory.find(item => item.id === current?.countryId);
+    const topic = getTopic(current);
+    document.title = topic && country ? `${topicLabel(country, topic, locale)} | Elsewhere` : entry ? `${countryName(entry.id, entry.name, locale)} | Elsewhere` : 'Elsewhere | A wider world';
+  }, [search, locale]);
   const toggleSave = useCallback((item: Destination) => {
     updateLibrary(library => {
       const exists = library.saved.some(saved => destinationKey(saved) === destinationKey(item));
