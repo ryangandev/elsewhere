@@ -8,12 +8,17 @@
 // - regions: islands, ranges, plains, deserts and other physical regions (scalerank <= 3)
 // - places: major populated places (scalerank <= 2) and every national capital
 // - data/geo/gazetteer-overrides.json: extra Natural Earth features by ne_id, English renames,
-//   and the few features Natural Earth lacks, anchored to Natural Earth geometry rather than
-//   typed coordinates
+//   extra passages, canals from the river and lake centerlines, and the few features Natural
+//   Earth lacks, anchored to Natural Earth geometry rather than typed coordinates
+//
+// Straits, channels, canals and the passages listed in the overrides get a passage path that
+// sea routes follow (see passage-paths.mjs). The script reports passages without a way through
+// and passage paths that cross land the globe draws.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { geoArea, geoContains } from 'd3-geo';
 import mapshaper from 'mapshaper';
 import { createLandIndex, distanceKm } from '../src/content/geometry.ts';
+import { joinLines, midpoint, simplifyLine, waterPath } from './passage-paths.mjs';
 import {
   readDataset,
   round,
@@ -149,18 +154,23 @@ function seaPoint(source, [lng, lat]) {
 }
 
 const PASSAGE_CLASSES = new Set(['strait', 'channel']);
+/** Other marine features that sea routes pass through end to end, such as the Gulf of Suez. */
+const passageOverrides = new Map(overrides.passages.map((passage) => [passage.neId, passage]));
 // Bands per unit of length-to-width ratio: narrow, winding straits get more points.
 const PASSAGE_BANDS_PER_RATIO = 2.5;
 const PASSAGE_MIN_BANDS = 3;
 const PASSAGE_MAX_BANDS = 12;
+/** How far outside its loosely drawn polygon a passage path may use open water. */
+const PASSAGE_MARGIN_KM = 30;
+/** Canal centerlines are simplified to within this distance. */
+const CANAL_TOLERANCE_KM = 0.5;
 
 /**
- * Straits and channels are long and narrow, so their label point (the widest spot) is a poor
- * route waypoint. Give them a passage path instead: interior points along the feature's long
- * axis, found by slicing the polygon into bands across its principal axis and taking the
- * interior point of each band. A route through the strait follows this path.
+ * The two ends of a strait or channel: interior points at either end of the feature's long axis,
+ * found by slicing the polygon into bands across its principal axis and taking the interior point
+ * of the first and last band.
  */
-async function passagePath(feature) {
+async function passageEnds(feature) {
   const ring =
     feature.geometry.type === 'Polygon'
       ? feature.geometry.coordinates[0]
@@ -226,7 +236,44 @@ async function passagePath(feature) {
   // Moving a point off simplified land can reorder neighbours; keep the path in axis order.
   const position = ([lat, lng]) => (lng - lng0) * scale * axis[0] + (lat - lat0) * axis[1];
   path.sort((a, b) => position(a) - position(b));
-  return path.length >= 2 ? path : undefined;
+  return path.length >= 2 ? [path[0], path.at(-1)] : undefined;
+}
+
+const landPolygons = land.features.flatMap((feature) =>
+  feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates,
+);
+const polygonsOf = (feature) =>
+  feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+/** Passages whose path crosses land the globe draws, with the length on land, for the report. */
+const closedPassages = [];
+/** Straits and channels with no way through their water, so no passage path. */
+const pathless = [];
+
+/**
+ * Straits and channels are long and narrow, so their label point (the widest spot) is a poor
+ * route waypoint. Give them a passage path instead: the way through the water from one end to
+ * the other (see passage-paths.mjs). A route through the strait follows this path.
+ */
+async function passagePath(name, feature, ends) {
+  const settleEnds = !ends;
+  ends ??= await passageEnds(feature);
+  if (!ends) return undefined;
+  const result = waterPath({
+    polygons: polygonsOf(feature),
+    start: ends[0],
+    end: ends[1],
+    land: landIndex,
+    landPolygons,
+    marginKm: PASSAGE_MARGIN_KM,
+    settleEnds,
+  });
+  if (!result) {
+    pathless.push(name);
+    return undefined;
+  }
+  const { path, landKm } = result;
+  if (landKm > 0) closedPassages.push(`${name} (${Math.round(landKm)} km)`);
+  return path.map(([lat, lng]) => [round(lat), round(lng)]);
 }
 
 const entries = [];
@@ -297,9 +344,14 @@ for (const country of countries) {
       continue;
     }
     const [lng, lat] = point;
-    const path = PASSAGE_CLASSES.has(feature.properties.featurecla)
-      ? await passagePath(feature)
-      : undefined;
+    const isPassage =
+      PASSAGE_CLASSES.has(feature.properties.featurecla) ||
+      passageOverrides.has(feature.properties.ne_id);
+    // Passages that end where they meet named water bodies get their path once those are added.
+    const path =
+      isPassage && !passageOverrides.get(feature.properties.ne_id)?.between
+        ? await passagePath(names[index], feature)
+        : undefined;
     add({
       name: names[index],
       kind: 'water',
@@ -311,6 +363,23 @@ for (const country of countries) {
       neId: feature.properties.ne_id,
     });
   }
+}
+
+// Passages whose ends are where they meet two named water bodies, such as the Northwest Passage
+// between Baffin Bay and the Amundsen Gulf; Natural Earth's archipelago polygon has no single
+// long axis to find them by.
+for (const { neId, name, between } of overrides.passages) {
+  if (!between) continue;
+  const entry = entries.find((candidate) => candidate.source === 'marine' && candidate.neId === neId);
+  if (!entry) throw new Error(`Override passage not found: ${neId} (${name})`);
+  const feature = datasets.marine.features.find((f) => f.properties.ne_id === neId);
+  const ends = between.map((placeId) => {
+    const middle = sharedBoundaryMiddle(feature, marineFeature(placeId));
+    if (!middle) throw new Error(`Override passage ${name}: does not meet ${placeId}`);
+    return [middle[1], middle[0]];
+  });
+  const path = await passagePath(entry.name, feature, ends);
+  if (path) entry.path = path;
 }
 
 // Major rivers: one entry per river, labelled at the middle vertex of its longest line.
@@ -357,6 +426,32 @@ for (const country of countries) {
       neId: properties.ne_id,
     });
   }
+}
+
+// Canals listed in the overrides. Natural Earth draws them as river and lake centerlines; the
+// joined centerline is the canal's passage path, and its label point is halfway along it.
+for (const canal of overrides.canals) {
+  const lines = datasets.rivers.features
+    .filter((feature) => englishName(feature.properties) === canal.name)
+    .flatMap((feature) =>
+      feature.geometry.type === 'LineString'
+        ? [feature.geometry.coordinates]
+        : feature.geometry.coordinates,
+    );
+  if (!lines.length) throw new Error(`Override canal not found: ${canal.name}`);
+  const centerline = joinLines(lines);
+  const path = simplifyLine(centerline, CANAL_TOLERANCE_KM);
+  const [lat, lng] = midpoint(centerline);
+  add({
+    name: canal.name,
+    kind: 'water',
+    surface: landIndex.isLand([round(lat), round(lng)]) ? 'land' : 'sea',
+    lat,
+    lng,
+    path: path.map(([pointLat, pointLng]) => [round(pointLat), round(pointLng)]),
+    source: 'rivers',
+  });
+  if (!byId.has(slugify(canal.name))) throw new Error(`Override canal shadowed: ${canal.name}`);
 }
 
 // Physical regions: islands, peninsulas, ranges, plains, deserts, basins.
@@ -430,17 +525,105 @@ for (const country of countries) {
 for (const key of renames.keys()) {
   if (!renamesUsed.has(key)) throw new Error(`Override rename not used: ${key}`);
 }
+for (const { neId, name } of overrides.passages) {
+  if (!entries.some((entry) => entry.source === 'marine' && entry.neId === neId && entry.path)) {
+    throw new Error(`Override passage not found or without a path: ${neId} (${name})`);
+  }
+}
 for (const { dataset, neId, name } of overrides.include) {
   if (!entries.some((entry) => entry.source === dataset && entry.neId === neId)) {
     throw new Error(`Override include not found or shadowed: ${dataset} ${neId} (${name})`);
   }
 }
 
+/** The Natural Earth marine polygon behind a gazetteer water body. */
+function marineFeature(placeId) {
+  const place = byId.get(placeId);
+  const feature =
+    place?.source === 'marine' &&
+    datasets.marine.features.find((f) => f.properties.ne_id === place.neId);
+  if (!feature) throw new Error(`No marine polygon for gazetteer place ${placeId}`);
+  return feature;
+}
+
+/**
+ * Where two Natural Earth marine polygons meet: the middle of the line between the two farthest
+ * apart of their shared vertices, as [lng, lat]. Null when they share fewer than two vertices.
+ */
+function sharedBoundaryMiddle(a, b) {
+  const vertices = (feature) => polygonsOf(feature).flatMap((rings) => rings.flat());
+  const other = new Set(vertices(b).map(([lng, lat]) => `${lng},${lat}`));
+  const shared = vertices(a).filter(([lng, lat]) => other.has(`${lng},${lat}`));
+  let line;
+  for (const p of shared) {
+    for (const q of shared) {
+      const length = distanceKm([p[1], p[0]], [q[1], q[0]]);
+      if (!line || length > line.length) line = { p, q, length };
+    }
+  }
+  return line?.length ? [(line.p[0] + line.q[0]) / 2, (line.p[1] + line.q[1]) / 2] : null;
+}
+
+/** A polygon approximating a circle of `radiusKm` around [lng, lat], counter-clockwise. */
+function circlePolygon([lng, lat], radiusKm, sides = 72) {
+  const dLat = radiusKm / 111.195;
+  const dLng = dLat / Math.cos((lat * Math.PI) / 180);
+  const ring = Array.from({ length: sides + 1 }, (_, index) => {
+    const angle = (2 * Math.PI * (index % sides)) / sides;
+    return [lng + dLng * Math.cos(angle), lat + dLat * Math.sin(angle)];
+  });
+  return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } };
+}
+
+/**
+ * A strait Natural Earth draws only as the line where two marine polygons meet (the Strait of
+ * Hormuz between the Persian Gulf and the Gulf of Oman). The label point is the middle of the
+ * shared boundary; the passage runs from the part of one water body within `radiusKm` of it to
+ * the part of the other.
+ */
+async function junctionPassage(name, { placeIds, radiusKm }) {
+  const features = placeIds.map(marineFeature);
+  const middle = sharedBoundaryMiddle(features[0], features[1]);
+  if (!middle) throw new Error(`${name}: ${placeIds.join(' and ')} do not meet`);
+  const union = {
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'MultiPolygon', coordinates: features.flatMap(polygonsOf) },
+  };
+  const point = seaPoint(union, middle);
+  if (!point) throw new Error(`${name}: no sea point where ${placeIds.join(' and ')} meet`);
+
+  const circle = JSON.stringify({
+    type: 'FeatureCollection',
+    features: [circlePolygon(middle, radiusKm)],
+  });
+  const ends = [];
+  for (const feature of features) {
+    const output = await mapshaper.applyCommands(
+      '-i water.geojson -clip circle.geojson -points inner -o out.geojson',
+      {
+        'water.geojson': JSON.stringify({ type: 'FeatureCollection', features: [feature] }),
+        'circle.geojson': circle,
+      },
+    );
+    const inner = JSON.parse(output['out.geojson'].toString()).features?.[0]?.geometry?.coordinates;
+    const end = inner && seaPoint(feature, inner);
+    if (!end) throw new Error(`${name}: no sea point in ${feature.properties.name}`);
+    ends.push([end[1], end[0]]);
+  }
+  const path = await passagePath(name, union, ends);
+  if (!path) throw new Error(`${name}: no way through`);
+  return { point, path };
+}
+
 // Features Natural Earth lacks. Each is anchored to Natural Earth geometry, never typed coordinates.
 for (const feature of overrides.features) {
   const { anchor } = feature;
   let point;
-  if (anchor.type === 'place') {
+  let path;
+  if (anchor.type === 'junction') {
+    ({ point, path } = await junctionPassage(feature.name, anchor));
+  } else if (anchor.type === 'place') {
     const target = byId.get(anchor.placeId);
     if (!target) throw new Error(`Override ${feature.id}: unknown anchor place ${anchor.placeId}`);
     point = [target.lng, target.lat];
@@ -474,6 +657,7 @@ for (const feature of overrides.features) {
     surface: feature.surface ?? 'land',
     lat: round(point[1]),
     lng: round(point[0]),
+    ...(path ? { path } : {}),
     source: 'override',
   };
   entries.push(entry);
@@ -491,7 +675,7 @@ updateSourcesManifest('gazetteer', {
   datasets: Object.fromEntries(Object.keys(datasets).map((name) => [name, sourceRecord(name)])),
   filters: {
     marine: 'all named features except river mouths',
-    rivers: `featurecla River, scalerank <= ${RIVER_MAX_SCALERANK}`,
+    rivers: `featurecla River, scalerank <= ${RIVER_MAX_SCALERANK}; canals named in gazetteer-overrides.json`,
     regions: `scalerank <= ${REGION_MAX_SCALERANK}`,
     places: `scalerank <= ${PLACE_MAX_SCALERANK}, or a national capital`,
     admin1: 'only features listed in gazetteer-overrides.json',
@@ -509,5 +693,11 @@ console.log(`${OUTPUT}: ${entries.length} features`, counts);
 if (dropped.length)
   console.log(
     `Dropped ${dropped.length} water bodies with no sea label point: ${dropped.join(', ')}`,
+  );
+if (pathless.length)
+  console.log(`No passage path through ${pathless.length} straits: ${pathless.join(', ')}`);
+if (closedPassages.length)
+  console.log(
+    `Passage paths across land the globe draws closed: ${closedPassages.join(', ')}`,
   );
 if (skipped.length) console.log(`Skipped ${skipped.length} duplicate names: ${skipped.join(', ')}`);

@@ -239,17 +239,25 @@ Geo data in `data/geo/` is generated from Natural Earth 10m datasets, which are 
 - `countries.json` (`npm run maps:countries`) holds all 258 map identities: ID, slug, English name, region, population and label anchor.
 - `gazetteer.json` (`npm run maps:gazetteer`) holds about 1,250 named places (37 KB gzipped): every country, named seas and straits, major rivers, physical regions, and major cities and capitals.
   IDs are slugs of the English name; when two kinds share a name, the lower-priority one gets a suffix, so `singapore` is the country and `singapore-city` the city.
-- `gazetteer-overrides.json` is the only hand-maintained input: a short list of extra Natural Earth features to include, renames to common English names, and the few features Natural Earth lacks.
+- `gazetteer-overrides.json` is the only hand-maintained input: a short list of extra Natural Earth features to include, renames to common English names, extra passages, canals, and the few features Natural Earth lacks.
   Added features are anchored to Natural Earth geometry, never to typed coordinates, and every entry gives a reason.
+  The Suez and Panama canals come from Natural Earth's river and lake centerlines, which have no marine polygon for them.
+  The Strait of Hormuz, which Natural Earth draws only as the line where the Persian Gulf and Gulf of Oman polygons meet, is labelled at the middle of that line.
 
 Sea routes are checked against `public/maps/countries-detail.geojson`, the detailed geometry the globe draws; the base geometry's coarser coastlines close narrow straits such as the Bosporus.
 
 - Every sea place has a label point that is at sea in that geometry.
   A water body whose polygon is entirely covered by simplified land is dropped (currently only the Luzon Strait).
-- Straits and channels also get a passage `path` along their long axis.
-  A route through a strait follows the path, because a single label point inside a winding strait forces the line across a shore.
+- Straits, channels, canals and a few listed gulfs (the Gulf of Suez, the Gulf of Saint Lawrence) are passages: they get a passage `path`, and a route through one follows it end to end, because a single label point inside a winding strait forces the line across a shore.
+- A strait's path is traced by `scripts/passage-paths.mjs`: the cheapest way through its water on a grid of 0.5 to 4 km cells, from one end of its long axis to the other, preferring cells far from shore so the path keeps to mid-channel, then simplified without adding land.
+  Natural Earth's marine polygons are drawn loosely (some straits are only slivers along each shore), so the path may use open water up to 30 km outside the polygon, and each end moves to open water nearby.
+  Where the axis does not reach the real entrances (the Northwest Passage archipelago, the bending Strait of Magellan), the overrides set the ends where the polygon meets two named water bodies.
+  A canal's path is its centerline.
 - A route is sampled along great circles every 2 km.
   Land within 50 km of a land waypoint (a port) is allowed, and crossings of 15 km or less are ignored, so small islands do not fail a route.
+- Segments between points of one passage path are not sampled: the build traced them through the passage's water.
+  Marine passages stay off the globe's land (a test checks every one), canals cross the land they cut through, and the build prints any other passage that crosses land the geometry closes (only about 1 km of the Saint Lawrence River).
+  The legs into and out of a passage are checked like every other segment, so a route that skips a passage still fails.
 
 What can go wrong:
 
@@ -257,8 +265,9 @@ What can go wrong:
   This is why places come from the gazetteer and routes are checked against land polygons.
 - Ocean label points sit in the middle of the ocean, far from most scenes.
   Prefer the nearest marginal sea (the Philippine Sea rather than the Pacific) when a story means the water off a coast.
-- The gazetteer has no canals (Suez, Panama) and no Strait of Hormuz, and the passage paths of Bab-el-Mandeb, the Bristol Channel, Hudson Strait, the Northwest Passage, the Saint Lawrence River and the Strait of Magellan cross land in the detailed geometry.
-  A sea route through any of them fails the land check, so drafts draw a sea route to each side and join them with a short `flow` route until the gazetteer is fixed.
+- Gazetteer label points are only as good as the named places near a coast: the gazetteer has no Celtic Sea, Cabot Strait or minor ports, so some realistic routes need a passage or port the gazetteer lacks and fail the land check.
+  Add the Natural Earth feature through the overrides rather than drawing a `flow` route.
+- Natural Earth has no polygon for the Drake Passage (only slivers along its shores), so it has a label point and no passage path.
 - A URL that resolves does not prove it supports the claim.
   Review remains necessary; the pipeline only removes mechanical errors.
 - A source can be live and still not say what the text claims; there is no automatic claim check yet.
