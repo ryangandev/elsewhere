@@ -119,6 +119,7 @@ export function createGlobeEngine(options: EngineOptions) {
       container,
       features: geography.features,
       unproject: surfacePoint,
+      countryAt: (point) => geography.countryAt(point)?.properties.ADM0_A3,
       bounds: container.getBoundingClientRect(),
       occluders,
     });

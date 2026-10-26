@@ -42,6 +42,8 @@ export type LabelLayoutContext = {
   container: HTMLElement;
   features: ReadonlyMap<string, CountryFeature>;
   unproject: (x: number, y: number) => { lat: number; lng: number } | null;
+  // The id of the country whose land is at a point; undefined at sea.
+  countryAt: (point: { lat: number; lng: number }) => string | undefined;
   bounds: DOMRect;
   occluders: Iterable<Element>;
 };
@@ -309,7 +311,15 @@ export function createLabelLayer(
     },
 
     // Returns true when a country name moved and the HTML layer must re-read the datums.
-    layout({ globe, container, features, unproject, bounds, occluders }: LabelLayoutContext) {
+    layout({
+      globe,
+      container,
+      features,
+      unproject,
+      countryAt,
+      bounds,
+      occluders,
+    }: LabelLayoutContext) {
       if (!measureHost) {
         measureHost = document.createElement('div');
         measureHost.className = 'globe-label-measure';
@@ -328,7 +338,7 @@ export function createLabelLayer(
         bottom: bounds.height - 12,
       };
       return arrangeLabels({
-        view: createLabelView(globe, unproject, frame),
+        view: createLabelView(globe, unproject, countryAt, frame),
         countries: countryLabels,
         places: [...contextLabels.values()],
         selectedId,
