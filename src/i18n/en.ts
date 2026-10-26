@@ -14,6 +14,8 @@ export const en = {
     atlasLabel: 'Open your atlas',
     search: 'Ask a question',
     searchLabel: 'Ask a question or find a country',
+    shortcutApple: '⌘ K',
+    shortcutOther: 'Ctrl K',
   },
   home: {
     eyebrow: 'A QUESTION-FIRST ATLAS',

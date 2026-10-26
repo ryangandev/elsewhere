@@ -428,6 +428,7 @@ The question input:
 
 - The home page leads with one question input ("What are you curious about?") over the globe, a few suggested starting questions below it, and a quieter "continue" line and trail link under those.
   The header search (Cmd/Ctrl K) opens the same component, `QuestionSearch` in `src/ui/search/`, so both rank, group and render results identically.
+  Its shortcut label reads ⌘ K on Apple platforms and Ctrl K elsewhere; pages are prerendered without knowing the platform, so `useApplePlatform` decides after hydration and both labels share one cell, keeping the button's width stable.
 - Results appear as the reader types, from the atlas index, which loads when the input first gets focus.
   Arrow keys move through them, and Enter opens the highlighted result, which starts at the top result for each query.
 - `src/domain/search.ts` scores countries (names and native names), map identities, and questions (text, category, summary, keywords).

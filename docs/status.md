@@ -50,4 +50,3 @@ Fix these where the migration touches them, or explicitly drop them with the cod
 - Search is lexical: prefix matching, TF-IDF keywords and a short synonym list.
   A question phrased with none of a story's words ("What makes Singapore wealthy?" works, "Why is Singapore loaded?" does not) is reported as unanswered; revisit with embeddings or pipeline-generated paraphrases once the question bank grows.
 - Same-country next questions carry no `reason` in content, so the story shows only "Deeper in <country>" for them; the pipeline could write one.
-- The header search shows the Mac shortcut (⌘K) on every platform; Ctrl K works but is not labelled.

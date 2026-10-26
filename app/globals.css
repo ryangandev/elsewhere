@@ -162,6 +162,7 @@ button:disabled {
   border-color: #ffffff38;
 }
 .search-trigger kbd {
+  display: inline-grid;
   margin-left: auto;
   font-family: inherit;
   font-size: 11px;
@@ -169,6 +170,16 @@ button:disabled {
   border-radius: 4px;
   padding: 2px 5px;
   color: #83949f;
+}
+/* Both platform labels share one cell; only the reader's shows, once it is known. */
+.search-trigger kbd > span {
+  grid-area: 1 / 1;
+  text-align: center;
+  visibility: hidden;
+}
+.search-trigger kbd[data-platform='apple'] > span:first-child,
+.search-trigger kbd[data-platform='other'] > span:last-child {
+  visibility: visible;
 }
 .globe-area {
   position: absolute;
