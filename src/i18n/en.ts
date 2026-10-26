@@ -53,8 +53,6 @@ export const en = {
     resetHint: 'Return to this view',
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
-    frameRate: 'Show frame rate checker',
-    frameRateHint: 'Check globe frame rate',
   },
   footer: {
     ready: 'ONE PLANET. MANY PERSPECTIVES.',
@@ -86,7 +84,7 @@ export const en = {
     privacy:
       'Your atlas and recent explorations stay in this browser. No account is needed, and these choices are not sent to a server.',
     credits:
-      'Vector boundaries: Natural Earth. Terrain shading: NASA Earth Observatory / GEBCO. Sources and further reading accompany the stories. Boundaries are generalized for exploration and do not express a political position. Map routes are illustrative.',
+      'Boundaries: Natural Earth. Globe imagery: NASA Blue Marble. Sources and further reading accompany the stories. Boundaries are generalized for exploration and do not express a political position. Map routes are illustrative.',
   },
   share: {
     title: 'A little curiosity, shared.',

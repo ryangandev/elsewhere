@@ -7,7 +7,8 @@ Delete items when they are resolved; history lives in git.
 
 The code is the prototype "second edition": ten hand-edited countries, thirty questions, three trails, and a 4K globe with progressive labels.
 The platform workstream (migration steps 1 and 2) moved it to Next.js with path routes, a persistent globe in the root layout, an English-only message catalog, Prettier, Vitest, and CI.
-Until the other workstreams are integrated, the prototype data lives in `src/content/legacy/`, and `app/Globe.tsx`, `app/PerformanceMonitor.tsx`, and `app/globe/` stay in place; `src/ui/shell/GlobeStage.tsx` is the only UI file that imports `Globe.tsx`.
+The globe workstream (step 4) replaced the prototype globe with the `MapScene`-driven controller in `src/globe/`.
+Until the content workstream is integrated, the prototype data lives in `src/content/legacy/`, and `src/domain/legacy-scene.ts` builds globe scenes from it.
 Product direction and target architecture were settled on 2026-10-26; see [product.md](product.md) and [architecture.md](architecture.md).
 Migration is in progress.
 Steps 1 to 4 run as parallel workstreams (platform, content schema, globe controller) and are integrated afterwards.

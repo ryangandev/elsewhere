@@ -41,9 +41,6 @@ export type AtlasState = LibraryState & {
   setGlobeStatus: (status: GlobeStatus) => void;
   globeCommand: GlobeCommand;
   commandGlobe: (type: GlobeCommand['type']) => void;
-  performanceVisible: boolean;
-  togglePerformance: () => void;
-  closePerformance: () => void;
 
   dialog: DialogName | null;
   openDialog: (dialog: DialogName | null) => void;
@@ -88,7 +85,6 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
 
   const [globeStatus, setGlobeStatus] = useState<GlobeStatus>('loading');
   const [globeCommand, setGlobeCommand] = useState<GlobeCommand>({ type: 'reset', seq: 0 });
-  const [performanceVisible, setPerformanceVisible] = useState(false);
   const [dialog, setDialog] = useState<DialogName | null>(null);
   const [shareUrl, setShareUrl] = useState('');
 
@@ -118,8 +114,6 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
     if (type === 'reset') setFocusState(null);
     setGlobeCommand((current) => ({ type, seq: current.seq + 1 }));
   }, []);
-  const togglePerformance = useCallback(() => setPerformanceVisible((visible) => !visible), []);
-  const closePerformance = useCallback(() => setPerformanceVisible(false), []);
 
   const share = useCallback(async () => {
     const url = window.location.href;
@@ -179,9 +173,6 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
     setGlobeStatus,
     globeCommand,
     commandGlobe,
-    performanceVisible,
-    togglePerformance,
-    closePerformance,
     dialog,
     openDialog: setDialog,
     shareUrl,

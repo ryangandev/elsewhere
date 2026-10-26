@@ -8,16 +8,6 @@ next-env.d.ts
 # Prototype data, replaced by the content schema (migration step 3).
 src/content/legacy
 
-# Rewritten by the globe controller (migration step 4).
-app/Globe.tsx
-app/PerformanceMonitor.tsx
-app/globe
-tests/cartography.test.ts
-tests/country-lookup.test.ts
-tests/fills.test.ts
-tests/frame-stats.test.ts
-tests/projection.test.ts
-
 # Map data scripts, owned by the content pipeline (migration step 3 and 5).
 scripts
 
@@ -26,3 +16,4 @@ scripts
 
 # Third-party stylesheet, kept as published.
 vendor
+.claude

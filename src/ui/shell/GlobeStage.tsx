@@ -1,15 +1,21 @@
 'use client';
 
-import dynamic from 'next/dynamic';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { directory } from '@/domain/catalog';
+import { contextPlaces, countryLabels, legacyScene } from '@/domain/legacy-scene';
+import GlobeView, { type GlobeViewHandle } from '@/globe/GlobeView';
 import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 
-// The globe touches `window` and WebGL, so it is only ever created in the browser.
-// This component lives in the root layout, so the globe is created once per visit.
-// TODO(globe controller): the globe moves to src/globe and drops the frame-rate monitor props.
-const GlobeView = dynamic(() => import('../../../app/Globe'), { ssr: false });
+// Page chrome that country and place labels must not cover.
+const OCCLUDERS =
+  '.country-panel, .topbar, .map-controls, .map-caption, .map-breadcrumb, .discovery';
+const occluders = () => document.querySelectorAll(OCCLUDERS);
 
+/**
+ * Lives in the root layout, so the globe controller is created once per visit.
+ * GlobeView loads globe.gl only in the browser.
+ */
 export function GlobeStage() {
   const {
     country,
@@ -21,28 +27,46 @@ export function GlobeStage() {
     globeCommand,
     globeStatus,
     setGlobeStatus,
-    performanceVisible,
-    closePerformance,
   } = useAtlas();
+  const globe = useRef<GlobeViewHandle>(null);
 
-  const select = (id: string) => {
-    if (directory.some((item) => item.id === id)) go({ countryId: id });
-  };
+  const scene = useMemo(
+    () => legacyScene(country, profile, topic, focus),
+    [country, profile, topic, focus],
+  );
+
+  const select = useCallback(
+    (id: string) => {
+      if (directory.some((item) => item.id === id)) go({ countryId: id });
+    },
+    [go],
+  );
+
+  const focusById = useCallback(
+    (id: string) => {
+      const place =
+        contextPlaces(country, profile, topic).find((item) => item.name === id) ??
+        (focus?.name === id ? focus : undefined);
+      if (place) focusPlace(place);
+    },
+    [country, profile, topic, focus, focusPlace],
+  );
+
+  useEffect(() => {
+    if (globeCommand.seq) globe.current?.zoom(globeCommand.type);
+  }, [globeCommand]);
 
   return (
     <>
       <div className="globe-area">
         <GlobeView
-          country={country}
-          profile={profile}
-          topic={topic}
-          focus={focus}
+          ref={globe}
+          scene={scene}
+          labels={countryLabels}
+          occluders={occluders}
           onSelect={select}
-          onFocus={focusPlace}
-          action={globeCommand}
+          onFocusPlace={focusById}
           onStatus={setGlobeStatus}
-          performanceEnabled={performanceVisible}
-          onClosePerformance={closePerformance}
         />
       </div>
       {globeStatus === 'loading' && (

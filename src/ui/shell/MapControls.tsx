@@ -5,7 +5,7 @@ import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 
 export function MapControls() {
-  const { globeStatus, commandGlobe, performanceVisible, togglePerformance } = useAtlas();
+  const { globeStatus, commandGlobe } = useAtlas();
   const text = messages.controls;
   const ready = globeStatus === 'ready';
 
@@ -20,18 +20,6 @@ export function MapControls() {
       </button>
       <button onClick={() => commandGlobe('out')} aria-label={text.zoomOut} disabled={!ready}>
         <Minus size={18} />
-      </button>
-      <span />
-      {/* TODO(globe controller): remove with the frame-rate monitor. */}
-      <button
-        className="performance-toggle"
-        onClick={togglePerformance}
-        aria-label={text.frameRate}
-        aria-pressed={performanceVisible}
-        disabled={!ready}
-        title={text.frameRateHint}
-      >
-        FPS
       </button>
     </div>
   );
