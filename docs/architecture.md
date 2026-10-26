@@ -207,9 +207,11 @@ pipeline/
   content-tree.ts  reads and writes one locale's tree on disk (content/en, or a temporary copy in tests)
   prompts/v<n>/    versioned drafting prompt files; the version is recorded in provenance
   prompts/paraphrase/v<n>/  versioned prompts of the paraphrase step, recorded in paraphrases
+  prompts/claims-v<n>/  versioned claim check prompts, on their own version line
   batches/         batch definitions (pilot.json) and the question plans generated for them
   generate/        plan, draft and redraft (npm run content:generate)
   validate/        every content:check rule plus source URL reachability (npm run content:verify)
+  claims/          check text against the sources it cites (npm run content:claims)
   review/          list, read, approve and send back drafts (npm run content:review)
   paraphrase/      search phrasings for each story's question (npm run content:paraphrase)
 ```
@@ -219,6 +221,7 @@ npm run content:generate -- --batch pilot      # plan, then draft every country 
 npm run content:generate -- --country CHL      # draft one country (repeat --country for more)
 npm run content:generate -- --revisions        # redraft everything review sent back
 npm run content:verify                         # content rules and source URLs
+npm run content:claims -- CHL                  # check Chile's text against its sources
 npm run content:paraphrase -- --all            # search phrasings where missing or stale
 npm run content:review -- list                 # then show, approve, revise
 ```
@@ -247,7 +250,20 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    An entry never excuses a 404, 410 or dead host, never covers a whole site, and lapses after 180 days, when the page is a warning again until someone reopens it.
    It tries HEAD then GET, retries twice with backoff, limits requests per host, and caches results in `pipeline/.cache/url-status.json` (ok for 30 days, others for a day).
    `--offline` skips the network and reports cached results.
-4. **Paraphrase.**
+4. **Claims.**
+   `content:claims -- <country> [story]` (or `--all`, or `--drafts`) asks Claude whether the cited sources state each piece of text.
+   A unit is one claim-bearing piece with its source IDs: the overview's summary and geography together, each why-it-matters point, each quick fact (with its as-of date), and each section of a story.
+   A country is one conversation with Claude Opus 5.5 at `high` effort (`--model`, `--effort`) covering every overview and story that is due, so a source shared by several of them is read once; checking one story alone is its own conversation.
+   Claude reads every cited source with the server-side web fetch tool in its basic version, which puts the page in context; the newer version with dynamic filtering reads pages from code and kept too little text to judge a claim.
+   Some sites refuse Anthropic's fetcher but answer an ordinary request, so a strict `fetch_page` tool fetches a cited URL of the task from the editor's computer and returns the page's visible text; it reads HTML and plain text, not PDFs, and runs no scripts.
+   Verdicts come back through a strict tool, `submit_verdicts`: for each source whether it was read (with a note when not), and for each unit `supported`, `partly_supported`, `not_supported` or `source_unreachable`, the phrases the sources do not state, short quotes from the sources that support the rest, and a note.
+   The pipeline checks the submission and sends problems back like a draft's: every unit and source answered once, a source reported read was actually fetched in the conversation, `supported` has no unsupported phrases and the others do, every unsupported phrase is copied from the unit, quotes come from the unit's own read sources, and `source_unreachable` names an unreadable source.
+   Results go to `pipeline/.cache/claims/<country>.json` (`--claims-dir`), keyed by a hash of the unit's text and its sources' IDs and URLs, with the verdict, model, effort, prompt version and date.
+   Changed text or sources make a new key, so the old result no longer counts and the unit shows as not checked; a run checks only overviews and stories with such a unit, and `--recheck` checks them anyway.
+   The command prints every flagged unit and exits with an error when one is flagged or a check failed; a failed check saves its log in `pipeline/.cache/claims/failed/`.
+   `--mode batch` sends each round through the Batches API at half price; unlike drafting it has no `--resume`: results are saved as each country finishes, and an interrupted run checks only what is still due.
+   The prompts live in `pipeline/prompts/claims-v<n>/` on their own version line, so changing them never changes the drafting prompt version.
+5. **Paraphrase.**
    `content:paraphrase -- <country>...` (or `--all`) writes [paraphrases](#content-model) for every story that has none or whose question changed since they were written; `--regenerate` replaces current ones too, and `--dry-run` lists the stories without calling the API.
    Each country is one small structured-output request (Claude Opus 5.5 at `low` effort by default, `--model` and `--effort` to change), a few countries at a time.
    The task gives each story's question, category and reviewed text, and lists the country's other questions so phrasings stay apart from them; the response schema allows only the IDs asked for.
@@ -258,15 +274,19 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Drafts never carry paraphrases: drafting prompts show the reference example and a story under revision without them, so they stay byte-identical to what a drafting run in progress already sent, and a redrafted story loses its old ones, so run this step after generating.
    Its prompts are versioned apart from the drafting prompts (`CURRENT_PARAPHRASE_PROMPT_VERSION`), so changing them never touches `CURRENT_PROMPT_VERSION` or a resumable drafting run.
    Expect a few cents per country.
-5. **Review.**
-   `content:review -- show <country> [story]` prints the questions, sections with their sources, the map scene by place name, next questions, search phrasings, and validation warnings; `--check-urls` checks the file's URLs first.
+6. **Review.**
+   `content:review -- show <country> [story]` prints the questions, sections with their sources, the map scene by place name, next questions, search phrasings, validation warnings, and under each unit its claim check: the verdict, what the sources do not state, unreadable sources, and the supporting quotes.
+   A summary counts the verdicts and lists what blocks approval; `--check-urls` checks the file's URLs first.
    `approve <country> [story]` sets `status: 'reviewed'`, `reviewedBy` (`--by`, default the git user name) and `reviewedAt`.
    Without a story it approves the overview; `--all` approves the overview and every story.
    It refuses while the content has a validation issue, a pending reference, a revision request or a broken source URL.
+   It also refuses while a unit has no current claim check, or a unit is flagged: anything but `supported`.
+   A flagged unit either goes back through `revise`, or Ryan opens the sources, finds the claim stated (for example on a page the check could not read), and approves with `--accept-claims "<why>"`, which records who accepted it, when and why on that result.
+   An acceptance belongs to the exact text and sources, so it lapses when either changes.
    `revise <country> [story] --notes "..."` records `provenance.revision`, and `content:generate -- --revisions` redrafts it: a story keeps its ID and the rest of the file, with the notes and the old story in the prompt.
    A whole country can be sent back only while nothing in it is reviewed.
    Changes go through notes and regeneration rather than JSON edits, so every text stays sourced.
-6. **Commit.**
+7. **Commit.**
    Reviewed JSON is committed like code; git history is the content history.
    A new country file needs nothing else: the loaders discover it.
 
@@ -285,10 +305,14 @@ Cost controls:
   Synchronous runs use server-side fallback models when a request is refused; batch runs cannot.
 - Every job prints its token usage, searches and estimated cost, and the run prints the total.
   Expect roughly $1 to $3 per country in synchronous mode (about 300k input tokens, mostly cache reads, 80k cache writes, 25k output tokens and 15 searches), so $20 to $60 for the pilot; batch mode about halves the token part.
+- A claim check costs what its fetched pages cost to read.
+  Measured at `high` effort: Singapore (14 units, 13 fetches, a 125k-token statistics PDF among them) about $2.50 with one conversation per overview and story, and Japan (13 units) about $9.70, because each of its four conversations read the same 475k-token statistics handbook PDF; one conversation per country reads it once, an estimated $2.40 (not yet measured).
+  Its limits in `pipeline/config.ts`: 16 fetches per request with at most 60k tokens of text each, 2 repairs, 2 reminders, 3 continuations and 10 requests per conversation, 4 countries at a time.
+  PDFs ignore the 60k cap, so a long statistics PDF can cost far more than a web page.
 
 The API key comes from `ANTHROPIC_API_KEY` in the git-ignored `.env.local` (copy `.env.example`); without it a real run stops before doing any work and says so.
 Only the pipeline uses it: the site, its build and CI need no keys, so it is never set on Vercel or GitHub.
-`--record <dir>` saves every response as `<dir>/<tag>/<n>.json`, and `--replay <dir>` answers requests from such a directory without network or key.
+`--record <dir>` saves every response as `<dir>/<tag>/<n>.json` (and the claim check's local page fetches in `<dir>/pages/`), and `--replay <dir>` answers requests from such a directory without network or key.
 The end-to-end test replays `tests/pipeline/fixtures/replay` (placeholder text, built by `build-replay.ts` in the same folder), and the same fixtures run from the command line:
 
 ```sh
@@ -297,6 +321,8 @@ npm run content:generate -- --country CHL --replay tests/pipeline/fixtures/repla
 npm run content:verify -- --offline --content-dir /tmp/elsewhere-en
 npm run content:review -- show CHL --content-dir /tmp/elsewhere-en
 ```
+
+The claim check fixtures cover only the Chile overview and one story, so they run in the tests rather than from the command line.
 
 Geo data in `data/geo/` is generated from Natural Earth 10m datasets, which are cached in `.map-sources/` and recorded with URL and SHA-256 in `data/geo/sources.json`:
 
@@ -337,9 +363,10 @@ What can go wrong:
 - Gazetteer label points are only as good as the named places near a coast: the gazetteer has only major ports (scalerank 2 or less, capitals, and the few the overrides add), so a realistic route may need a port or water body the gazetteer lacks and fail the land check.
   Add the Natural Earth feature through the overrides rather than drawing a `flow` route.
 - Ocean label points are far from coasts, so a route that starts in an ocean (the South Atlantic into the Strait of Magellan) can cross land on its way to the passage; start from the nearest marginal sea or island instead.
-- A URL that resolves does not prove it supports the claim.
-  Review remains necessary; the pipeline only removes mechanical errors.
-- A source can be live and still not say what the text claims; there is no automatic claim check yet.
+- A URL that resolves does not prove it supports the claim; the claim check reads the page, and review still decides.
+- The claim check is a model reading pages, so it can miss a statement or misread one.
+  Its quotes are not checked against the fetched text, and a page that needs scripts to show its text, or that blocks both fetchers, comes back unreachable and needs a person.
+  A flag means "open this source", not "this is false": most flags on the hand-converted countries are true facts cited to a page that does not state them.
 
 ## Globe
 
