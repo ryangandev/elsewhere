@@ -36,7 +36,8 @@ for (const [name, data] of [['countries', base], ['countries-detail', detail]]) 
   writeFileSync(`public/maps/${name}.geojson`, JSON.stringify(data));
   console.log(`${name}: ${data.features.length} features, ${(JSON.stringify(data).length / 1e6).toFixed(2)} MB`);
 }
-await import('./build-country-index.mjs');
+// Label anchors and basics in data/geo/countries.json depend on this geometry.
+await import('./build-countries.mjs');
 const manifest = {
   boundaries: { source: 'Natural Earth, public domain', urls: countryUrls,
     sha256: Object.fromEntries([10, 50].map(scale => [scale, createHash('sha256').update(readFileSync(`.map-sources/countries-${scale}m.geojson`)).digest('hex')])),
