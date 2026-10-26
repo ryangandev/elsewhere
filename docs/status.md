@@ -10,7 +10,7 @@ The platform workstream (migration steps 1 and 2) moved it to Next.js with path 
 The globe workstream (step 4) replaced the prototype globe with the `MapScene`-driven controller in `src/globe/`.
 The content workstream (step 3) added the schema, the English edition in `content/en/`, and the gazetteer.
 The content wiring removed the prototype data: pages read only `content/en/` through server-only loaders, hand the shell serializable view models, and the browser loads two build-time indexes instead of content modules.
-URLs use readable slugs; prototype query URLs and interim ID paths redirect in the browser.
+URLs use readable slugs; prototype query URLs redirect in the browser.
 Product direction and target architecture were settled on 2026-10-26; see [product.md](product.md) and [architecture.md](architecture.md).
 Migration is in progress.
 Steps 1 to 4 run as parallel workstreams (platform, content schema, globe controller) and are integrated afterwards.
@@ -35,5 +35,5 @@ Fix these where the migration touches them, or explicitly drop them with the cod
 
 - The home view shows only two or three country names; large countries such as Russia and Kazakhstan get none.
 - The home picks are a fixed list of four country IDs in `src/domain/page-views.ts` until the question-first home (step 6) replaces them.
-- In development, the browser's automatic `/favicon.ico` request matches `app/[country]` and logs a 500, because `output: 'export'` forbids unknown params; the static build serves a plain 404.
-- Redirects from old URLs run in the browser; move them to Vercel `redirects` when the site deploys there.
+- In development, an unknown path such as `/atlantis` answers 500 instead of 404, because `output: 'export'` forbids unknown params; the static build serves a plain 404.
+- The prototype query URL redirect runs in the browser; move it to Vercel `redirects` when the site deploys there.

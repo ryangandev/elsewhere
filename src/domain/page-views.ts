@@ -24,7 +24,7 @@ import {
 import type { MapScene } from '@/globe/scene';
 import { destinationKey, type Destination } from './destination';
 import { destinationPath } from './paths';
-import { countryFromSegment, interimCountrySegment, storyFromSegment } from './slugs';
+import { countryFromSegment, storyFromSegment } from './slugs';
 import type {
   CountryPageView,
   HomeView,
@@ -347,52 +347,36 @@ export function describePage(view: PageView): PageSummary {
   }
 }
 
-/**
- * What a `/<country>` path shows: a page, a redirect from an interim ID path, or nothing.
- */
-export type RouteMatch<T> = { kind: 'page'; view: T } | { kind: 'redirect'; href: string };
-
+/** The page a `/<country>` path shows, or undefined when it is not a country on the map. */
 export function matchCountryRoute(
   segment: string,
-): RouteMatch<CountryPageView | MapCountryPageView> | undefined {
-  const match = countryFromSegment(segment);
-  if (!match) return undefined;
-  if (!match.canonical)
-    return { kind: 'redirect', href: destinationPath({ countryId: match.countryId }) };
-  return { kind: 'page', view: buildCountryPage(match.countryId) };
+): CountryPageView | MapCountryPageView | undefined {
+  const countryId = countryFromSegment(segment);
+  return countryId ? buildCountryPage(countryId) : undefined;
 }
 
+/** The page a `/<country>/<story>` path shows, or undefined when it is not a question. */
 export function matchStoryRoute(
   countrySegment: string,
   storySegment: string,
-): RouteMatch<StoryPageView> | undefined {
-  const match = countryFromSegment(countrySegment);
-  if (!match) return undefined;
-  const storyId = storyFromSegment(match.countryId, storySegment, match.canonical);
-  if (!storyId) return undefined;
-  const destination = { countryId: match.countryId, storyId };
-  if (!match.canonical) return { kind: 'redirect', href: destinationPath(destination) };
-  return { kind: 'page', view: buildStoryPage(match.countryId, storyId) };
+): StoryPageView | undefined {
+  const countryId = countryFromSegment(countrySegment);
+  const storyId = countryId && storyFromSegment(countryId, storySegment);
+  return countryId && storyId ? buildStoryPage(countryId, storyId) : undefined;
 }
 
-/** Every country page (all map identities) plus the interim ID paths that redirect to them. */
+/** Every country page: all map identities, edited or not. */
 export function countryStaticParams(): { country: string }[] {
-  return listMapCountries().flatMap((country) => [
-    { country: country.slug },
-    { country: interimCountrySegment(country.id) },
-  ]);
+  return listMapCountries().map((country) => ({ country: country.slug }));
 }
 
-/** Every question page plus the interim ID paths that redirect to them. */
+/** Every question page. */
 export function storyStaticParams(): { country: string; story: string }[] {
-  return listStories().flatMap((story) => {
-    const [, countrySegment, storySegment] = destinationPath({
+  return listStories().map((story) => {
+    const [, country, storySegment] = destinationPath({
       countryId: story.countryId,
       storyId: story.id,
     }).split('/');
-    return [
-      { country: countrySegment, story: storySegment },
-      { country: interimCountrySegment(story.countryId), story: story.id },
-    ];
+    return { country, story: storySegment };
   });
 }

@@ -31,12 +31,7 @@ test('every map identity has a unique slug that maps back to its ID', () => {
   const slugs = new Set(countries.map((country) => countrySlug(country.id)));
   assert.equal(slugs.size, countries.length);
   for (const country of countries) {
-    assert.deepEqual(countryFromSegment(countrySlug(country.id)), {
-      countryId: country.id,
-      canonical: true,
-    });
-    // Interim ID paths must never collide with a readable slug.
-    assert.ok(!slugs.has(country.id.toLowerCase()), country.id);
+    assert.equal(countryFromSegment(countrySlug(country.id)), country.id);
   }
 });
 
@@ -47,9 +42,9 @@ test('every question has a unique path that round-trips to its IDs', () => {
     assert.ok(!paths.has(path), path);
     paths.add(path);
     const [, countrySegment, storySegment] = path.split('/');
-    const country = countryFromSegment(countrySegment)!;
-    assert.equal(country.countryId, story.countryId);
-    assert.equal(storyFromSegment(country.countryId, storySegment, true), story.id);
+    const countryId = countryFromSegment(countrySegment)!;
+    assert.equal(countryId, story.countryId);
+    assert.equal(storyFromSegment(countryId, storySegment), story.id);
   }
   assert.equal(paths.size, listStories().length);
 });
@@ -60,25 +55,19 @@ test('unknown paths are not pages', () => {
   assert.equal(matchStoryRoute('singapore', 'not-a-question'), undefined);
   assert.equal(matchStoryRoute('japan', 'shipping'), undefined);
   assert.equal(matchStoryRoute('canada', 'shipping'), undefined);
+  // The interim lowercase-ID paths were never public and are not pages.
+  assert.equal(matchCountryRoute('sgp'), undefined);
+  assert.equal(matchStoryRoute('sgp', 'shipping'), undefined);
+  assert.equal(matchCountryRoute('singapore')?.kind, 'country');
+  assert.equal(matchCountryRoute('canada')?.kind, 'map');
+  assert.equal(matchStoryRoute('singapore', 'shipping')?.kind, 'story');
 });
 
-test('interim ID paths redirect to readable paths', () => {
-  assert.deepEqual(matchCountryRoute('sgp'), { kind: 'redirect', href: '/singapore' });
-  assert.deepEqual(matchCountryRoute('can'), { kind: 'redirect', href: '/canada' });
-  assert.deepEqual(matchStoryRoute('sgp', 'shipping'), {
-    kind: 'redirect',
-    href: '/singapore/shipping',
-  });
-  assert.equal(matchStoryRoute('sgp', 'not-a-question'), undefined);
-  assert.equal(matchCountryRoute('singapore')?.kind, 'page');
-  assert.equal(matchStoryRoute('singapore', 'shipping')?.kind, 'page');
-});
-
-test('every page and interim redirect is generated statically', () => {
+test('every page is generated statically, once', () => {
   const countries = countryStaticParams();
   const stories = storyStaticParams();
-  assert.equal(countries.length, 258 * 2);
-  assert.equal(stories.length, listStories().length * 2);
+  assert.equal(countries.length, 258);
+  assert.equal(stories.length, listStories().length);
   const paths = [
     ...countries.map((params) => `/${params.country}`),
     ...stories.map((params) => `/${params.country}/${params.story}`),

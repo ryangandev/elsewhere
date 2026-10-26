@@ -64,7 +64,6 @@ How it is built:
   Unknown paths get a static 404.
 - URL slugs are mapped to permanent IDs in one place, `src/domain/slugs.ts`, and paths are built in `src/domain/paths.ts`.
   Slugs are readable: the map identity's country slug and the story's `slug` (`/singapore/shipping`, `/united-states`).
-  The interim lowercase-ID paths (`/sgp`, `/sgp/shipping`) are still generated, as static pages that redirect to the readable path.
 - The root layout renders `AtlasShell` (`src/ui/shell/`), which owns the globe, header, map controls, footer, and dialogs.
   Pages only supply the reading panel or the home view as `children`, so navigating never remounts the globe.
   The current page tells the shell its destination and scene through `ShellBridge` (see [Server and client boundary](#server-and-client-boundary)).
@@ -72,6 +71,7 @@ How it is built:
 - Trail context stays a search parameter (`/singapore/shipping?trail=water-connects`).
   Pages are prerendered without it and the panel shows trail progress once the page hydrates, which keeps the page itself static.
 - Each page sets its own title and description with `generateMetadata`.
+- The tab icon is a file convention: `app/icon.svg`, plus `app/favicon.ico` for the browser's automatic `/favicon.ico` request, which would otherwise reach `app/[country]`.
 
 What changed from the prototype:
 
@@ -81,8 +81,7 @@ What changed from the prototype:
 - Query-string URLs (`/?country=sgp&topic=shipping`) redirect to path URLs in the browser.
   A static site cannot see query strings when it builds, so the home page runs a small client redirect (`LegacyUrlRedirect`).
   It loads the atlas index only when the query names a country, and falls back to the country page when the question or trail no longer exists.
-- Redirects from old URLs (query strings and interim ID paths) run in the browser, and the redirecting pages are marked `noindex` with a canonical link.
-  Follow-up: once the site is on Vercel, move them to `redirects` in the Vercel config so they become real 308 responses.
+  Follow-up: once the site is on Vercel, move it to `redirects` in the Vercel config so it becomes a real 308 response.
 
 ## Content model
 
