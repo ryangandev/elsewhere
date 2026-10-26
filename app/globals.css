@@ -833,18 +833,25 @@ blockquote {
 }
 .globe-error {
   position: absolute;
-  top: 48%;
-  left: 45%;
+  top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
+  width: min(300px, calc(100% - 48px));
   text-align: center;
-  max-width: 290px;
   font-size: 14px;
   color: #ccdad9;
   z-index: 3;
 }
+.globe-error strong {
+  font:
+    400 22px/1.25 Georgia,
+    serif;
+  color: #e6ece0;
+}
 .globe-error p {
-  margin: 15px 0;
-  color: #859fae;
+  margin: 10px 0 20px;
+  line-height: 1.6;
+  color: #9db1bb;
 }
 .globe-error button {
   background: #203c48;
@@ -1179,12 +1186,11 @@ blockquote {
 }
 .globe-loading {
   position: absolute;
-  left: 64%;
-  top: 47%;
-  transform: translate(-50%, -50%);
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 20px;
   font-size: 12px;
   color: #a6b8bf;
@@ -1202,9 +1208,6 @@ blockquote {
   to {
     transform: rotate(360deg);
   }
-}
-.world-app:has(#country-reading) .globe-loading {
-  left: 36%;
 }
 .globe-pin.context-label {
   pointer-events: auto;
@@ -1958,14 +1961,6 @@ blockquote {
   .globe-area {
     top: 66px;
     height: 53%;
-  }
-  .globe-loading {
-    left: 50%;
-    top: 30%;
-  }
-  .world-app:has(#country-reading) .globe-loading {
-    left: 50%;
-    top: 25%;
   }
   .world-app:has(#country-reading) .globe-area {
     top: 65px;

@@ -16,11 +16,14 @@ export function Footer() {
         <span className={`connection-dot ${globeStatus === 'ready' ? 'ready' : ''}`} />
         {status}
       </div>
-      <span className="gesture-hint">
-        {text.drag}
-        <span>·</span> {text.scroll}
-        <span>·</span> {text.followQuestion}
-      </span>
+      {/* Gestures mean nothing without a globe. */}
+      {globeStatus !== 'error' && (
+        <span className="gesture-hint">
+          {text.drag}
+          <span>·</span> {text.scroll}
+          <span>·</span> {text.followQuestion}
+        </span>
+      )}
       <button onClick={() => openDialog('about')}>
         {text.about}
         <ArrowUpRight size={12} />
