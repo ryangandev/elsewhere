@@ -87,6 +87,9 @@ export const en = {
     credits:
       'Boundaries: Natural Earth. Globe imagery: NASA Blue Marble. Sources and further reading accompany the stories. Boundaries are generalized for exploration and do not express a political position. Map routes are illustrative.',
   },
+  dialog: {
+    close: 'Close',
+  },
   share: {
     title: 'A little curiosity, shared.',
     description: 'Copy this link to return to this exact country, question, or trail.',
