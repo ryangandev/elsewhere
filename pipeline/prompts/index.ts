@@ -2,6 +2,10 @@
 // version that produced it in provenance.promptVersion. To change a prompt, copy the current
 // directory to the next version, edit it there, and point CURRENT_PROMPT_VERSION at it, so drafts
 // stay traceable to the exact text that produced them.
+//
+// The claim check (pipeline/claims) has its own version line, claims-v<n>, so its prompts can
+// change without moving drafting to a new version (and the other way round). Each claim check
+// result records the claims prompt version that produced it.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -23,12 +27,31 @@ export type PromptName = (typeof NAMES)[number];
 
 export type PromptSet = { version: string } & Record<PromptName, string>;
 
+function loadPromptFiles<Name extends string>(
+  version: string,
+  names: readonly Name[],
+): { version: string } & Record<Name, string> {
+  const texts = Object.fromEntries(
+    names.map((name) => [name, readFileSync(join(PROMPTS_DIR, version, `${name}.md`), 'utf8')]),
+  ) as Record<Name, string>;
+  return { version, ...texts };
+}
+
 export function loadPrompts(version: string = CURRENT_PROMPT_VERSION): PromptSet {
-  const prompts = { version } as PromptSet;
-  for (const name of NAMES) {
-    prompts[name] = readFileSync(join(PROMPTS_DIR, version, `${name}.md`), 'utf8');
-  }
-  return prompts;
+  return loadPromptFiles(version, NAMES);
+}
+
+export const CURRENT_CLAIMS_PROMPT_VERSION = 'claims-v1';
+
+const CLAIMS_NAMES = ['system', 'task', 'repair', 'nudge'] as const;
+export type ClaimsPromptName = (typeof CLAIMS_NAMES)[number];
+
+export type ClaimsPromptSet = { version: string } & Record<ClaimsPromptName, string>;
+
+export function loadClaimsPrompts(
+  version: string = CURRENT_CLAIMS_PROMPT_VERSION,
+): ClaimsPromptSet {
+  return loadPromptFiles(version, CLAIMS_NAMES);
 }
 
 /**

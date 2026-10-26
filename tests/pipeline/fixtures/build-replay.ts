@@ -2,6 +2,8 @@
 // Messages API returns, for the pipeline to run end to end without network or an API key.
 // The text is placeholder, not content; the place IDs are real gazetteer IDs and every cited URL
 // appears in a web search result of the same conversation, as the pipeline requires.
+// The claims-* fixtures check the drafted Chile overview and its "length" story against their
+// sources: pages fetched with web_fetch, then verdicts through submit_verdicts.
 //
 //   node --import tsx tests/pipeline/fixtures/build-replay.ts
 //
@@ -33,7 +35,13 @@ const nextId = (prefix: string) => `${prefix}_fixture${String((ids += 1)).padSta
 function message(
   content: unknown[],
   stopReason: string,
-  usage: { input: number; cacheRead?: number; output: number; searches?: number },
+  usage: {
+    input: number;
+    cacheRead?: number;
+    output: number;
+    searches?: number;
+    fetches?: number;
+  },
 ) {
   return {
     id: nextId('msg'),
@@ -48,7 +56,10 @@ function message(
       output_tokens: usage.output,
       cache_creation_input_tokens: 0,
       cache_read_input_tokens: usage.cacheRead ?? 0,
-      server_tool_use: { web_search_requests: usage.searches ?? 0, web_fetch_requests: 0 },
+      server_tool_use: {
+        web_search_requests: usage.searches ?? 0,
+        web_fetch_requests: usage.fetches ?? 0,
+      },
     },
   };
 }
@@ -69,6 +80,32 @@ function webSearch(query: string, results: { path: string; title: string }[]) {
         encrypted_content: 'fixture',
         page_age: null,
       })),
+    },
+  ];
+}
+
+/** A direct web_fetch call and its result: the page text, or an error when `text` is null. */
+function webFetch(path: string, text: string | null) {
+  const id = nextId('srvtoolu');
+  return [
+    { type: 'server_tool_use', id, name: 'web_fetch', input: { url: url(path) } },
+    {
+      type: 'web_fetch_tool_result',
+      tool_use_id: id,
+      content:
+        text === null
+          ? { type: 'web_fetch_tool_error', error_code: 'url_not_accessible' }
+          : {
+              type: 'web_fetch_result',
+              url: url(path),
+              retrieved_at: '2026-10-26T00:00:00Z',
+              content: {
+                type: 'document',
+                source: { type: 'text', media_type: 'text/plain', data: text },
+                title: `Fixture page ${path}`,
+                citations: null,
+              },
+            },
     },
   ];
 }
@@ -124,7 +161,7 @@ function story(
   };
 }
 
-function chileDraft() {
+export function chileDraft() {
   return {
     country: {
       name: 'Chile',
@@ -286,7 +323,55 @@ function revisedAndes() {
   };
 }
 
-/** Recorded turns by tag, in order. */
+const read = (id: string) => ({ id, status: 'read', note: null });
+
+const supported = (unitId: string, sourceId: string) => ({
+  unitId,
+  verdict: 'supported',
+  unsupported: [],
+  evidence: [{ sourceId, quote: 'Placeholder text' }],
+  note: null,
+});
+
+/** Verdicts on the Chile overview: one page could not be read, and one quick fact is unsupported. */
+function overviewVerdicts() {
+  return {
+    sources: [
+      read('fixture-overview'),
+      read('fixture-geography'),
+      read('fixture-economy'),
+      { id: 'fixture-history', status: 'unreachable', note: 'The fetch failed.' },
+    ],
+    verdicts: [
+      supported('overview', 'fixture-overview'),
+      supported('why-it-matters-1', 'fixture-economy'),
+      {
+        unitId: 'why-it-matters-2',
+        verdict: 'source_unreachable',
+        unsupported: ['Fixture point two'],
+        evidence: [],
+        note: 'Its only source could not be read.',
+      },
+      {
+        unitId: 'quick-fact-1',
+        verdict: 'not_supported',
+        unsupported: ['Capital: Fixture value'],
+        evidence: [],
+        note: 'The page does not name the capital.',
+      },
+      supported('quick-fact-2', 'fixture-overview'),
+    ],
+  };
+}
+
+/** The first submission: claims a page it never fetched was read, and skips a unit. */
+function invalidOverviewVerdicts() {
+  const verdicts = overviewVerdicts();
+  verdicts.sources[3] = read('fixture-history');
+  verdicts.verdicts = verdicts.verdicts.filter((entry) => entry.unitId !== 'quick-fact-2');
+  return verdicts;
+}
+
 /** Phrasings for the Singapore stories, for the paraphrase step. Placeholder wording. */
 const singaporePhrasings = {
   wealth: [
@@ -314,6 +399,7 @@ const singaporePhrasings = {
 
 const thinking = () => ({ type: 'thinking', thinking: '', signature: 'fixture' });
 
+/** Recorded turns by tag, in order. */
 export function replayFixtures(): Record<string, unknown[]> {
   ids = 0;
   return {
@@ -402,6 +488,45 @@ export function replayFixtures(): Record<string, unknown[]> {
         ],
         'end_turn',
         { input: 1900, output: 800 },
+      ),
+    ],
+    'claims-CHL': [
+      message(
+        [
+          ...webFetch('chile/overview', placeholder('the overview page')),
+          ...webFetch('chile/geography', placeholder('the geography page')),
+          ...webFetch('chile/economy', placeholder('the economy page')),
+          ...webFetch('chile/history', null),
+          toolUse('submit_verdicts', invalidOverviewVerdicts()),
+        ],
+        'tool_use',
+        { input: 12000, output: 1500, fetches: 4 },
+      ),
+      message([toolUse('submit_verdicts', overviewVerdicts())], 'tool_use', {
+        input: 600,
+        cacheRead: 13000,
+        output: 1200,
+      }),
+    ],
+    'claims-CHL-length': [
+      // Reads the page, then ends its turn without submitting and is reminded.
+      message(
+        [...webFetch('chile/geography', placeholder('the geography page')), text('Read it.')],
+        'end_turn',
+        { input: 6000, output: 300, fetches: 1 },
+      ),
+      message(
+        [
+          toolUse('submit_verdicts', {
+            sources: [read('fixture-geography')],
+            verdicts: [
+              supported('section-1', 'fixture-geography'),
+              supported('section-2', 'fixture-geography'),
+            ],
+          }),
+        ],
+        'tool_use',
+        { input: 300, cacheRead: 6500, output: 500 },
       ),
     ],
   };
