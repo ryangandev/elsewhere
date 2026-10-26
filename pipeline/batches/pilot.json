@@ -1,0 +1,94 @@
+{
+  "id": "pilot",
+  "description": "First generated batch: 20 countries that test the pipeline across every continent before a larger run.",
+  "selection": [
+    "Every inhabited continent is covered, with four or five countries each from Africa, Europe, Asia and the Americas and two from Oceania, plus Greenland for the Arctic.",
+    "The 10 countries with reviewed content (BRA, CHN, FRA, IND, IDN, JPN, MYS, SGP, TUR, USA) are left out so the pilot only produces new drafts.",
+    "Most picks are countries curious readers ask about often, so drafts can be judged against what people actually want to know.",
+    "A few picks stress the map: long sea routes (CHL, AUS, NZL), canals the gazetteer lacks (PAN, EGY), huge land countries (RUS, KAZ, CAN) and a remote Arctic island (GRL).",
+    "Neighbours and partners are grouped (EGY and SAU, ARG and CHL, AUS and NZL, CAN and MEX) so the batch plan can link questions across countries inside the pilot."
+  ],
+  "stories": { "min": 4, "max": 6 },
+  "countries": [
+    {
+      "id": "EGY",
+      "why": "The Nile, the Suez Canal and a very old state: rivers, chokepoints and history in one country."
+    },
+    {
+      "id": "NGA",
+      "why": "Africa's most populous country, with oil, many languages and a fast-growing cultural export."
+    },
+    {
+      "id": "KEN",
+      "why": "East Africa's hub: the Rift Valley, running, mobile money and the Indian Ocean coast."
+    },
+    {
+      "id": "ZAF",
+      "why": "Three capitals, many official languages and a mining economy shaped by its history."
+    },
+    {
+      "id": "GBR",
+      "why": "An island state whose language, law and former empire reach everywhere else in the atlas."
+    },
+    {
+      "id": "DEU",
+      "why": "Europe's largest economy, its rivers and its federal, reunified story."
+    },
+    {
+      "id": "RUS",
+      "why": "The largest country: many time zones, an Arctic coast and pipelines that link it to many others."
+    },
+    {
+      "id": "NLD",
+      "why": "Land made from sea, Rotterdam's port and a small country with outsized trade."
+    },
+    {
+      "id": "KOR",
+      "why": "A divided peninsula that became a technology and culture exporter within one lifetime."
+    },
+    {
+      "id": "SAU",
+      "why": "Oil, deserts and coasts on the Red Sea and the Gulf; pairs with Egypt across the Red Sea."
+    },
+    {
+      "id": "KAZ",
+      "why": "The largest landlocked country: steppe, a space launch site and Silk Road crossings."
+    },
+    {
+      "id": "VNM",
+      "why": "A long coast on the South China Sea, the Mekong delta and a manufacturing boom."
+    },
+    {
+      "id": "CAN",
+      "why": "A vast northern country of lakes, Arctic passages and a long border with the United States."
+    },
+    {
+      "id": "MEX",
+      "why": "Ancient cities, a border that shapes two economies and food the world borrows."
+    },
+    {
+      "id": "CHL",
+      "why": "The long thin country: the Andes, the Atacama, copper and a very long Pacific coast."
+    },
+    {
+      "id": "PAN",
+      "why": "The canal between two oceans; tests how the map draws a passage the gazetteer does not have."
+    },
+    {
+      "id": "ARG",
+      "why": "The pampas, Patagonia and Buenos Aires; pairs with Chile across the Andes."
+    },
+    {
+      "id": "AUS",
+      "why": "An island continent: deserts, the Great Barrier Reef, mining and long sea links to Asia."
+    },
+    {
+      "id": "NZL",
+      "why": "Two main islands far from everything, plate boundaries, and Maori and settler history."
+    },
+    {
+      "id": "GRL",
+      "why": "The largest island, its ice sheet and Arctic routes; a territory with its own content file."
+    }
+  ]
+}
