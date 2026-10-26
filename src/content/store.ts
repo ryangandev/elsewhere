@@ -3,7 +3,7 @@
 // (starter questions, next questions, trail stops) are removed so nothing links to a draft.
 import type { z } from 'zod';
 import type { ContentFile, ContentTree } from './files';
-import { getPlace, routePoints } from './geo';
+import { countryPlacePoint, getMapCountry, getPlace, routePoints, type LatLng } from './geo';
 import type { MapScene } from './map-scene';
 import {
   CountryFile,
@@ -167,10 +167,18 @@ export function createContentStore(
   };
 }
 
+/** Where the globe looks for a scene: its camera, else its focus country's label anchor. */
+function sceneCenter(spec: SceneSpec): LatLng | undefined {
+  if (spec.camera) return [spec.camera.lat, spec.camera.lng];
+  const focus = getMapCountry(spec.focusCountryId);
+  return focus && [focus.lat, focus.lng];
+}
+
 export function resolveScene(
   spec: SceneSpec,
   noteFor: (placeId: string) => string | undefined = () => undefined,
 ): MapScene {
+  const center = sceneCenter(spec);
   return {
     ...(spec.camera ? { camera: { ...spec.camera } } : {}),
     focusCountryId: spec.focusCountryId,
@@ -179,11 +187,16 @@ export function resolveScene(
       const place = getPlace(id);
       if (!place) throw new Error(`Unknown gazetteer place "${id}"`);
       const note = noteFor(id);
+      // A country is marked at the part of it the scene is about, not always at its label point.
+      const [lat, lng] =
+        place.kind === 'country' && center
+          ? countryPlacePoint(place, center)
+          : [place.lat, place.lng];
       return {
         id,
         name: place.name,
-        lat: place.lat,
-        lng: place.lng,
+        lat,
+        lng,
         kind: place.kind,
         ...(note ? { note } : {}),
       };
