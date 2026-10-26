@@ -14,7 +14,7 @@ import { parsedCountryFiles, requireMapCountry } from '../content-tree';
 import { render, type PromptSet } from '../prompts';
 import { assembleCountry, assembleStory, replaceStory } from './assemble';
 import { checkCandidate, type Plan } from './check';
-import { CountryDraft, StoryDraft, toStrictJsonSchema } from './draft-schema';
+import { CountryDraft, StoryDraft, toStrictJsonSchema, toToolJsonSchema } from './draft-schema';
 import { candidateListing, findPlaces, sharedListing } from './gazetteer-context';
 import type { SessionSetup, Submission } from './session';
 
@@ -68,14 +68,13 @@ function tools(
       strict: true,
       input_schema: toStrictJsonSchema(FindPlacesInput) as BetaTool.InputSchema,
     },
-    // Strict tool use constrains the submission to the schema while it is generated. Eager
-    // input streaming is deliberately off: it would bypass that constraint, and this offline
-    // pipeline does not need the submission to stream.
+    // Not strict: the API refuses to compile a whole country draft (overview and stories) into
+    // a strict grammar as too large. The submission is parsed with zod instead, and anything
+    // that does not match goes back to the model through the repair loop.
     {
       name: submit.name,
       description: submit.description,
-      strict: true,
-      input_schema: toStrictJsonSchema(submit.schema) as BetaTool.InputSchema,
+      input_schema: toToolJsonSchema(submit.schema) as BetaTool.InputSchema,
     },
   ];
 }

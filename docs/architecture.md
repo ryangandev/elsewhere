@@ -192,7 +192,8 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Each country is one conversation with Claude Opus 5.5 (`--model` to change) with adaptive thinking at `high` effort (`--effort`).
    Research uses the server-side web search and web fetch tools.
    Places come from the gazetteer: the system prompt lists every water body and country, the task lists cities and regions in and near the country, and a `find_places` tool searches the rest.
-   The draft is submitted through a strict tool (`submit_draft`), so it has the schema's shape, then parsed with zod and checked with every `content:check` rule inside the current tree.
+   The draft is submitted through a tool (`submit_draft`) whose schema carries every constraint, then parsed with zod and checked with every `content:check` rule inside the current tree.
+   The tool is not strict: the API refuses to compile a whole country draft into a strict grammar, so a shape mistake goes through the repair loop like any other problem.
    The pipeline adds its own rules: every cited URL came back from a search or fetch in the same conversation, next questions point to existing or planned stories, planned and inbound story IDs are kept, a country has 4 to 6 stories, and text is English.
    Problems go back to the model as a tool error, up to three repairs; a job that still fails saves its last draft and log in `pipeline/.cache/failed/`.
    The pipeline fills in what the model does not write: known IDs, each entry's own source list, `accessedAt` (the run date) and `provenance: { generatedBy, generatedAt, promptVersion, status: 'draft' }`.

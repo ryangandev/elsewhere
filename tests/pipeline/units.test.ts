@@ -10,7 +10,12 @@ import {
   readCountryFile,
   writeCountryFile,
 } from '../../pipeline/content-tree';
-import { BatchPlan, CountryDraft, toStrictJsonSchema } from '../../pipeline/generate/draft-schema';
+import {
+  BatchPlan,
+  CountryDraft,
+  toStrictJsonSchema,
+  toToolJsonSchema,
+} from '../../pipeline/generate/draft-schema';
 import { normalizeUrl, retrievedUrls } from '../../pipeline/generate/evidence';
 import { AnthropicModelClient, MissingApiKeyError } from '../../pipeline/generate/model-client';
 import { BatchFile, checkPlan, readBatch } from '../../pipeline/generate/plan';
@@ -34,14 +39,22 @@ describe('replay fixtures', () => {
   });
 });
 
-describe('strict JSON schemas', () => {
-  it('leave out keywords strict tool use rejects', () => {
-    const text = JSON.stringify([toStrictJsonSchema(CountryDraft), toStrictJsonSchema(BatchPlan)]);
+describe('JSON schemas for the model', () => {
+  it('leave out keywords strict structured outputs reject', () => {
+    const text = JSON.stringify(toStrictJsonSchema(BatchPlan));
     for (const keyword of ['pattern', 'minLength', 'maxLength', 'maxItems', '$schema']) {
       expect(text).not.toContain(`"${keyword}"`);
     }
     expect(text).not.toMatch(/"minItems":[2-9]/);
     expect(text).toContain('"additionalProperties":false');
+  });
+
+  it('show a submission tool every constraint zod checks', () => {
+    const text = JSON.stringify(toToolJsonSchema(CountryDraft));
+    expect(text).toContain('"pattern"');
+    expect(text).toContain('"minItems":3');
+    expect(text).toContain('"additionalProperties":false');
+    expect(text).not.toContain('"$schema"');
   });
 });
 

@@ -1,7 +1,8 @@
 // What the model submits. These shapes are the model-facing view of the content schema in
 // src/content/schema.ts: they leave out what the pipeline fills in (IDs it already knows,
-// provenance, accessedAt, per-entry source lists) and spell optional fields as nullable,
-// because strict tool use requires every property. assemble.ts turns a draft into content.
+// provenance, accessedAt, per-entry source lists) and spell optional fields as nullable, so
+// every property is stated and strict structured outputs can use them. assemble.ts turns a
+// draft into content.
 import { z } from 'zod';
 import {
   HighlightRole,
@@ -16,7 +17,7 @@ import { mapCountryList } from '../content-tree';
 const Text = z.string().trim().min(1);
 
 const countryIds = mapCountryList().map((country) => country.id) as [string, ...string[]];
-/** Every map identity, as an enum so the model cannot invent a country code. */
+/** Every map identity, as an enum so the model sees the valid country codes. */
 const MapCountryId = z.enum(countryIds);
 
 const SourceIds = z
@@ -177,6 +178,19 @@ function sanitize(node: unknown): unknown {
     result[key] = sanitize(value);
   }
   return result;
+}
+
+/**
+ * The complete JSON Schema of a submission tool, constraints included, so the model sees every
+ * rule zod will check.
+ */
+export function toToolJsonSchema(schema: z.ZodType): Record<string, unknown> {
+  const json: Record<string, unknown> = z.toJSONSchema(schema, {
+    target: 'draft-2020-12',
+    io: 'input',
+  });
+  delete json.$schema;
+  return json;
 }
 
 /**
