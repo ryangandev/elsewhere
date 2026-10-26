@@ -6,6 +6,7 @@ import { findRouteLandCrossings } from './geo';
 import {
   CountryFile,
   GazetteerPlace,
+  HomeFile,
   MapCountry,
   PlaceNotesFile,
   TrailsFile,
@@ -27,6 +28,7 @@ export type ContentInput = {
   countryFiles: { file: string; data: unknown }[];
   trails: { file: string; data: unknown };
   placeNotes: { file: string; data: unknown };
+  home: { file: string; data: unknown };
   gazetteer: { file: string; data: unknown };
   mapCountries: { file: string; data: unknown };
   /** Land geometry for checking that sea routes stay at sea. Skipped when omitted. */
@@ -104,6 +106,7 @@ export function validateContent(input: ContentInput): ContentIssue[] {
   const trails = parse(TrailsFile, input.trails.file, input.trails.data, issues) ?? [];
   const placeNotes =
     parse(PlaceNotesFile, input.placeNotes.file, input.placeNotes.data, issues) ?? {};
+  const home = parse(HomeFile, input.home.file, input.home.data, issues);
 
   const storiesByCountry = new Map<string, Map<string, Story>>();
   for (const { data } of files) {
@@ -316,6 +319,20 @@ export function validateContent(input: ContentInput): ContentIssue[] {
 
   for (const id of Object.keys(placeNotes)) {
     if (!places.has(id)) report(input.placeNotes.file, id, `Unknown gazetteer place "${id}"`);
+  }
+
+  const suggestions = home?.suggestedQuestions ?? [];
+  suggestions.forEach((ref, index) => {
+    if (!storyExists(ref.countryId, ref.storyId)) {
+      report(
+        input.home.file,
+        `suggestedQuestions[${index}]`,
+        `Unknown story "${ref.countryId}/${ref.storyId}"`,
+      );
+    }
+  });
+  for (const key of duplicates(suggestions.map((ref) => `${ref.countryId}/${ref.storyId}`))) {
+    report(input.home.file, 'suggestedQuestions', `"${key}" is suggested twice`);
   }
 
   return issues;

@@ -23,6 +23,7 @@ const issues: ContentIssue[] = validateContent({
   countryFiles,
   trails: entry('content/en/trails.json'),
   placeNotes: entry('content/en/places.json'),
+  home: entry('content/en/home.json'),
   gazetteer: entry('data/geo/gazetteer.json'),
   mapCountries: entry('data/geo/countries.json'),
   land: createLandIndex(JSON.parse(readFileSync(LAND_GEOMETRY, 'utf8'))),

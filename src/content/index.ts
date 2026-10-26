@@ -12,6 +12,7 @@ export type {
   Country,
   CountryFile,
   GazetteerPlace,
+  Home,
   MapCountry,
   Provenance,
   QuickFact,
@@ -21,6 +22,7 @@ export type {
   Source,
   Story,
   StoryRef,
+  SuggestedQuestion,
   Trail,
 } from './schema';
 export { getMapCountry, getPlace, listMapCountries, routePoints } from './geo';
@@ -37,6 +39,7 @@ export const {
   getStoryBySlug,
   listStories,
   listTrails,
+  getHome,
   getPlaceNote,
   resolveScene,
 } = store;

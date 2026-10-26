@@ -81,6 +81,13 @@ describe('draft filtering', () => {
       countryFiles: [singapore, malaysia],
       trails: readJson('content/en/trails.json'),
       placeNotes: readJson('content/en/places.json'),
+      home: {
+        suggestedQuestions: [
+          { countryId: 'SGP', storyId: 'wealth' },
+          { countryId: 'SGP', storyId: draftStory },
+          { countryId: 'MYS', storyId: 'electronics' },
+        ],
+      },
     };
   }
   const draftStory = 'shipping';
@@ -104,6 +111,7 @@ describe('draft filtering', () => {
       expect(store.getStory(link.countryId, link.storyId), JSON.stringify(link)).toBeDefined();
     }
     for (const trail of store.listTrails()) expect(trail.stops.length).toBeGreaterThanOrEqual(2);
+    expect(store.getHome().suggestedQuestions).toEqual([{ countryId: 'SGP', storyId: 'wealth' }]);
   });
 
   it('shows drafts in development', () => {
@@ -112,6 +120,7 @@ describe('draft filtering', () => {
     expect(store.listCountries().map((country) => country.id)).toEqual(['MYS', 'SGP']);
     expect(store.getStory('SGP', draftStory)).toBeDefined();
     expect(store.getCountry('SGP')!.starterStoryIds).toContain(draftStory);
+    expect(store.getHome().suggestedQuestions).toHaveLength(3);
   });
 
   it('is what the default loaders do for the build environment', () => {
@@ -122,10 +131,12 @@ describe('draft filtering', () => {
         countryFiles: contentFiles(),
         trails: readJson('content/en/trails.json'),
         placeNotes: readJson('content/en/places.json'),
+        home: readJson('content/en/home.json'),
       },
       { includeDrafts: false },
     );
     expect(production.listStories()).toEqual(content.listStories());
+    expect(production.getHome()).toEqual(content.getHome());
   });
 });
 
