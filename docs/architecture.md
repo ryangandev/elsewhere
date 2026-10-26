@@ -73,6 +73,7 @@ How it is built:
   Pages are prerendered without it and the panel shows trail progress once the page hydrates, which keeps the page itself static.
 - Each page sets its own title and description with `generateMetadata`.
 - The tab icon is a file convention: `app/icon.svg`, plus `app/favicon.ico` for the browser's automatic `/favicon.ico` request, which would otherwise reach `app/[country]`.
+  `app/apple-icon.png` is the full-bleed home screen icon for iOS, which rounds the corners itself.
 
 What changed from the prototype:
 

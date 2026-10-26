@@ -45,7 +45,8 @@ Follow [Migration plan](architecture.md#migration-plan).
 
 Fix these where the migration touches them, or explicitly drop them with the code they belong to.
 
-- In development, an unknown path such as `/atlantis`, and the browser's automatic `/favicon.ico` request, answer 500 instead of 404, because `output: 'export'` forbids unknown params; the static build serves a plain 404.
+- In development, an unknown path such as `/atlantis` answers 500 instead of 404 unless the request asks for HTML, because `output: 'export'` forbids unknown params; the static build serves a plain 404.
+  The icons the browser requests on its own are real files (`app/favicon.ico`, `app/apple-icon.png`), so they are not affected.
 - The prototype query URL redirect runs in the browser; move it to Vercel `redirects` when the site deploys there.
 - Search is lexical: prefix matching, TF-IDF keywords and a short synonym list.
   A question phrased with none of a story's words ("What makes Singapore wealthy?" works, "Why is Singapore loaded?" does not) is reported as unanswered; revisit with embeddings or pipeline-generated paraphrases once the question bank grows.
