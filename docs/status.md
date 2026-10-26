@@ -5,17 +5,17 @@ Delete items when they are resolved; history lives in git.
 
 ## Current state
 
-The code is the prototype "second edition": ten hand-edited countries, thirty questions, three trails, and a 4K globe with progressive labels.
+Elsewhere is a Next.js static site with ten hand-edited countries, thirty questions, three trails, and a `MapScene`-driven 4K globe.
 The platform workstream (migration steps 1 and 2) moved it to Next.js with path routes, a persistent globe in the root layout, an English-only message catalog, Prettier, Vitest, and CI.
-The globe workstream (step 4) replaced the prototype globe with the `MapScene`-driven controller in `src/globe/`.
-The content workstream (step 3) added the schema, the English edition in `content/en/`, and the gazetteer.
-The content wiring removed the prototype data: pages read only `content/en/` through server-only loaders, hand the shell serializable view models, and the browser loads two build-time indexes instead of content modules.
+The globe workstream (step 4) replaced the prototype globe with the controller in `src/globe/`; labels follow printed-atlas rules and stay apart from story places.
+The content workstream (step 3) added the schema, the English edition in `content/en/` (files are discovered, not registered), and the gazetteer with sea passages.
+Pages read only `content/en/` through server-only loaders, hand the shell serializable view models, and the browser loads two build-time indexes instead of content modules.
 URLs use readable slugs; prototype query URLs redirect in the browser.
 The content pipeline workstream (step 5) added generation, verification and review commands in `pipeline/`; no content has been generated with them yet.
 The question-first experience (step 6) made the home a question input with suggested questions from `content/en/home.json`, shared with Cmd K.
+Step 7 has started: Playwright e2e tests cover the core loop on desktop and phone, and a visual polish pass covered every surface at 1440, 1024 and 390 pixels wide.
+What remains of step 7 is the pilot batch and the public deployment, both waiting on Ryan.
 Product direction and target architecture were settled on 2026-10-26; see [product.md](product.md) and [architecture.md](architecture.md).
-Migration is in progress.
-Steps 1 to 6 are merged; step 7 (scale and ship) is next.
 
 ## Confirmed decisions (2026-10-26)
 
@@ -31,6 +31,8 @@ Steps 1 to 6 are merged; step 7 (scale and ship) is next.
   3. Run `npm run content:generate -- --batch pilot --plan-only`, then read and edit `pipeline/batches/pilot.plan.json` (about $1).
   4. Run `npm run content:generate -- --batch pilot` (about $20 to $60; add `--mode batch` for roughly half the token cost and a slower run).
   5. Run `npm run content:verify`, then review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back.
+
+- Deployment: create the Vercel project from this repository (framework preset Next.js; the build already exports `out/`), then move the prototype query URL redirect to Vercel `redirects`.
 
 ## Known content pipeline issues
 
