@@ -957,13 +957,8 @@ blockquote {
   .header-actions {
     gap: 0;
   }
-  .search-trigger {
-    min-width: 0;
-    padding: 10px;
-    border: 0;
-    background: #ffffff08;
-  }
-  .search-trigger span {
+
+  .search-trigger > span {
     display: none;
   }
   .search-trigger kbd {
@@ -976,11 +971,8 @@ blockquote {
     width: 106%;
   }
   .world-footer > div {
-    font-size: 7px;
-    letter-spacing: 0.5px;
-  }
-  .world-footer > button {
     font-size: 9px;
+    letter-spacing: 0.6px;
   }
   .gesture-hint {
     display: none;
@@ -990,16 +982,6 @@ blockquote {
     top: 30%;
     transform: translateY(-35%);
     padding: 3px;
-  }
-  .map-controls button {
-    height: 30px;
-    width: 29px;
-  }
-  .map-controls button:first-child {
-    height: 39px;
-  }
-  .map-controls button svg {
-    width: 15px;
   }
   .map-controls > span {
     margin: 2px 0;
@@ -2006,17 +1988,8 @@ blockquote {
   .topbar {
     gap: 15px;
   }
-  .header-actions {
-    gap: 18px;
-  }
   .nav-button > span {
     display: none;
-  }
-  .nav-button {
-    padding: 10px 1px;
-  }
-  .search-trigger {
-    min-width: 0;
   }
   .brand {
     font-size: 24px;
@@ -2061,13 +2034,6 @@ blockquote {
     display: inline;
     margin-left: 5px;
   }
-  .panel-tools {
-    gap: 10px;
-  }
-  .panel-tools button {
-    width: 28px;
-    height: 30px;
-  }
   .panel-scroll {
     padding: 21px;
   }
@@ -2095,9 +2061,6 @@ blockquote {
   }
   .map-controls {
     top: 29%;
-  }
-  .map-controls button:first-child {
-    height: 31px;
   }
   .world-app:has(#country-reading) .map-controls {
     top: 22%;
@@ -2165,9 +2128,6 @@ blockquote {
   }
 }
 @media (max-width: 380px) {
-  .header-actions {
-    gap: 11px;
-  }
   .brand {
     font-size: 22px;
   }
@@ -2330,8 +2290,172 @@ blockquote {
 .learning-prompts {
   margin: 28px 0;
 }
-@media (max-width: 640px) {
-  .topbar .header-actions {
-    gap: 5px;
+
+/*
+ * Phones: every control is at least 44px in both directions, and text is at least 12px apart
+ * from small uppercase labels. Visual sizes stay close to desktop; hit areas grow around them.
+ */
+@media (max-width: 800px) {
+  .world-app {
+    /* The globe sits in the top half on phones, so the light falls there. */
+    background: radial-gradient(ellipse at 50% 30%, #173548 0%, #0d202d 45%, #091824 80%);
+  }
+  .header-actions {
+    gap: 0;
+  }
+  .nav-button {
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+  .search-trigger {
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: #ffffff08;
+  }
+  .saved-indicator {
+    top: 11px;
+    right: 9px;
+  }
+  .map-controls button,
+  .map-controls button:first-child {
+    width: 44px;
+    height: 44px;
+  }
+  .map-controls > span {
+    width: 24px;
+  }
+  .map-breadcrumb,
+  .map-breadcrumb button {
+    font-size: 12px;
+  }
+  /* The breadcrumb pill stays slim; its links take taps from just above and below it. */
+  .map-breadcrumb button {
+    position: relative;
+  }
+  .map-breadcrumb button::before {
+    content: '';
+    position: absolute;
+    inset: -12px -4px;
+  }
+  .panel-topline {
+    padding: 4px 4px 4px 16px;
+  }
+  .panel-mode {
+    align-self: stretch;
+    min-height: 44px;
+    font-size: 9px;
+  }
+  .panel-tools {
+    gap: 0;
+  }
+  .panel-tools button {
+    width: 44px;
+    height: 44px;
+  }
+  .back-link {
+    min-height: 44px;
+    margin: -12px 0 16px;
+    font-size: 13px;
+  }
+  .topic-meta,
+  .country-region,
+  .native-name {
+    font-size: 12px;
+  }
+  .place-chips {
+    gap: 8px;
+  }
+  .place-chips button {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .map-instruction,
+  .topic-sections p.section-sources,
+  .provenance-note,
+  .reference-population > small {
+    font-size: 12px;
+  }
+  .place-detail button {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .small-details,
+  .more-questions {
+    font-size: 13px;
+  }
+  .small-details summary,
+  .more-questions summary {
+    padding: 12px 0;
+  }
+  .small-details p,
+  .small-details a {
+    font-size: 13px;
+  }
+  .story-link small {
+    font-size: 12px;
+  }
+  .story-link p {
+    font-size: 13px;
+  }
+  .trail-progress > div > button {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin: -12px -12px -12px auto;
+  }
+  .trail-progress nav button {
+    min-height: 40px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .trail-progress nav span {
+    font-size: 10px;
+  }
+  .next-stop > button,
+  .library-empty button {
+    min-height: 44px;
+  }
+  .compact-story span {
+    font-size: 12px;
+  }
+  .world-footer > button {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .atlas-drawer > button:last-child {
+    top: 10px;
+    right: 10px;
+    width: 44px;
+    height: 44px;
+  }
+  .library-tabs button {
+    min-height: 44px;
+    padding: 12px 0;
+  }
+  .remove-saved {
+    width: 44px;
+    height: 44px;
+    margin: 4px 0 0;
+  }
+  .trail-card > button {
+    min-height: 48px;
+    font-size: 13px;
+  }
+  .trail-card > button > span {
+    font-size: 12px;
+  }
+  .about-sheet .credits {
+    font-size: 12px;
+  }
+  .atlas-notice {
+    font-size: 12px;
   }
 }

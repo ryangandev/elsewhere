@@ -204,10 +204,19 @@
     max-height: calc(100dvh - 240px);
   }
   .search-heading {
-    padding: 14px 16px 0;
+    padding: 6px 6px 0 16px;
+  }
+  .search-heading button {
+    width: 44px;
+    height: 44px;
+    margin-right: 0;
+  }
+  .result-text small {
+    font-size: 12px;
   }
   .question-search .search-foot {
     padding: 12px 16px;
+    font-size: 12px;
   }
   .question-search .search-foot > span:first-child {
     display: none;
