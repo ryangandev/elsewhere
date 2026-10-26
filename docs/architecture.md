@@ -508,6 +508,7 @@ Adding Chinese later means adding a catalog and a `content/zh/` tree, with no co
   A phone project runs the core loop (home, ask, story, follow), the reading panel collapsing to a strip and giving the globe its room, and share through a stubbed system share sheet at 390 by 844 with touch.
   The specs find things by role and visible text, read expected questions and sources from `content/en/`, and never depend on globe pixels or on WebGL (one spec runs with WebGL disabled).
   Run `npm run build` first, then `npm run test:e2e`; CI runs it as its own `e2e` job and keeps the Playwright report when it fails.
+  CI runners have no GPU and render the globe in software, so tests there get twice the local time limits.
 
 ## Migration plan
 
