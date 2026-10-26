@@ -1,0 +1,357 @@
+// Builds the replay fixtures in tests/pipeline/fixtures/replay: model responses in the shape the
+// Messages API returns, for the pipeline to run end to end without network or an API key.
+// The text is placeholder, not content; the place IDs are real gazetteer IDs and every cited URL
+// appears in a web search result of the same conversation, as the pipeline requires.
+//
+//   node --import tsx tests/pipeline/fixtures/build-replay.ts
+//
+// tests/pipeline/fixtures.test.ts checks the committed files match this script.
+import { mkdirSync, rmSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { writeJson } from '../../../pipeline/content-tree';
+
+export const REPLAY_DIR = join(dirname(fileURLToPath(import.meta.url)), 'replay');
+export const FIXTURE_MODEL = 'claude-opus-5-5';
+/** The batch the plan fixture answers. */
+export const FIXTURE_BATCH = {
+  id: 'fixture',
+  description: 'Replay fixture batch for the pipeline tests.',
+  selection: ['Two neighbours so the plan can link them.'],
+  stories: { min: 4, max: 6 },
+  countries: [
+    { id: 'CHL', why: 'Drafted by the country fixture.' },
+    { id: 'ARG', why: 'Planned only, so links to it stay pending.' },
+  ],
+};
+
+const url = (path: string) => `https://example.org/elsewhere-fixture/${path}`;
+
+let ids = 0;
+const nextId = (prefix: string) => `${prefix}_fixture${String((ids += 1)).padStart(3, '0')}`;
+
+function message(
+  content: unknown[],
+  stopReason: string,
+  usage: { input: number; cacheRead?: number; output: number; searches?: number },
+) {
+  return {
+    id: nextId('msg'),
+    type: 'message',
+    role: 'assistant',
+    model: FIXTURE_MODEL,
+    content,
+    stop_reason: stopReason,
+    stop_sequence: null,
+    usage: {
+      input_tokens: usage.input,
+      output_tokens: usage.output,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: usage.cacheRead ?? 0,
+      server_tool_use: { web_search_requests: usage.searches ?? 0, web_fetch_requests: 0 },
+    },
+  };
+}
+
+const text = (value: string) => ({ type: 'text', text: value, citations: null });
+
+function webSearch(query: string, results: { path: string; title: string }[]) {
+  const id = nextId('srvtoolu');
+  return [
+    { type: 'server_tool_use', id, name: 'web_search', input: { query } },
+    {
+      type: 'web_search_tool_result',
+      tool_use_id: id,
+      content: results.map((result) => ({
+        type: 'web_search_result',
+        url: url(result.path),
+        title: result.title,
+        encrypted_content: 'fixture',
+        page_age: null,
+      })),
+    },
+  ];
+}
+
+const toolUse = (name: string, input: unknown) => ({
+  type: 'tool_use',
+  id: nextId('toolu'),
+  name,
+  input,
+});
+
+const placeholder = (topic: string) =>
+  `Placeholder text about ${topic} for the pipeline tests. It is not real content.`;
+
+const source = (id: string, path: string, title: string) => ({
+  id,
+  title,
+  publisher: 'Elsewhere test fixtures',
+  url: url(path),
+});
+
+const SOURCES = [
+  source('fixture-overview', 'chile/overview', 'Fixture overview page'),
+  source('fixture-geography', 'chile/geography', 'Fixture geography page'),
+  source('fixture-economy', 'chile/economy', 'Fixture economy page'),
+  source('fixture-history', 'chile/history', 'Fixture history page'),
+];
+
+function story(
+  id: string,
+  sourceIds: string[],
+  scene: { highlights?: unknown[]; placeIds?: string[]; routes?: unknown[] },
+  next: { countryId: string; storyId: string; reason: string | null }[],
+) {
+  return {
+    id,
+    slug: id,
+    question: `Fixture question about ${id}?`,
+    category: 'Geography',
+    summary: placeholder(`the ${id} answer`),
+    sections: [
+      { title: `First part of ${id}`, text: placeholder(`${id}, part one`), sourceIds },
+      { title: `Second part of ${id}`, text: placeholder(`${id}, part two`), sourceIds },
+    ],
+    takeaway: placeholder(`the ${id} takeaway`),
+    scene: {
+      highlights: scene.highlights ?? [],
+      placeIds: scene.placeIds ?? [],
+      routes: scene.routes ?? [],
+      mapNote: placeholder(`the ${id} map`),
+    },
+    next,
+  };
+}
+
+function chileDraft() {
+  return {
+    country: {
+      name: 'Chile',
+      nativeName: null,
+      region: 'South America',
+      kicker: 'Placeholder kicker for the fixture.',
+      overview: {
+        summary: placeholder('the overview'),
+        geography: placeholder('the geography'),
+        sourceIds: ['fixture-overview', 'fixture-geography'],
+        whyItMatters: [
+          {
+            title: 'Fixture point one',
+            text: placeholder('point one'),
+            sourceIds: ['fixture-economy'],
+          },
+          {
+            title: 'Fixture point two',
+            text: placeholder('point two'),
+            sourceIds: ['fixture-history'],
+          },
+        ],
+      },
+      quickFacts: [
+        { label: 'Capital', value: 'Fixture value', asOf: null, sourceIds: ['fixture-overview'] },
+        {
+          label: 'Population',
+          value: 'Fixture value',
+          asOf: '2026',
+          sourceIds: ['fixture-overview'],
+        },
+      ],
+      starterStoryIds: ['length', 'desert', 'copper'],
+      scene: {
+        highlights: [
+          { countryId: 'ARG', role: 'related' },
+          { countryId: 'PER', role: 'related' },
+          { countryId: 'BOL', role: 'related' },
+        ],
+        placeIds: ['south-pacific-ocean', 'andes', 'atacama-desert'],
+        routes: [],
+        mapNote: null,
+      },
+    },
+    stories: [
+      story(
+        'length',
+        ['fixture-geography'],
+        {
+          placeIds: ['santiago', 'strait-of-magellan'],
+          routes: [
+            {
+              id: 'cape-horn-passage',
+              kind: 'sea',
+              via: ['south-pacific-ocean', 'drake-passage'],
+            },
+          ],
+        },
+        [
+          { countryId: 'CHL', storyId: 'desert', reason: null },
+          {
+            countryId: 'BRA',
+            storyId: 'amazon',
+            reason: 'Another landscape that spans a continent.',
+          },
+        ],
+      ),
+      story(
+        'desert',
+        ['fixture-geography', 'fixture-history'],
+        {
+          highlights: [
+            { countryId: 'PER', role: 'related' },
+            { countryId: 'BOL', role: 'related' },
+          ],
+          placeIds: ['atacama-desert'],
+        },
+        [
+          { countryId: 'CHL', storyId: 'copper', reason: null },
+          {
+            countryId: 'IND',
+            storyId: 'monsoon',
+            reason: 'The opposite problem: too much rain at once.',
+          },
+        ],
+      ),
+      story('copper', ['fixture-economy'], { placeIds: ['atacama-desert'] }, [
+        { countryId: 'CHL', storyId: 'length', reason: null },
+        { countryId: 'CHN', storyId: 'manufacturing', reason: 'Where much of the metal ends up.' },
+      ]),
+      story(
+        'andes',
+        ['fixture-geography'],
+        { highlights: [{ countryId: 'ARG', role: 'related' }], placeIds: ['andes', 'patagonia'] },
+        [
+          { countryId: 'CHL', storyId: 'length', reason: null },
+          {
+            countryId: 'BRA',
+            storyId: 'agriculture',
+            reason: 'Farming on the other side of the continent.',
+          },
+        ],
+      ),
+    ],
+    sources: SOURCES,
+  };
+}
+
+/** The first submission: cites a page it never retrieved and uses a place the gazetteer lacks. */
+function invalidChileDraft() {
+  const draft = chileDraft();
+  const copper = draft.stories.find((entry) => entry.id === 'copper')!;
+  copper.sections[1].sourceIds = ['fixture-unretrieved'];
+  copper.scene.placeIds = ['valparaiso'];
+  draft.sources = [
+    ...SOURCES,
+    source('fixture-unretrieved', 'chile/not-retrieved', 'Never retrieved'),
+  ];
+  return draft;
+}
+
+const plan = {
+  countries: [
+    {
+      countryId: 'CHL',
+      stories: [
+        { id: 'length', question: 'Fixture question about length?', angle: 'common' },
+        { id: 'desert', question: 'Fixture question about desert?', angle: 'common' },
+        { id: 'copper', question: 'Fixture question about copper?', angle: 'common' },
+        { id: 'andes', question: 'Fixture question about andes?', angle: 'unexpected' },
+      ],
+    },
+    {
+      countryId: 'ARG',
+      stories: [
+        { id: 'pampas', question: 'Fixture question about pampas?', angle: 'common' },
+        { id: 'patagonia', question: 'Fixture question about patagonia?', angle: 'common' },
+        { id: 'capital', question: 'Fixture question about the capital?', angle: 'common' },
+        { id: 'glaciers', question: 'Fixture question about glaciers?', angle: 'unexpected' },
+      ],
+    },
+  ],
+};
+
+function revisedAndes() {
+  const revised = story(
+    'andes',
+    ['fixture-andes'],
+    { highlights: [{ countryId: 'ARG', role: 'related' }], placeIds: ['andes', 'patagonia'] },
+    [
+      { countryId: 'CHL', storyId: 'length', reason: null },
+      { countryId: 'ARG', storyId: 'patagonia', reason: 'The other side of the same mountains.' },
+    ],
+  );
+  revised.summary = placeholder('the revised andes answer');
+  return {
+    story: revised,
+    sources: [source('fixture-andes', 'chile/andes-revised', 'Fixture page for the revision')],
+  };
+}
+
+/** Recorded turns by tag, in order. */
+export function replayFixtures(): Record<string, unknown[]> {
+  ids = 0;
+  return {
+    'plan-fixture': [
+      message([text(JSON.stringify(plan))], 'end_turn', { input: 9000, output: 1200 }),
+    ],
+    CHL: [
+      // Research; the server tool loop pauses and the pipeline resends the conversation.
+      message(
+        [
+          ...webSearch('fixture chile overview', [
+            { path: 'chile/overview', title: 'Fixture overview page' },
+            { path: 'chile/geography', title: 'Fixture geography page' },
+          ]),
+          ...webSearch('fixture chile economy history', [
+            { path: 'chile/economy', title: 'Fixture economy page' },
+            { path: 'chile/history', title: 'Fixture history page' },
+          ]),
+        ],
+        'pause_turn',
+        { input: 60000, output: 3000, searches: 2 },
+      ),
+      // A gazetteer lookup through the client tool.
+      message(
+        [toolUse('find_places', { query: 'drake', countryId: null, near: null })],
+        'tool_use',
+        { input: 2000, cacheRead: 60000, output: 400 },
+      ),
+      message([toolUse('submit_draft', invalidChileDraft())], 'tool_use', {
+        input: 1500,
+        cacheRead: 62000,
+        output: 9000,
+      }),
+      message(
+        [text('Fixed the source and the place.'), toolUse('submit_draft', chileDraft())],
+        'tool_use',
+        { input: 1800, cacheRead: 71000, output: 9000 },
+      ),
+    ],
+    'CHL-andes': [
+      message(
+        [
+          ...webSearch('fixture andes revision', [
+            { path: 'chile/andes-revised', title: 'Fixture page for the revision' },
+          ]),
+          toolUse('submit_story', revisedAndes()),
+        ],
+        'tool_use',
+        { input: 50000, output: 2500, searches: 1 },
+      ),
+    ],
+  };
+}
+
+export function writeReplayFixtures(dir: string): void {
+  rmSync(dir, { recursive: true, force: true });
+  for (const [tag, turns] of Object.entries(replayFixtures())) {
+    mkdirSync(join(dir, tag), { recursive: true });
+    turns.forEach((turn, index) => {
+      writeJson(join(dir, tag, `${String(index + 1).padStart(3, '0')}.json`), turn);
+    });
+  }
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  writeReplayFixtures(REPLAY_DIR);
+  console.log(`Wrote ${REPLAY_DIR}`);
+}
