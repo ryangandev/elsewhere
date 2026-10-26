@@ -32,8 +32,15 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
   4. Run `npm run content:generate -- --batch pilot` (about $20 to $60; add `--mode batch` for roughly half the token cost and a slower run).
   5. Run `npm run content:verify`, then review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back.
 
-- Deployment: create the Vercel project from this repository (framework preset Next.js; the build already exports `out/`), then move the prototype query URL redirect to Vercel `redirects`.
+- Deployment: the repository is ready for Vercel; only the project itself is missing.
   The site needs no environment variables: content is generated offline and committed, so the API key never goes to Vercel or CI.
+  See [How Vercel serves it](architecture.md#platform) for what `vercel.json` does.
+  1. In Vercel, choose Add New, then Project, and import this GitHub repository; `main` is the production branch.
+  2. Keep the detected framework preset, Next.js, and the root directory at the repository root.
+  3. Leave Build Command, Output Directory and Install Command at their defaults: the build runs `npm run build`, and the Next.js builder finds the static export in `out/` by itself, so do not set Output Directory to `out`.
+  4. Add no environment variables, and keep "Enable access to System Environment Variables" checked under Settings, then Environment Variables (it is on by default), because canonical links, robots.txt and the sitemap use `VERCEL_PROJECT_PRODUCTION_URL`.
+  5. Deploy, then check the production URL: the home page and a story render with the globe, `/atlantis` shows the designed not-found page, and `curl -sI "https://<domain>/?country=sgp&topic=shipping"` answers 308 with `location: /singapore/shipping` (Vercel may append the original query string, which the page ignores).
+  6. For a custom domain, add it under Settings, then Domains, let Vercel redirect the other of apex and `www` to it, and redeploy, so canonical links, robots.txt and the sitemap switch from the `vercel.app` address to it.
 
 ## Known content pipeline issues
 
