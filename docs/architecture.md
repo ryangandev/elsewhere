@@ -232,7 +232,8 @@ Cost controls:
 - Every job prints its token usage, searches and estimated cost, and the run prints the total.
   Expect roughly $1 to $3 per country in synchronous mode (about 300k input tokens, mostly cache reads, 80k cache writes, 25k output tokens and 15 searches), so $20 to $60 for the pilot; batch mode about halves the token part.
 
-The API key comes from `ANTHROPIC_API_KEY` in the git-ignored `.env.local`; without it a real run stops before doing any work and says so.
+The API key comes from `ANTHROPIC_API_KEY` in the git-ignored `.env.local` (copy `.env.example`); without it a real run stops before doing any work and says so.
+Only the pipeline uses it: the site, its build and CI need no keys, so it is never set on Vercel or GitHub.
 `--record <dir>` saves every response as `<dir>/<tag>/<n>.json`, and `--replay <dir>` answers requests from such a directory without network or key.
 The end-to-end test replays `tests/pipeline/fixtures/replay` (placeholder text, built by `build-replay.ts` in the same folder), and the same fixtures run from the command line:
 

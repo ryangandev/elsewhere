@@ -16,8 +16,9 @@ next-env.d.ts
 # debug
 npm-debug.log*
 
-# env files
+# env files (the example is committed; it holds no secrets)
 .env*
+!.env.example
 
 # typescript
 *.tsbuildinfo
