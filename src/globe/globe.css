@@ -28,3 +28,39 @@
   color: #24392c;
   text-shadow: none;
 }
+
+/* globe.gl writes each label's transform every frame to follow the camera, so a transform
+   transition, such as the one every button inherits, would make pins trail the globe and
+   cross names that layout had kept apart. */
+.globe-render .globe-pin {
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+/* Parks label elements globe.gl has not attached yet, so layout can measure them.
+   A parked name stays hidden even once layout marks it visible. */
+.globe-label-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.globe-label-measure > * {
+  visibility: hidden !important;
+}
+
+/* Country names step down in size at wider zooms (see labelScale in cartography.ts). */
+.globe-host[data-label-scale='world'] .atlas-country-name {
+  font-size: 11px;
+}
+.globe-host[data-label-scale='region'] .atlas-country-name {
+  font-size: 13px;
+}
+
+/* A multi-word name broken onto two lines where one line does not fit. */
+.globe-render .atlas-country-name.is-stacked {
+  white-space: pre-line;
+  line-height: 1.12;
+}

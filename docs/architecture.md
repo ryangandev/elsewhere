@@ -306,7 +306,7 @@ Options carry everything the controller needs, so it never imports app or conten
 
 - `labels`: country id, name, anchor, area, and label rank, read once at creation.
 - `assets`: the basemap image and both geometry URLs; `DEFAULT_GLOBE_ASSETS` points at `public/maps`.
-- `occluders`: a callback returning elements, such as panels, that labels must not cover; they are measured at each layout.
+- `occluders`: a callback returning elements, such as panels, that labels must not cover; they are measured at each layout and observed, so a panel resizing on its own re-runs layout.
 - `homeView`: the camera for a scene with no camera and no focus country.
 
 How a scene is applied:
@@ -320,6 +320,20 @@ How a scene is applied:
 - A place with a country's id or name replaces that country's name, and the focus country is never repeated as a place.
 - Highlights light up as one merged fill and outline per role (`related`, `contrast`), and highlighted names win label collisions.
 
+How labels are laid out:
+
+- Country names and place labels share one collision space with a fixed priority: the selected country, then the scene's places (focused, then water, then the rest), then other countries by emphasis, label rank, and on-screen size.
+  An earlier label always wins, and each layout starts from an empty space, so no position survives a scene change.
+- The selected name first steps around the scene's places, shifting above or below its point, and only claims their space when nothing else fits.
+- Each country has up to six candidate points (`label-candidates.ts`): the Natural Earth label point, then well-spread interior points of its largest parts, ranked by open room around them and skipping thin tails.
+  They are computed once per country from the geometry loaded at the time, so layout itself never scans polygons.
+- Layout keeps a visible name at its current point while that point faces the camera, and otherwise tries the points by room foreshortened by the view, so a country near the horizon is named from its visible side.
+- A name must fit: land of that country under the center and four corners of its ink box, inside the map frame, and clear of occluders and earlier labels.
+  A near miss may shift a small step away from the failing corners, and a multi-word name may break onto two lines.
+- Names use short atlas forms (`label-names.ts`, after Natural Earth's short names), with the full name kept as the accessible name.
+- Type steps with zoom (11px at world zoom, 13px at regional zoom, the base size closer in); sizes are measured once per step, in a hidden host for names globe.gl has not attached yet.
+- Visible names get slightly less padding and a small priority bonus, so names do not flicker as the camera moves.
+
 Modules:
 
 | Module | Responsibility |
@@ -329,7 +343,9 @@ Modules:
 | `camera.ts`, `scene-diff.ts` | Pure framing and change detection |
 | `geography.ts` | Country geometry, borders, fills, picking, detail refinement |
 | `borders.ts`, `fills.ts`, `country-lookup.ts`, `projection.ts` | Merged line buffers, lazy merged caps, bounds-filtered lookup, sphere unprojection |
-| `label-layer.ts`, `cartography.ts` | Country and place labels, screen-space fit, collision and occluder avoidance |
+| `label-layer.ts` | Label elements, scene updates, measurement, occluder rectangles |
+| `cartography.ts` | Pure label layout: candidate order, priority, screen-space fit, nudges, collisions |
+| `label-candidates.ts`, `label-names.ts` | Interior label points per country; short map names and two-line breaks |
 | `interactions.ts` | Pointer hover, tooltip, click selection |
 | `route-layer.ts` | Route paths styled by kind |
 | `materials.ts` | Image basemap material and camera-relative lights |
@@ -359,9 +375,11 @@ They were investigation tools, not product features, and they remain in git hist
 
 What can go wrong:
 
-- Labels re-layout on camera, scene, and container size changes, not when an occluder resizes on its own.
 - globe.gl recreates every label element when its `htmlElement` accessor changes, so it is set exactly once.
-- Long names can fail the fit test at world zoom and stay hidden until the camera is closer.
+- globe.gl applies a new size to its camera in a debounced update, so layout waits until the camera's aspect matches the size; projecting earlier puts names in the wrong place.
+- globe.gl writes every label's `transform` each frame, so a CSS transition on `transform`, such as the global `button` rule, makes labels trail the globe and cross each other; `globe.css` turns it off for pins.
+- Some medium countries, such as Pakistan and the United Kingdom, still have no name at world zoom where their neighbors take the space or the name does not fit.
+- Short names live in `label-names.ts` until the content model carries a short name per country.
 
 ## Server and client boundary
 
