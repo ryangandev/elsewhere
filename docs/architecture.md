@@ -372,7 +372,7 @@ What can go wrong:
 
 - globe.gl recreates every label element when its `htmlElement` accessor changes, so it is set exactly once.
 - globe.gl applies a new size to its camera in a debounced update, so layout waits until the camera's aspect matches the size; projecting earlier puts names in the wrong place.
-- globe.gl writes every label's `transform` each frame, so a CSS transition on `transform`, such as the global `button` rule, makes labels trail the globe and cross each other; `globe.css` turns it off for pins.
+- globe.gl writes every label's `transform` each frame, so a CSS transition on `transform` makes labels trail the globe and cross each other; the interface button rule in `app/globals.css` leaves out everything inside `.globe-host`, and label styles transition colors only.
 - Some medium countries, such as Pakistan and the United Kingdom, still have no name at world zoom where their neighbors take the space or the name does not fit.
 - Short names live in `label-names.ts` until the content model carries a short name per country.
 

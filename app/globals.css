@@ -68,17 +68,22 @@ summary:focus-visible {
   outline: 2px solid #bdcfa4;
   outline-offset: 5px;
 }
-button {
+/*
+ * Interface buttons ease their colors and settle a pixel when pressed. Globe labels are buttons
+ * too, but globe.gl writes their transform every frame to follow the camera, so they are left
+ * out: a transform transition would make them trail the globe.
+ */
+:where(button:not(.globe-host *)) {
   transition:
     background 0.2s,
     color 0.2s,
     transform 0.2s;
 }
+:where(button:not(.globe-host *, :disabled)):active {
+  transform: translateY(1px);
+}
 button:disabled {
   cursor: default;
-}
-button:active {
-  transform: translateY(1px);
 }
 .world-app {
   height: 100svh;
@@ -194,6 +199,10 @@ button:active {
   border-radius: 5px;
   box-shadow: 0 2px 10px #0002;
   text-shadow: 0 1px 4px #000b;
+  /* Colors only: globe.gl owns the transform (see the button rule above). */
+  transition:
+    background 0.2s,
+    color 0.2s;
 }
 .globe-pin:hover {
   background: #183542dc;
@@ -1262,9 +1271,6 @@ blockquote {
   outline: 2px solid #344f3d;
   outline-offset: 3px;
   border-radius: 3px;
-}
-.atlas-country-name:active {
-  transform: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .atlas-country-name {
