@@ -29,15 +29,22 @@ const KEYWORD_STOP_WORDS = new Set(
 
 /** Globe labels for every map identity, each with the page it opens. */
 export function buildCountryLabels(): CountryLabel[] {
-  return listMapCountries().map((country) => ({
-    id: country.id,
-    name: countryName(country.id),
-    lat: country.lat,
-    lng: country.lng,
-    area: country.area,
-    rank: country.labelRank,
-    path: destinationPath({ countryId: country.id }),
-  }));
+  return listMapCountries().map((country) => {
+    const name = countryName(country.id);
+    // Natural Earth's short map name, unless the edited name is already as short.
+    const shortName =
+      country.shortName && country.shortName.length < name.length ? country.shortName : undefined;
+    return {
+      id: country.id,
+      name,
+      ...(shortName ? { shortName } : {}),
+      lat: country.lat,
+      lng: country.lng,
+      area: country.area,
+      rank: country.labelRank,
+      path: destinationPath({ countryId: country.id }),
+    };
+  });
 }
 
 export function buildAtlasIndex(): AtlasIndex {

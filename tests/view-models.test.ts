@@ -168,8 +168,14 @@ describe('home and client indexes', () => {
       name: 'Singapore',
       path: '/singapore',
     });
+    // The short map name is there only when it is shorter than the name.
+    expect(labels.find((label) => label.id === 'RUS')).toMatchObject({
+      name: 'Russian Federation',
+      shortName: 'Russia',
+    });
     for (const label of labels) {
-      expect(Object.keys(label).sort()).toEqual([
+      const { shortName, ...rest } = label;
+      expect(Object.keys(rest).sort()).toEqual([
         'area',
         'id',
         'lat',
@@ -178,6 +184,7 @@ describe('home and client indexes', () => {
         'path',
         'rank',
       ]);
+      if (shortName !== undefined) expect(shortName.length).toBeLessThan(label.name.length);
     }
   });
 

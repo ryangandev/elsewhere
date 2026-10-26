@@ -50,7 +50,7 @@
         "label": "Language",
         "value": "English, Malay, Mandarin, Tamil",
         "sourceIds": [
-          "singstat-population-2024"
+          "sg-constitution-languages"
         ]
       },
       {
@@ -109,6 +109,13 @@
         "title": "Population Trends, 2026",
         "publisher": "Singapore Department of Statistics",
         "url": "https://www.singstat.gov.sg/files/5645f043-4bb7-4181-a3a8-c36da5cd1b12.pdf"
+      },
+      {
+        "id": "sg-constitution-languages",
+        "title": "Constitution of the Republic of Singapore, Article 153A: Official languages and national language",
+        "publisher": "Attorney-General's Chambers, Singapore Statutes Online",
+        "url": "https://sso.agc.gov.sg/Act/CONS1963?ProvIds=pr153A-",
+        "accessedAt": "2026-10-26"
       }
     ],
     "provenance": {
@@ -139,14 +146,18 @@
           "title": "Build what the world needs",
           "text": "After independence, Singapore invested in housing, education, infrastructure, and export manufacturing. Foreign investment connected local workers to global production.",
           "sourceIds": [
-            "nlb-singapore-history"
+            "nlb-singapore-history",
+            "mas-economic-history"
           ]
         },
         {
           "title": "Move up the value chain",
           "text": "Finance, advanced manufacturing, and business services grew around that foundation. Wealth is substantial, but so are pressures around inequality, housing, and reliance on migrant labor.",
           "sourceIds": [
-            "singstat-population-2024"
+            "mas-economic-history",
+            "singstat-household-income-2025",
+            "mnd-resale-flat-cooling",
+            "mom-foreign-workforce"
           ]
         }
       ],
@@ -207,10 +218,32 @@
           "url": "https://biblioasia.nlb.gov.sg/all-sections/vol-14-issue-4-jan-mar-2019-looking-back-at-700-years-singapore/"
         },
         {
-          "id": "singstat-population-2024",
-          "title": "Population Trends, 2026",
+          "id": "mas-economic-history",
+          "title": "An Economic History of Singapore: 1965-2065",
+          "publisher": "Monetary Authority of Singapore",
+          "url": "https://www.mas.gov.sg/news/speeches/2015/an-economic-history-of-singapore",
+          "accessedAt": "2026-10-26"
+        },
+        {
+          "id": "singstat-household-income-2025",
+          "title": "Key Household Income Trends, 2025",
           "publisher": "Singapore Department of Statistics",
-          "url": "https://www.singstat.gov.sg/files/5645f043-4bb7-4181-a3a8-c36da5cd1b12.pdf"
+          "url": "https://www.singstat.gov.sg/files/b0eafa31-0ac6-4684-b2cd-4a264ce8d820.pdf",
+          "accessedAt": "2026-10-26"
+        },
+        {
+          "id": "mnd-resale-flat-cooling",
+          "title": "Written answer on the effectiveness of cooling measures for million-dollar and high-value resale HDB flats",
+          "publisher": "Ministry of National Development",
+          "url": "https://www.mnd.gov.sg/newsroom/parliament-matters/q-as/view/written-answer-by-ministry-of-national-development-on-the-effectiveness-of-cooling-measures-implemented-to-address-concerns-about-million-dollar-and-high-value-resale-hdb-flats",
+          "accessedAt": "2026-10-26"
+        },
+        {
+          "id": "mom-foreign-workforce",
+          "title": "Foreign workforce numbers",
+          "publisher": "Ministry of Manpower",
+          "url": "https://www.mom.gov.sg/foreign-workforce-numbers",
+          "accessedAt": "2026-10-26"
         }
       ],
       "provenance": {
@@ -328,7 +361,8 @@
           "title": "One country, multiple inheritances",
           "text": "Ethnic Chinese people form a majority of the resident population. English, Malay, Mandarin, and Tamil are official languages; Malay is the national language. Ethnicity, citizenship, and language are different parts of identity.",
           "sourceIds": [
-            "singstat-population-2024"
+            "singstat-population-2024",
+            "sg-constitution-languages"
           ]
         }
       ],
@@ -382,6 +416,13 @@
           "title": "Population Trends, 2026",
           "publisher": "Singapore Department of Statistics",
           "url": "https://www.singstat.gov.sg/files/5645f043-4bb7-4181-a3a8-c36da5cd1b12.pdf"
+        },
+        {
+          "id": "sg-constitution-languages",
+          "title": "Constitution of the Republic of Singapore, Article 153A: Official languages and national language",
+          "publisher": "Attorney-General's Chambers, Singapore Statutes Online",
+          "url": "https://sso.agc.gov.sg/Act/CONS1963?ProvIds=pr153A-",
+          "accessedAt": "2026-10-26"
         }
       ],
       "provenance": {

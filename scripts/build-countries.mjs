@@ -1,7 +1,8 @@
 // Build data/geo/countries.json: one entry for each of the 258 Natural Earth map identities.
 // Attributes come from the Natural Earth 10m countries dataset; label anchors come from the
 // bundled detailed geometry so labels sit on the shapes the globe actually draws.
-// English only: names are Natural Earth's English long names.
+// English only: names are Natural Earth's English long names, and shortName is Natural Earth's
+// short map name (NAME, "Russia" for "Russian Federation") when it is shorter.
 import { readFileSync } from 'node:fs';
 import { geoArea, geoCentroid, geoContains } from 'd3-geo';
 import {
@@ -54,6 +55,9 @@ const countries = geometry.features
       id,
       slug: slugify(name),
       name,
+      ...(properties.NAME && properties.NAME.length < name.length
+        ? { shortName: properties.NAME }
+        : {}),
       isoA2: isoA2(properties),
       region: properties.SUBREGION,
       continent: properties.CONTINENT,

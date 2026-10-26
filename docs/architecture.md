@@ -240,13 +240,16 @@ npm run content:review -- show CHL --content-dir /tmp/elsewhere-en
 
 Geo data in `data/geo/` is generated from Natural Earth 10m datasets, which are cached in `.map-sources/` and recorded with URL and SHA-256 in `data/geo/sources.json`:
 
-- `countries.json` (`npm run maps:countries`) holds all 258 map identities: ID, slug, English name, region, population and label anchor.
-- `gazetteer.json` (`npm run maps:gazetteer`) holds about 1,250 named places (37 KB gzipped): every country, named seas and straits, major rivers, physical regions, and major cities and capitals.
+- `countries.json` (`npm run maps:countries`) holds all 258 map identities: ID, slug, English name and short map name, region, population and label anchor.
+- `gazetteer.json` (`npm run maps:gazetteer`) holds about 1,260 named places (37 KB gzipped): every country, named seas and straits, major rivers, physical regions, and major cities and capitals.
   IDs are slugs of the English name; when two kinds share a name, the lower-priority one gets a suffix, so `singapore` is the country and `singapore-city` the city.
 - `gazetteer-overrides.json` is the only hand-maintained input: a short list of extra Natural Earth features to include, renames to common English names, extra passages, canals, and the few features Natural Earth lacks.
   Added features are anchored to Natural Earth geometry, never to typed coordinates, and every entry gives a reason.
   The Suez and Panama canals come from Natural Earth's river and lake centerlines, which have no marine polygon for them.
   The Strait of Hormuz, which Natural Earth draws only as the line where the Persian Gulf and Gulf of Oman polygons meet, is labelled at the middle of that line.
+  The Drake Passage, whose Natural Earth polygon is only slivers along the Antarctic shore, is placed the same way where the Pacific and Atlantic polygons meet south of Cape Horn.
+  Cabot Strait is the middle of the shortest line between the Cape Breton Island and Newfoundland region polygons, and the Celtic Sea is the part of the North Atlantic polygon near where the Irish Sea, the Bristol Channel and the English Channel meet it.
+  Natural Earth has the Saint Lawrence twice (the estuary polygon and the river centerline); a rename merges them into one ID, `saint-lawrence-river`, the estuary with its passage path.
 
 Sea routes are checked against `public/maps/countries-detail.geojson`, the detailed geometry the globe draws; the base geometry's coarser coastlines close narrow straits such as the Bosporus.
 
@@ -256,12 +259,14 @@ Sea routes are checked against `public/maps/countries-detail.geojson`, the detai
 - A strait's path is traced by `scripts/passage-paths.mjs`: the cheapest way through its water on a grid of 0.5 to 4 km cells, from one end of its long axis to the other, preferring cells far from shore so the path keeps to mid-channel, then simplified without adding land.
   Natural Earth's marine polygons are drawn loosely (some straits are only slivers along each shore), so the path may use open water up to 30 km outside the polygon, and each end moves to open water nearby.
   Where the axis does not reach the real entrances (the Northwest Passage archipelago, the bending Strait of Magellan), the overrides set the ends where the polygon meets two named water bodies.
+  Where the polygon is unusable (the Drake Passage), the path runs through the two oceans' water within 500 km of where they meet.
   A canal's path is its centerline.
 - A route is sampled along great circles every 2 km.
   Land within 50 km of a land waypoint (a port) is allowed, and crossings of 15 km or less are ignored, so small islands do not fail a route.
 - Segments between points of one passage path are not sampled: the build traced them through the passage's water.
   Marine passages stay off the globe's land (a test checks every one), canals cross the land they cut through, and the build prints any other passage that crosses land the geometry closes (only about 1 km of the Saint Lawrence River).
   The legs into and out of a passage are checked like every other segment, so a route that skips a passage still fails.
+- A port next to a passage in a route is on it (Punta Arenas on the Strait of Magellan, Istanbul on the Bosporus): the route leaves the passage at the path point nearest the port, or joins it there, instead of sailing to the far end and back across the land.
 
 What can go wrong:
 
@@ -269,9 +274,9 @@ What can go wrong:
   This is why places come from the gazetteer and routes are checked against land polygons.
 - Ocean label points sit in the middle of the ocean, far from most scenes.
   Prefer the nearest marginal sea (the Philippine Sea rather than the Pacific) when a story means the water off a coast.
-- Gazetteer label points are only as good as the named places near a coast: the gazetteer has no Celtic Sea, Cabot Strait or minor ports, so some realistic routes need a passage or port the gazetteer lacks and fail the land check.
+- Gazetteer label points are only as good as the named places near a coast: the gazetteer has only major ports (scalerank 2 or less, capitals, and the few the overrides add), so a realistic route may need a port or water body the gazetteer lacks and fail the land check.
   Add the Natural Earth feature through the overrides rather than drawing a `flow` route.
-- Natural Earth has no polygon for the Drake Passage (only slivers along its shores), so it has a label point and no passage path.
+- Ocean label points are far from coasts, so a route that starts in an ocean (the South Atlantic into the Strait of Magellan) can cross land on its way to the passage; start from the nearest marginal sea or island instead.
 - A URL that resolves does not prove it supports the claim.
   Review remains necessary; the pipeline only removes mechanical errors.
 - A source can be live and still not say what the text claims; there is no automatic claim check yet.
@@ -325,7 +330,7 @@ How labels are laid out:
 - Layout keeps a visible name at its current point while that point faces the camera, and otherwise tries the points by room foreshortened by the view, so a country near the horizon is named from its visible side.
 - A name must fit: land of that country under the center and four corners of its ink box, inside the map frame, and clear of occluders and earlier labels.
   A near miss may shift a small step away from the failing corners, and a multi-word name may break onto two lines.
-- Names use short atlas forms (`label-names.ts`, after Natural Earth's short names), with the full name kept as the accessible name.
+- Names use short atlas forms: `scripts/build-countries.mjs` writes Natural Earth's short `NAME` ("Russia", "Dem. Rep. Congo") as `shortName` in `data/geo/countries.json` when it is shorter than the full name, the label index carries it, and the full name stays the accessible name.
 - Type steps with zoom (11px at world zoom, 13px at regional zoom, the base size closer in); sizes are measured once per step, in a hidden host for names globe.gl has not attached yet.
 - Visible names get slightly less padding and a small priority bonus, so names do not flicker as the camera moves.
 
@@ -339,8 +344,8 @@ Modules:
 | `geography.ts` | Country geometry, borders, fills, picking, detail refinement |
 | `borders.ts`, `fills.ts`, `country-lookup.ts`, `projection.ts` | Merged line buffers, lazy merged caps, bounds-filtered lookup, sphere unprojection |
 | `label-layer.ts` | Label elements, scene updates, measurement, occluder rectangles |
-| `cartography.ts` | Pure label layout: candidate order, priority, screen-space fit, nudges, collisions |
-| `label-candidates.ts`, `label-names.ts` | Interior label points per country; short map names and two-line breaks |
+| `cartography.ts` | Pure label layout: candidate order, priority, screen-space fit, nudges, collisions, two-line breaks |
+| `label-candidates.ts` | Interior label points per country |
 | `interactions.ts` | Pointer hover, tooltip, click selection |
 | `route-layer.ts` | Route paths styled by kind |
 | `materials.ts` | Image basemap material and camera-relative lights |
@@ -374,7 +379,6 @@ What can go wrong:
 - globe.gl applies a new size to its camera in a debounced update, so layout waits until the camera's aspect matches the size; projecting earlier puts names in the wrong place.
 - globe.gl writes every label's `transform` each frame, so a CSS transition on `transform`, such as the global `button` rule, makes labels trail the globe and cross each other; `globe.css` turns it off for pins.
 - Some medium countries, such as Pakistan and the United Kingdom, still have no name at world zoom where their neighbors take the space or the name does not fit.
-- Short names live in `label-names.ts` until the content model carries a short name per country.
 
 ## Server and client boundary
 

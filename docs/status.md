@@ -34,8 +34,8 @@ Steps 1 to 6 are merged; step 7 (scale and ship) is next.
 
 ## Known content pipeline issues
 
-- Singapore's "Language" quick fact and its "Move up the value chain" step cite only `singstat-population-2024` (SingStat Population Trends), which states population and ethnic composition but not the official languages, the national language, or inequality.
-  They need a source that states those claims, such as the Constitution of Singapore (Article 153A) for languages.
+- Some Singapore claims cite only the National Library Board article "Looking back at 700 years of Singapore" (`nlb-singapore-history`), which does not state them: the "Capital" and "Currency" quick facts, and "housing" in the wealth story's "Build what the world needs" step (the MAS economic history now covers the rest of that step).
+  The other nine hand-converted countries have not been checked claim by claim against their sources; do that before they are treated like pipeline-reviewed content.
 
 ## Next steps
 

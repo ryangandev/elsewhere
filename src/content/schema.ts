@@ -274,6 +274,8 @@ export const MapCountry = z.strictObject({
   id: CountryId,
   slug: Slug,
   name: Text,
+  /** Natural Earth's short map name ("Russia"), only when it is shorter than `name`. */
+  shortName: Text.optional(),
   isoA2: z
     .string()
     .regex(/^[A-Z]{2}$/)

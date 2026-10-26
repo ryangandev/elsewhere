@@ -1,5 +1,5 @@
 {
-  "description": "Hand-maintained inputs to scripts/build-gazetteer.mjs. 'include' adds Natural Earth features that the default filters leave out, by dataset and ne_id. 'rename' replaces a Natural Earth name with its common English form before the ID is derived. 'passages' gives marine features other than straits and channels a passage path, by ne_id, and with 'between' ends a passage where it meets two named water bodies instead of at the ends of its long axis. 'canals' adds canals by their name in Natural Earth's river and lake centerlines; the joined centerline is the canal's passage path. 'features' adds the few features Natural Earth lacks; each is anchored to Natural Earth geometry (a gazetteer place, the part of a country polygon containing a place, or the line where two marine polygons meet), never to typed coordinates. Keep every list short and give every entry a reason.",
+  "description": "Hand-maintained inputs to scripts/build-gazetteer.mjs. 'include' adds Natural Earth features that the default filters leave out, by dataset and ne_id. 'rename' replaces a Natural Earth name with its common English form before the ID is derived; renaming one feature to another's name merges them into the higher-ranked one. 'passages' gives marine features other than straits and channels a passage path, by ne_id; with 'between' ends a passage where it meets two named water bodies instead of at the ends of its long axis, and with 'junction' places a passage whose own polygon is unusable where two named water bodies meet, with a path through their water within radiusKm. 'canals' adds canals by their name in Natural Earth's river and lake centerlines; the joined centerline is the canal's passage path. 'features' adds the few features Natural Earth lacks; each is anchored to Natural Earth geometry, never to typed coordinates: a gazetteer place ('place'), the part of a country polygon containing a place ('countryPart'), the line where two marine polygons meet ('junction'), the middle of the shortest line between two region polygons ('narrows'), or the part of a marine polygon near where other water bodies meet it ('adjoining'). Keep every list short and give every entry a reason that names the geographic source.",
   "include": [
     {
       "dataset": "places",
@@ -42,6 +42,24 @@
       "neId": 1159311355,
       "name": "French Guiana",
       "reason": "Overseas region of France; part of the FRA map identity, so not a country entry."
+    },
+    {
+      "dataset": "places",
+      "neId": 1159150925,
+      "name": "Punta Arenas",
+      "reason": "Chile's port on the Strait of Magellan; the pilot's Chile and Argentina routes start or end there."
+    },
+    {
+      "dataset": "places",
+      "neId": 1159146373,
+      "name": "Cardiff",
+      "reason": "Capital of Wales and its port on the Bristol Channel; the pilot's United Kingdom routes need a Welsh port."
+    },
+    {
+      "dataset": "regions",
+      "neId": 1159103425,
+      "name": "Cape Breton Island",
+      "reason": "Island on the south side of Cabot Strait; the strait's anchor."
     }
   ],
   "rename": [
@@ -62,6 +80,12 @@
       "from": "Amazonas River",
       "to": "Amazon River",
       "reason": "English name of the river."
+    },
+    {
+      "dataset": "rivers",
+      "from": "St. Lawrence River",
+      "to": "Saint Lawrence River",
+      "reason": "One ID for the river. Natural Earth has it twice: the marine polygon 'Saint Lawrence River' (the estuary from Montreal to the gulf, with a passage path) and the river centerline 'St. Lawrence'. The same name merges them into the marine feature, which routes can follow."
     }
   ],
   "passages": [
@@ -73,20 +97,41 @@
     {
       "neId": 1159116661,
       "name": "Northwest Passage",
-      "between": ["baffin-bay", "amundsen-gulf"],
+      "between": [
+        "baffin-bay",
+        "amundsen-gulf"
+      ],
       "reason": "Natural Earth's polygon covers the whole Arctic archipelago, whose long axis runs north to south. The passage runs from Lancaster Sound, where it meets Baffin Bay, to the Amundsen Gulf and the Beaufort Sea beyond."
     },
     {
       "neId": 1159116715,
       "name": "Gulf of Saint Lawrence",
-      "between": ["north-atlantic-ocean", "saint-lawrence-river"],
+      "between": [
+        "north-atlantic-ocean",
+        "saint-lawrence-river"
+      ],
       "reason": "Ships cross the gulf between Cabot Strait and the Saint Lawrence River. Its label point lies east of Anticosti Island, so a straight line from it to the river crosses the island."
     },
     {
       "neId": 1159118553,
       "name": "Strait of Magellan",
-      "between": ["south-atlantic-ocean", "south-pacific-ocean"],
+      "between": [
+        "south-atlantic-ocean",
+        "south-pacific-ocean"
+      ],
       "reason": "The strait bends sharply, so the ends of its long axis fall inside it, short of the Atlantic entrance at Cabo Virgenes. The passage runs from the Atlantic entrance to the Pacific one."
+    },
+    {
+      "neId": 1159116269,
+      "name": "Drake Passage",
+      "junction": {
+        "placeIds": [
+          "south-pacific-ocean",
+          "south-atlantic-ocean"
+        ],
+        "radiusKm": 500
+      },
+      "reason": "Natural Earth's Drake Passage polygon is seven slivers along the Antarctic shore, with no water to route through. The passage is where the Pacific and Atlantic polygons meet south of Cape Horn, so it is labelled at the middle of their shared boundary, with a path from the Pacific to the Atlantic through their water within 500 km of it."
     }
   ],
   "canals": [
@@ -128,10 +173,44 @@
       "surface": "sea",
       "anchor": {
         "type": "junction",
-        "placeIds": ["persian-gulf", "gulf-of-oman"],
+        "placeIds": [
+          "persian-gulf",
+          "gulf-of-oman"
+        ],
         "radiusKm": 100
       },
       "reason": "Natural Earth's marine polygons have no Strait of Hormuz: the Persian Gulf and Gulf of Oman polygons meet across it. Labelled at the middle of their shared boundary, with a passage from the Persian Gulf to the Gulf of Oman through their water within 100 km of it."
+    },
+    {
+      "id": "cabot-strait",
+      "name": "Cabot Strait",
+      "kind": "water",
+      "surface": "sea",
+      "anchor": {
+        "type": "narrows",
+        "placeIds": [
+          "cape-breton-island",
+          "newfoundland"
+        ]
+      },
+      "reason": "Natural Earth's Gulf of Saint Lawrence polygon runs past the strait to the open Atlantic, so there is no Cabot Strait feature. The strait is the narrowest water between Cape Breton Island and Newfoundland, so it is labelled at the middle of the shortest line between their Natural Earth region polygons."
+    },
+    {
+      "id": "celtic-sea",
+      "name": "Celtic Sea",
+      "kind": "water",
+      "surface": "sea",
+      "anchor": {
+        "type": "adjoining",
+        "placeId": "north-atlantic-ocean",
+        "adjoining": [
+          "irish-sea",
+          "bristol-channel",
+          "english-channel"
+        ],
+        "radiusKm": 150
+      },
+      "reason": "Natural Earth folds the Celtic Sea into the North Atlantic. It is the part of the Atlantic south of Ireland that the Irish Sea (through St George's Channel), the Bristol Channel and the English Channel open onto, so it is labelled at the interior point of the Atlantic's water within 150 km of where each of those three meets it."
     }
   ]
 }
