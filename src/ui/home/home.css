@@ -38,6 +38,12 @@
   letter-spacing: 2.1px;
   color: #a7b7b7;
 }
+.tiny-orbit {
+  width: 7px;
+  height: 7px;
+  border: 1px solid #b7c99c;
+  border-radius: 50%;
+}
 .home-title {
   margin: 16px 0 12px;
   font-family: Georgia, 'Times New Roman', serif;

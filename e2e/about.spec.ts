@@ -14,6 +14,9 @@ test.describe('about', () => {
       sheet.getByRole('heading', { name: 'A whole map. Ten edited profiles.' }),
     ).toBeVisible();
     await expect(sheet).toContainText('Boundaries: Natural Earth.');
+    await expect(sheet).toContainText('Nothing is generated while you ask');
+    await expect(sheet).toContainText('AI-assisted or written by hand');
+    await expect(sheet).toContainText('lists its sources');
     await expect(sheet).toContainText('No account is needed');
 
     await sheet.getByRole('button', { name: 'Close' }).click();

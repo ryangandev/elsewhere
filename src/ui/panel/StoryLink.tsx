@@ -3,6 +3,7 @@
 import { ArrowUpRight } from 'lucide-react';
 import type { StoryLinkView } from '@/domain/view-models';
 import { DestinationLink } from '../DestinationLink';
+import './story-link.css';
 
 /** A card that leads to a country overview or one of its questions. */
 export function StoryLink({ link }: { link: StoryLinkView }) {

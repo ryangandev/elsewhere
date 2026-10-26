@@ -3,6 +3,7 @@
 import { ChevronRight, Globe2 } from 'lucide-react';
 import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
+import './map-overlays.css';
 
 type Props = {
   country: { name: string; href: string };

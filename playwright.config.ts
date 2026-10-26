@@ -19,7 +19,7 @@ export default defineConfig({
     {
       name: 'phone',
       use: { ...devices['Pixel 7'], viewport: { width: 390, height: 844 } },
-      testMatch: /mobile\.spec\.ts/,
+      testMatch: /(mobile|share)\.spec\.ts/,
     },
   ],
   webServer: {

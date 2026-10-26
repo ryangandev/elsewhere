@@ -89,7 +89,7 @@ export const en = {
     coverage:
       'All 258 country and territory units have sourced geographic basics and static learning guides. Ten edited profiles, thirty questions, and three trails offer a deeper starting point.',
     method:
-      'Questions search the stories already in this edition. There is no AI-generated advice or live news. Population figures are a dated 2024 reference.',
+      'Questions search the reviewed stories already in this edition. Nothing is generated while you ask, and there is no live news. Each answer is AI-assisted or written by hand, then sourced and reviewed, and it says which and lists its sources. Population figures are a dated 2024 reference.',
     privacy:
       'Your atlas and recent explorations stay in this browser. No account is needed, and these choices are not sent to a server.',
     credits:

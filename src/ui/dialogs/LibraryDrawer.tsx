@@ -10,6 +10,7 @@ import { useAtlasIndex } from '../atlas/use-indexes';
 import { DestinationLink } from '../DestinationLink';
 import { StoryLink } from '../panel/StoryLink';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '../primitives/sheet';
+import './dialogs.css';
 
 type View = 'saved' | 'recent';
 

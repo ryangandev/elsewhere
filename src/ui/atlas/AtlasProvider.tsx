@@ -7,6 +7,7 @@ import { useLibrary, type LibraryState } from '@/domain/use-library';
 import type { ShellDestination, ShellPage } from '@/domain/view-models';
 import type { ScenePlace } from '@/globe/scene';
 import { messages } from '@/i18n';
+import { browserShareEnvironment, shareLink } from './share-link';
 import { useNotice } from './use-notice';
 
 export type DialogName = 'search' | 'trails' | 'library' | 'about';
@@ -117,12 +118,9 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
 
   const share = useCallback(async () => {
     const url = window.location.href;
-    try {
-      await navigator.clipboard.writeText(url);
-      announce(messages.notice.linkCopied);
-    } catch {
-      setShareUrl(url);
-    }
+    const outcome = await shareLink({ title: document.title, url }, browserShareEnvironment());
+    if (outcome === 'copied') announce(messages.notice.linkCopied);
+    else if (outcome === 'manual') setShareUrl(url);
   }, [announce]);
 
   const { toggleSave, isSaved, persistenceFailed } = library;

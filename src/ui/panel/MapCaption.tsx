@@ -4,6 +4,7 @@ import { RotateCcw } from 'lucide-react';
 import type { PageView } from '@/domain/view-models';
 import { format, messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
+import './map-overlays.css';
 
 /** Describes the latitude and longitude as "1.4° N, 103.8° E". */
 function coordinates(lat: number, lng: number): string {

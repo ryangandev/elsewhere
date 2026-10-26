@@ -13,6 +13,7 @@ import { GlobeStage } from './GlobeStage';
 import { MapControls } from './MapControls';
 import { Notice } from './Notice';
 import { Topbar } from './Topbar';
+import './shell.css';
 
 /**
  * The persistent frame of the app: header, globe, map controls, footer, and dialogs.

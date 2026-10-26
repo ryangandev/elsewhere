@@ -4,6 +4,7 @@ import { Globe2 } from 'lucide-react';
 import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '../primitives/sheet';
+import './dialogs.css';
 
 export function AboutSheet() {
   const { dialog, openDialog } = useAtlas();
