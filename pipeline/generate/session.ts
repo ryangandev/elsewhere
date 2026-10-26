@@ -2,10 +2,12 @@
 // find_places, then a submission that is validated and, if needed, sent back for repair.
 // A session only builds requests and reacts to responses; a runner decides whether they go
 // through synchronous calls or the Message Batches API, so both modes share this logic.
+// The claim check (pipeline/claims) runs the same loop with its own tools and result type.
 //
 // History is append-only (thinking blocks and the prompt cache both depend on it): responses are
 // appended unchanged, and repairs and reminders are new user turns.
 import type {
+  BetaContentBlock,
   BetaContentBlockParam,
   BetaMessage,
   BetaMessageParam,
@@ -20,10 +22,11 @@ import { retrievedUrls } from './evidence';
 import type { MessageRequest } from './model-client';
 import { addUsage, emptyUsage, type Usage } from './usage';
 
-export type Submission =
-  { ok: true; file: CountryFile } | { ok: false; issues: string[]; draft?: unknown };
+/** `file` is what the session produces: a country file for drafts, verdicts for a claim check. */
+export type Submission<T = CountryFile> =
+  { ok: true; file: T } | { ok: false; issues: string[]; draft?: unknown };
 
-export type SessionSetup = {
+export type SessionSetup<T = CountryFile> = {
   /** Stable key: the batch custom ID and the recording directory name. */
   tag: string;
   model: string;
@@ -42,22 +45,24 @@ export type SessionSetup = {
   /** Answer a client tool other than the submission tool. */
   runTool: (name: string, input: unknown) => string;
   /** Validate a submission and turn it into a content file. */
-  submit: (input: unknown, context: { model: string; evidence: Set<string> }) => Submission;
+  submit: (input: unknown, context: { model: string; evidence: Set<string> }) => Submission<T>;
+  /** Which URLs a response retrieved; defaults to every page a web tool returned. */
+  evidence?: (content: BetaContentBlock[]) => Set<string>;
 };
 
-export type SessionState =
+export type SessionState<T = CountryFile> =
   | { status: 'running' }
-  | { status: 'done'; file: CountryFile; model: string }
+  | { status: 'done'; file: T; model: string }
   | { status: 'failed'; reason: string; lastDraft?: unknown };
 
 /** Everything a session needs to continue after the process restarts (batch runs). */
-export type SessionSnapshot = {
+export type SessionSnapshot<T = CountryFile> = {
   tag: string;
   messages: BetaMessageParam[];
   evidence: string[];
   usage: Usage;
   log: string[];
-  state: SessionState;
+  state: SessionState<T>;
   repairs: number;
   continuations: number;
   nudges: number;
@@ -67,12 +72,12 @@ export type SessionSnapshot = {
 /** Shown to the model so it can fix several problems at once without flooding its context. */
 const MAX_ISSUES_PER_REPAIR = 60;
 
-export class DraftSession {
+export class DraftSession<T = CountryFile> {
   readonly tag: string;
   readonly usage: Usage = emptyUsage();
   /** One line per notable event, for the run log. */
   readonly log: string[] = [];
-  state: SessionState = { status: 'running' };
+  state: SessionState<T> = { status: 'running' };
 
   private readonly messages: BetaMessageParam[];
   private readonly evidence = new Set<string>();
@@ -82,8 +87,8 @@ export class DraftSession {
   private lastDraft: unknown;
 
   constructor(
-    private readonly setup: SessionSetup,
-    snapshot?: SessionSnapshot,
+    private readonly setup: SessionSetup<T>,
+    snapshot?: SessionSnapshot<T>,
   ) {
     this.tag = setup.tag;
     this.messages = [{ role: 'user', content: setup.task }];
@@ -102,7 +107,7 @@ export class DraftSession {
     }
   }
 
-  snapshot(): SessionSnapshot {
+  snapshot(): SessionSnapshot<T> {
     return {
       tag: this.tag,
       messages: this.messages,
@@ -146,7 +151,8 @@ export class DraftSession {
   handle(message: BetaMessage, batch: boolean): void {
     if (!this.running) throw new Error(`Session ${this.tag} is not running`);
     addUsage(this.usage, message.usage, batch);
-    for (const url of retrievedUrls(message.content)) this.evidence.add(url);
+    const evidence = this.setup.evidence ?? retrievedUrls;
+    for (const url of evidence(message.content)) this.evidence.add(url);
     this.messages.push({ role: 'assistant', content: message.content as BetaContentBlockParam[] });
 
     if (this.usage.requests >= this.setup.limits.requests) {

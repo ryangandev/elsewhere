@@ -97,7 +97,7 @@ function setupFor(job: Job, context: RunContext): SessionSetup {
 }
 
 /** Errors that would fail every job the same way: stop the run instead of trying the rest. */
-function isFatal(error: unknown): boolean {
+export function isFatal(error: unknown): boolean {
   return (
     error instanceof MissingApiKeyError ||
     error instanceof Anthropic.AuthenticationError ||
@@ -107,7 +107,8 @@ function isFatal(error: unknown): boolean {
   );
 }
 
-const describeError = (error: unknown) => (error instanceof Error ? error.message : String(error));
+export const describeError = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
 
 /** Write a finished session's draft, or record why it failed. */
 function finish(session: DraftSession, job: Job, options: GenerateOptions): JobResult {
