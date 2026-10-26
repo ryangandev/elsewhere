@@ -1,0 +1,374 @@
+{
+  "country": {
+    "id": "FRA",
+    "slug": "france",
+    "name": "France",
+    "region": "Western Europe",
+    "kicker": "A national idea with an international life.",
+    "overview": {
+      "summary": "A European republic whose influence reaches through institutions, language, design, and culture. France is both deeply embedded in Europe and geographically present far beyond it through overseas territories.",
+      "geography": "Metropolitan France meets the Atlantic, the English Channel, and the Mediterranean. The Alps and Pyrenees help frame its borders. Overseas France also reaches the Americas, Indian Ocean, and Pacific.",
+      "sourceIds": [
+        "eu-france"
+      ],
+      "whyItMatters": [
+        {
+          "title": "A shaper of European cooperation",
+          "text": "A founding participant in European integration, France helps shape decisions that extend across the European Union.",
+          "sourceIds": [
+            "eu-france"
+          ]
+        },
+        {
+          "title": "Culture as lasting influence",
+          "text": "French language, art, food, and ideas about public life travel through education, institutions, and communities worldwide.",
+          "sourceIds": [
+            "unesco-paris-seine"
+          ]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Population",
+        "value": "68.6 million",
+        "asOf": "2024",
+        "sourceIds": [
+          "world-bank-population-2024"
+        ]
+      },
+      {
+        "label": "Capital",
+        "value": "Paris",
+        "sourceIds": [
+          "eu-france"
+        ]
+      },
+      {
+        "label": "Language",
+        "value": "French",
+        "sourceIds": [
+          "eu-france"
+        ]
+      },
+      {
+        "label": "Currency",
+        "value": "Euro",
+        "sourceIds": [
+          "eu-france"
+        ]
+      }
+    ],
+    "starterStoryIds": [
+      "paris",
+      "europe",
+      "overseas"
+    ],
+    "scene": {
+      "camera": {
+        "lat": 46.6,
+        "lng": 2.5,
+        "altitude": 0.7
+      },
+      "focusCountryId": "FRA",
+      "highlights": [
+        {
+          "countryId": "GBR",
+          "role": "related"
+        },
+        {
+          "countryId": "DEU",
+          "role": "related"
+        },
+        {
+          "countryId": "ESP",
+          "role": "related"
+        }
+      ],
+      "placeIds": [
+        "united-kingdom",
+        "germany",
+        "spain",
+        "mediterranean-sea",
+        "bay-of-biscay"
+      ],
+      "routes": []
+    },
+    "sources": [
+      {
+        "id": "eu-france",
+        "title": "France",
+        "publisher": "European Union",
+        "url": "https://european-union.europa.eu/principles-countries-history/eu-countries/france_en"
+      },
+      {
+        "id": "unesco-paris-seine",
+        "title": "Paris, Banks of the Seine",
+        "publisher": "UNESCO World Heritage Centre",
+        "url": "https://whc.unesco.org/en/list/600"
+      },
+      {
+        "id": "world-bank-population-2024",
+        "title": "Population, 2024",
+        "publisher": "World Bank",
+        "url": "https://datacatalogfiles.worldbank.org/ddh-published/0038126/DR0046429/POP.pdf"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-09-26",
+      "reviewedBy": "ryan",
+      "reviewedAt": "2026-09-27",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "paris",
+      "countryId": "FRA",
+      "slug": "paris",
+      "question": "Why does Paris loom so large?",
+      "category": "Cities & influence",
+      "summary": "Centuries of political power and cultural investment accumulated in one place.",
+      "sections": [
+        {
+          "title": "A center built over time",
+          "text": "Royal courts, national institutions, universities, and cultural collections helped concentrate influence in Paris. The city’s landmarks contain successive layers of French history.",
+          "sourceIds": [
+            "unesco-paris-seine"
+          ]
+        },
+        {
+          "title": "A city that became a model",
+          "text": "Nineteenth-century rebuilding created boulevards, parks, and urban forms that influenced cities elsewhere. France’s regional identities nevertheless extend far beyond the capital.",
+          "sourceIds": [
+            "unesco-paris-seine"
+          ]
+        }
+      ],
+      "takeaway": "Paris is a powerful lens on France, but never the entire picture.",
+      "scene": {
+        "focusCountryId": "FRA",
+        "highlights": [
+          {
+            "countryId": "GBR",
+            "role": "related"
+          },
+          {
+            "countryId": "DEU",
+            "role": "related"
+          },
+          {
+            "countryId": "ESP",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "united-kingdom",
+          "germany",
+          "spain",
+          "mediterranean-sea",
+          "bay-of-biscay"
+        ],
+        "routes": [],
+        "mapNote": "A capital near northern European connections, within a much larger country."
+      },
+      "next": [
+        {
+          "countryId": "FRA",
+          "storyId": "europe"
+        },
+        {
+          "countryId": "BRA",
+          "storyId": "language",
+          "reason": "Across the Atlantic, language carries a different colonial history."
+        },
+        {
+          "countryId": "TUR",
+          "storyId": "republic",
+          "reason": "Another republic shaped by an imperial past."
+        }
+      ],
+      "sources": [
+        {
+          "id": "unesco-paris-seine",
+          "title": "Paris, Banks of the Seine",
+          "publisher": "UNESCO World Heritage Centre",
+          "url": "https://whc.unesco.org/en/list/600"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "europe",
+      "countryId": "FRA",
+      "slug": "europe",
+      "question": "How did France help build a shared Europe?",
+      "category": "Politics & history",
+      "summary": "After devastating wars, cooperation became a practical political project.",
+      "sections": [
+        {
+          "title": "Make conflict less likely",
+          "text": "Early European integration linked strategically important industries. France was among the founding countries of the communities that preceded today’s European Union.",
+          "sourceIds": [
+            "eu-france"
+          ]
+        },
+        {
+          "title": "Shared decisions, national debates",
+          "text": "A single market and the euro tie France to neighboring economies. What should be decided nationally or collectively remains an active political question.",
+          "sourceIds": [
+            "eu-france"
+          ]
+        }
+      ],
+      "takeaway": "Europe is not just somewhere France is located. It is an institutional project France helped create.",
+      "scene": {
+        "focusCountryId": "FRA",
+        "highlights": [
+          {
+            "countryId": "DEU",
+            "role": "related"
+          },
+          {
+            "countryId": "BEL",
+            "role": "related"
+          },
+          {
+            "countryId": "ITA",
+            "role": "related"
+          },
+          {
+            "countryId": "LUX",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "germany",
+          "belgium",
+          "italy",
+          "luxembourg"
+        ],
+        "routes": [],
+        "mapNote": "Close neighbors became partners in a shared European system."
+      },
+      "next": [
+        {
+          "countryId": "FRA",
+          "storyId": "overseas"
+        },
+        {
+          "countryId": "BRA",
+          "storyId": "language",
+          "reason": "Across the Atlantic, language carries a different colonial history."
+        },
+        {
+          "countryId": "TUR",
+          "storyId": "republic",
+          "reason": "Another republic shaped by an imperial past."
+        }
+      ],
+      "sources": [
+        {
+          "id": "eu-france",
+          "title": "France",
+          "publisher": "European Union",
+          "url": "https://european-union.europa.eu/principles-countries-history/eu-countries/france_en"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "overseas",
+      "countryId": "FRA",
+      "slug": "overseas",
+      "question": "Why is France on more than one continent?",
+      "category": "Geography & history",
+      "summary": "The familiar European outline is only part of the state.",
+      "sections": [
+        {
+          "title": "The legacy of an empire",
+          "text": "French colonial expansion left territories and communities around the world. Decolonization changed those relationships, but did not produce one uniform outcome.",
+          "sourceIds": [
+            "eu-france"
+          ]
+        },
+        {
+          "title": "Different constitutional arrangements",
+          "text": "French Guiana, Réunion, and other overseas places have differing legal statuses. Their people, environments, and local histories complicate any simple definition of “mainland France.”",
+          "sourceIds": [
+            "eu-france"
+          ]
+        }
+      ],
+      "takeaway": "A country’s territory, culture, and history can stretch beyond the outline most maps teach us.",
+      "scene": {
+        "camera": {
+          "lat": 24,
+          "lng": -26,
+          "altitude": 1.9
+        },
+        "focusCountryId": "FRA",
+        "highlights": [],
+        "placeIds": [
+          "french-guiana",
+          "north-atlantic-ocean"
+        ],
+        "routes": [
+          {
+            "id": "overseas-link",
+            "kind": "flow",
+            "via": [
+              "france",
+              "french-guiana"
+            ]
+          }
+        ],
+        "mapNote": "French Guiana lies on the Atlantic coast of South America."
+      },
+      "next": [
+        {
+          "countryId": "FRA",
+          "storyId": "paris"
+        },
+        {
+          "countryId": "BRA",
+          "storyId": "language",
+          "reason": "Across the Atlantic, language carries a different colonial history."
+        },
+        {
+          "countryId": "TUR",
+          "storyId": "republic",
+          "reason": "Another republic shaped by an imperial past."
+        }
+      ],
+      "sources": [
+        {
+          "id": "eu-france",
+          "title": "France",
+          "publisher": "European Union",
+          "url": "https://european-union.europa.eu/principles-countries-history/eu-countries/france_en"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    }
+  ]
+}

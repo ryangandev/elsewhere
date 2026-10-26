@@ -1,0 +1,360 @@
+{
+  "country": {
+    "id": "BRA",
+    "slug": "brazil",
+    "name": "Brazil",
+    "nativeName": "Brasil",
+    "region": "South America",
+    "kicker": "A continent’s scale. A world’s living systems.",
+    "overview": {
+      "summary": "South America’s largest country is an urban, Portuguese-speaking society with extraordinary ecological reach. Its farms, forests, and cities place it at the heart of debates about development and the planet.",
+      "geography": "Brazil spans much of eastern South America and faces the Atlantic. The Amazon lies mostly in the north; many of the largest population centers sit nearer the eastern and southeastern coast.",
+      "sourceIds": [
+        "ibge-biomes"
+      ],
+      "whyItMatters": [
+        {
+          "title": "An ecosystem with global consequences",
+          "text": "The Amazon stores carbon, sustains exceptional biodiversity, and moves moisture across a vast region.",
+          "sourceIds": [
+            "ibge-biomes"
+          ]
+        },
+        {
+          "title": "A major link in the world’s food supply",
+          "text": "Soy, coffee, sugar, and meat connect Brazil’s land-use choices to dinner tables and markets far away.",
+          "sourceIds": [
+            "agriculture-ministry-report-2024"
+          ]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Population",
+        "value": "212 million",
+        "asOf": "2024",
+        "sourceIds": [
+          "world-bank-population-2024"
+        ]
+      },
+      {
+        "label": "Capital",
+        "value": "Brasília",
+        "sourceIds": [
+          "ibge-biomes"
+        ]
+      },
+      {
+        "label": "Language",
+        "value": "Portuguese",
+        "sourceIds": [
+          "ibge-biomes"
+        ]
+      },
+      {
+        "label": "Currency",
+        "value": "Brazilian real",
+        "sourceIds": [
+          "agriculture-ministry-report-2024"
+        ]
+      }
+    ],
+    "starterStoryIds": [
+      "amazon",
+      "language",
+      "agriculture"
+    ],
+    "scene": {
+      "camera": {
+        "lat": -12,
+        "lng": -52,
+        "altitude": 1.3
+      },
+      "focusCountryId": "BRA",
+      "highlights": [
+        {
+          "countryId": "PER",
+          "role": "related"
+        },
+        {
+          "countryId": "ARG",
+          "role": "related"
+        }
+      ],
+      "placeIds": [
+        "peru",
+        "argentina",
+        "south-atlantic-ocean",
+        "amazon-basin"
+      ],
+      "routes": []
+    },
+    "sources": [
+      {
+        "id": "ibge-biomes",
+        "title": "Brazilian biomes",
+        "publisher": "IBGE",
+        "url": "https://agenciadenoticias.ibge.gov.br/en/agencia-press-room/2185-news-agency/releases-en/25812-ibge-lanca-mapa-inedito-de-biomas-e-sistema-costeiro-marinho-2"
+      },
+      {
+        "id": "agriculture-ministry-report-2024",
+        "title": "2024 management report",
+        "publisher": "Ministry of Agriculture and Livestock",
+        "url": "https://www.gov.br/agricultura/pt-br/acesso-a-informacao/auditorias/relatorio-de-gestao/relatorio-de-gestao-de-2024"
+      },
+      {
+        "id": "world-bank-population-2024",
+        "title": "Population, 2024",
+        "publisher": "World Bank",
+        "url": "https://datacatalogfiles.worldbank.org/ddh-published/0038126/DR0046429/POP.pdf"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-09-26",
+      "reviewedBy": "ryan",
+      "reviewedAt": "2026-09-27",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "amazon",
+      "countryId": "BRA",
+      "slug": "amazon",
+      "question": "Why does the Amazon matter beyond Brazil?",
+      "category": "Nature & climate",
+      "summary": "A forest is also part of the atmosphere’s plumbing.",
+      "sections": [
+        {
+          "title": "Water on the move",
+          "text": "Trees release moisture into the air. The Amazon’s water cycle helps shape rainfall across parts of South America, alongside its role in carbon storage and biodiversity.",
+          "sourceIds": [
+            "ibge-biomes"
+          ]
+        },
+        {
+          "title": "A shared system",
+          "text": "The Amazon crosses national borders. Forest loss, fire, farming, and infrastructure affect ecosystems and the people who depend on them, including Indigenous communities.",
+          "sourceIds": [
+            "ibge-biomes"
+          ]
+        }
+      ],
+      "takeaway": "Protecting the Amazon is also about water, livelihoods, and decisions made far from the forest.",
+      "scene": {
+        "focusCountryId": "BRA",
+        "highlights": [
+          {
+            "countryId": "PER",
+            "role": "related"
+          },
+          {
+            "countryId": "COL",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "amazon-basin",
+          "peru",
+          "colombia",
+          "south-atlantic-ocean"
+        ],
+        "routes": [],
+        "mapNote": "The Amazon Basin extends into several neighboring countries."
+      },
+      "next": [
+        {
+          "countryId": "BRA",
+          "storyId": "language"
+        },
+        {
+          "countryId": "IND",
+          "storyId": "monsoon",
+          "reason": "Across the ocean, seasonal rain organizes everyday life."
+        },
+        {
+          "countryId": "IDN",
+          "storyId": "nature",
+          "reason": "Explore another country with extraordinary biodiversity."
+        }
+      ],
+      "sources": [
+        {
+          "id": "ibge-biomes",
+          "title": "Brazilian biomes",
+          "publisher": "IBGE",
+          "url": "https://agenciadenoticias.ibge.gov.br/en/agencia-press-room/2185-news-agency/releases-en/25812-ibge-lanca-mapa-inedito-de-biomas-e-sistema-costeiro-marinho-2"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "language",
+      "countryId": "BRA",
+      "slug": "language",
+      "question": "Why does Brazil speak Portuguese?",
+      "category": "History & identity",
+      "summary": "A colonial past left a different linguistic map from most of South America.",
+      "sections": [
+        {
+          "title": "A Portuguese colony",
+          "text": "Portuguese colonization, beginning in 1500, imposed a language and institutions over a land already home to diverse Indigenous peoples.",
+          "sourceIds": [
+            "ibge-biomes"
+          ]
+        },
+        {
+          "title": "A society formed through unequal encounters",
+          "text": "Enslaved Africans and their descendants profoundly shaped Brazil. Independence in 1822 did not end slavery, which continued until 1888. Indigenous languages and migrant traditions persist alongside Portuguese.",
+          "sourceIds": [
+            "ibge-biomes"
+          ]
+        }
+      ],
+      "takeaway": "A shared official language sits on top of many histories, including histories of violence and resistance.",
+      "scene": {
+        "camera": {
+          "lat": 12,
+          "lng": -24,
+          "altitude": 1.9
+        },
+        "focusCountryId": "BRA",
+        "highlights": [
+          {
+            "countryId": "PRT",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "north-atlantic-ocean",
+          "portugal",
+          "gulf-of-guinea"
+        ],
+        "routes": [
+          {
+            "id": "colonial-atlantic",
+            "kind": "flow",
+            "via": [
+              "salvador",
+              "lisbon"
+            ]
+          }
+        ],
+        "mapNote": "The Atlantic connected colonial Brazil with Portugal and West Africa."
+      },
+      "next": [
+        {
+          "countryId": "BRA",
+          "storyId": "agriculture"
+        },
+        {
+          "countryId": "IDN",
+          "storyId": "nature",
+          "reason": "Explore another country with extraordinary biodiversity."
+        },
+        {
+          "countryId": "FRA",
+          "storyId": "overseas",
+          "reason": "See why France also belongs on a South American map."
+        }
+      ],
+      "sources": [
+        {
+          "id": "ibge-biomes",
+          "title": "Brazilian biomes",
+          "publisher": "IBGE",
+          "url": "https://agenciadenoticias.ibge.gov.br/en/agencia-press-room/2185-news-agency/releases-en/25812-ibge-lanca-mapa-inedito-de-biomas-e-sistema-costeiro-marinho-2"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "agriculture",
+      "countryId": "BRA",
+      "slug": "agriculture",
+      "question": "How did Brazil become an agricultural giant?",
+      "category": "Land & economy",
+      "summary": "This is not just a story about abundant land.",
+      "sections": [
+        {
+          "title": "A transformed interior",
+          "text": "Research, infrastructure, credit, and new farming techniques helped expand production, including in the Cerrado savanna.",
+          "sourceIds": [
+            "agriculture-ministry-report-2024"
+          ]
+        },
+        {
+          "title": "The trade-off on the ground",
+          "text": "Agriculture supports exports and employment. Expansion can also put pressure on habitats, water, and land rights. The Cerrado and the Amazon are distinct ecosystems.",
+          "sourceIds": [
+            "agriculture-ministry-report-2024",
+            "ibge-biomes"
+          ]
+        }
+      ],
+      "takeaway": "The question is not simply how much Brazil produces, but where and how it produces it.",
+      "scene": {
+        "focusCountryId": "BRA",
+        "highlights": [],
+        "placeIds": [
+          "amazon-basin",
+          "cerrado",
+          "south-atlantic-ocean"
+        ],
+        "routes": [],
+        "mapNote": "The Cerrado lies largely south and east of the Amazon."
+      },
+      "next": [
+        {
+          "countryId": "BRA",
+          "storyId": "amazon"
+        },
+        {
+          "countryId": "IDN",
+          "storyId": "nature",
+          "reason": "Explore another country with extraordinary biodiversity."
+        },
+        {
+          "countryId": "FRA",
+          "storyId": "overseas",
+          "reason": "See why France also belongs on a South American map."
+        }
+      ],
+      "sources": [
+        {
+          "id": "agriculture-ministry-report-2024",
+          "title": "2024 management report",
+          "publisher": "Ministry of Agriculture and Livestock",
+          "url": "https://www.gov.br/agricultura/pt-br/acesso-a-informacao/auditorias/relatorio-de-gestao/relatorio-de-gestao-de-2024"
+        },
+        {
+          "id": "ibge-biomes",
+          "title": "Brazilian biomes",
+          "publisher": "IBGE",
+          "url": "https://agenciadenoticias.ibge.gov.br/en/agencia-press-room/2185-news-agency/releases-en/25812-ibge-lanca-mapa-inedito-de-biomas-e-sistema-costeiro-marinho-2"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    }
+  ]
+}
