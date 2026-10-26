@@ -17,7 +17,9 @@
     "maps:build": "node scripts/build-map-assets.mjs",
     "maps:basics": "node scripts/build-country-basics.mjs",
     "maps:countries": "node scripts/build-countries.mjs",
-    "maps:gazetteer": "node --import tsx scripts/build-gazetteer.mjs"
+    "maps:gazetteer": "node --import tsx scripts/build-gazetteer.mjs",
+    "content:check": "node --import tsx scripts/validate-content.ts",
+    "test:content": "vitest run --config tests/content/vitest.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
