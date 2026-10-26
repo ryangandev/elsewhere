@@ -45,7 +45,9 @@ export const DEFAULT_LIMITS: GenerationLimits = {
   continuations: 6,
   nudges: 2,
   requests: 24,
-  maxTokens: 64000,
+  // The model's output limit. Thinking counts toward it, and only generated tokens are billed,
+  // so a lower cap saves nothing and can cut off a response at max effort.
+  maxTokens: 128000,
 };
 
 export type KnownBlockedUrl = {

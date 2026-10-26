@@ -5,7 +5,7 @@
     "Every inhabited continent is covered, with four or five countries each from Africa, Europe, Asia and the Americas and two from Oceania, plus Greenland for the Arctic.",
     "The 10 countries with reviewed content (BRA, CHN, FRA, IND, IDN, JPN, MYS, SGP, TUR, USA) are left out so the pilot only produces new drafts.",
     "Most picks are countries curious readers ask about often, so drafts can be judged against what people actually want to know.",
-    "A few picks stress the map: long sea routes (CHL, AUS, NZL), canals the gazetteer lacks (PAN, EGY), huge land countries (RUS, KAZ, CAN) and a remote Arctic island (GRL).",
+    "A few picks stress the map: long sea routes (CHL, AUS, NZL), the Panama and Suez canals (PAN, EGY), huge land countries (RUS, KAZ, CAN) and a remote Arctic island (GRL).",
     "Neighbours and partners are grouped (EGY and SAU, ARG and CHL, AUS and NZL, CAN and MEX) so the batch plan can link questions across countries inside the pilot."
   ],
   "stories": { "min": 4, "max": 6 },

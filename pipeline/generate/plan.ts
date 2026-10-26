@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages';
 import { z } from 'zod';
 import { CountryId, IsoDate, Slug, StoryId } from '../../src/content/schema';
-import { BATCHES_DIR, type Effort } from '../config';
+import { BATCHES_DIR, DEFAULT_LIMITS, type Effort } from '../config';
 import { parsedCountryFiles, readJson, requireMapCountry, writeJson } from '../content-tree';
 import { render, type PromptSet } from '../prompts';
 import type { Plan } from './check';
@@ -161,7 +161,7 @@ export async function generatePlan(options: {
       tag: `plan-${batch.id}`,
       request: {
         model: options.model,
-        max_tokens: 32000,
+        max_tokens: DEFAULT_LIMITS.maxTokens,
         thinking: { type: 'adaptive' },
         output_config: {
           effort: options.effort,
