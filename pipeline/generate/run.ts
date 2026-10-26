@@ -159,7 +159,7 @@ async function drive(
         tag: session.tag,
         request: session.request(),
       });
-      session.handle(message, false);
+      await session.handle(message, false);
     } catch (error) {
       if (isFatal(error)) throw error;
       session.fail(describeError(error));
@@ -283,7 +283,7 @@ async function runBatch(jobs: Job[], options: GenerateOptions): Promise<JobResul
     for (const { session } of running) {
       const outcome = outcomes.get(session.tag);
       if (!outcome) session.fail('missing from batch results');
-      else if (outcome.type === 'succeeded') session.handle(outcome.message, true);
+      else if (outcome.type === 'succeeded') await session.handle(outcome.message, true);
       else session.fail(`batch request ${outcome.type}: ${outcome.error}`);
     }
     persist();

@@ -8,6 +8,12 @@ import { checkClaims, claimsJobs, type ClaimsJob } from '../../pipeline/claims/r
 import { claimSession, type ClaimsContext } from '../../pipeline/claims/session';
 import { readClaims, unitStatuses } from '../../pipeline/claims/store';
 import { citedSources, overviewUnits, scopeUnits, storyUnits } from '../../pipeline/claims/units';
+import {
+  htmlToText,
+  recordPages,
+  replayPages,
+  type PageFetcher,
+} from '../../pipeline/claims/local-fetch';
 import { checkVerdicts, fetchedUrls } from '../../pipeline/claims/verdicts';
 import { CLAIM_LIMITS } from '../../pipeline/config';
 import { readCountryFile, writeCountryFile } from '../../pipeline/content-tree';
@@ -29,6 +35,14 @@ function chileFile(): CountryFile {
   });
 }
 
+/** Pages fetch_page was asked for. */
+const locallyFetched: string[] = [];
+
+const fetchPage: PageFetcher = async (url) => {
+  locallyFetched.push(url);
+  return 'Placeholder text about the geography page, fetched locally.';
+};
+
 const context = (mode: 'sync' | 'batch' = 'sync'): ClaimsContext => ({
   prompts: loadClaimsPrompts(),
   model: 'claude-opus-5-5',
@@ -36,6 +50,7 @@ const context = (mode: 'sync' | 'batch' = 'sync'): ClaimsContext => ({
   limits: CLAIM_LIMITS,
   cacheTtl: mode === 'batch' ? '1h' : '5m',
   date: RUN_DATE,
+  fetchPage,
 });
 
 /** The overview and the "length" story: the scopes the fixtures answer. */
@@ -202,12 +217,64 @@ describe('fetched pages', () => {
   });
 });
 
+describe('local page fetches', () => {
+  it('keep the visible text of a page', () => {
+    const html = `<html><head><title>T</title><style>p{}</style></head><body>
+      <nav><a href="/">Home</a></nav><script>var x = "<p>no</p>";</script>
+      <h1>Economic history</h1><p>Singapore built public&nbsp;housing &amp; schools.</p>
+      <table><tr><td>2024</td><td>6.04&#160;million</td></tr></table><!-- hidden --></body></html>`;
+    expect(htmlToText(html)).toBe(
+      'Home\nEconomic history\nSingapore built public housing & schools.\n| 2024 | 6.04 million',
+    );
+  });
+
+  it('are recorded with the responses and replayed offline', async () => {
+    const dir = tempDir();
+    const live: PageFetcher = async (url) => {
+      if (url.endsWith('/gone')) throw new Error('the server answered 404');
+      return `Text of ${url}`;
+    };
+    const recording = recordPages(live, dir);
+    await expect(recording('https://example.org/page')).resolves.toBe(
+      'Text of https://example.org/page',
+    );
+    await expect(recording('https://example.org/gone')).rejects.toThrow('404');
+
+    const replay = replayPages(dir);
+    await expect(replay('https://example.org/page')).resolves.toBe(
+      'Text of https://example.org/page',
+    );
+    await expect(replay('https://example.org/gone')).rejects.toThrow('the server answered 404');
+    await expect(replay('https://example.org/other')).rejects.toThrow('no recorded page');
+  });
+
+  it('are limited to the cited URLs of the task', async () => {
+    const setup = claimSession(context(), chileFile(), { kind: 'story', storyId: 'length' });
+    await expect(setup.runTool('fetch_page', { url: 'https://example.org/other' })).rejects.toThrow(
+      'https://example.org/other is not a source URL in this task',
+    );
+    const failing = claimSession(
+      { ...context(), fetchPage: () => Promise.reject(new Error('the server answered 403')) },
+      chileFile(),
+      { kind: 'story', storyId: 'length' },
+    );
+    await expect(
+      failing.runTool('fetch_page', {
+        url: 'https://www.example.org/elsewhere-fixture/chile/geography/',
+      }),
+    ).rejects.toThrow(
+      'Could not fetch https://example.org/elsewhere-fixture/chile/geography: the server answered 403',
+    );
+  });
+});
+
 describe('claim check sessions', () => {
-  it('ask only for the basic web fetch and a strict verdict tool', () => {
+  it('ask for the basic web fetch, the local fallback and a strict verdict tool', () => {
     const setup = claimSession(context(), chileFile(), { kind: 'overview' });
     expect(setup.tag).toBe('claims-CHL');
     expect(setup.tools).toMatchObject([
       { type: 'web_fetch_20250910', name: 'web_fetch' },
+      { name: 'fetch_page', strict: true },
       { name: 'submit_verdicts', strict: true },
     ]);
     const task = setup.task.map((block) => block.text).join('\n');
@@ -220,7 +287,8 @@ describe('claim check sessions', () => {
 });
 
 describe('checking claims on replayed responses', () => {
-  it('saves verdicts, repairs and reminds, and checks again only what changed', async () => {
+  it('saves verdicts, falls back, repairs and reminds, and checks again only what changed', async () => {
+    locallyFetched.length = 0;
     const contentDir = tempContentTree();
     const claimsDir = join(tempDir(), 'claims');
     writeCountryFile(contentDir, chileFile());
@@ -247,16 +315,21 @@ describe('checking claims on replayed responses', () => {
     expect(results[0].detail).toBe(
       '5 units: 3 supported, 0 partly supported, 1 not supported, 1 source unreachable, 0 not checked (claude-opus-5-5)',
     );
-    expect(usage).toMatchObject({ requests: 4, webFetches: 5 });
+    expect(usage).toMatchObject({ requests: 5, webFetches: 5 });
 
-    // The first overview submission was sent back; the story was reminded to submit.
+    // The first overview submission was sent back. The story's page refused web_fetch, so it was
+    // fetched locally, which counts as read; then the story was reminded to submit.
     const overview = client.requests.filter((request) => request.tag === 'claims-CHL');
     expect(overview).toHaveLength(2);
     const repair = lastTurn(overview[1]);
     expect(repair).toContain('sources.fixture-history: marked read');
     expect(repair).toContain('give a verdict for \\"quick-fact-2\\"');
     const story = client.requests.filter((request) => request.tag === 'claims-CHL-length');
-    expect(lastTurn(story[1])).toContain('You ended your turn without submitting');
+    expect(locallyFetched).toEqual(['https://example.org/elsewhere-fixture/chile/geography']);
+    expect(lastTurn(story[1])).toContain(
+      "fetched from the editor's computer:\\n\\nPlaceholder text about the geography page",
+    );
+    expect(lastTurn(story[2])).toContain('You ended your turn without submitting');
 
     // The flagged unit is reported with what the sources do not state.
     const report = log.find((line) => line.startsWith('CHL: checked'))!;
@@ -307,7 +380,8 @@ describe('checking claims on replayed responses', () => {
     expect(log.filter((line) => line.startsWith('Round'))).toEqual([
       'Round 1: 2 requests.',
       'Round 2: 2 requests.',
+      'Round 3: 1 request.',
     ]);
-    expect(usage).toMatchObject({ requests: 4, batchRequests: 4 });
+    expect(usage).toMatchObject({ requests: 5, batchRequests: 5 });
   });
 });

@@ -136,6 +136,7 @@ describe('content pipeline, end to end on replayed responses', () => {
           limits: CLAIM_LIMITS,
           cacheTtl: '5m',
           date: RUN_DATE,
+          fetchPage: async () => 'Placeholder text about the geography page.',
         },
         jobs: claimsJobs(chile, {}, claimsDir).filter(
           ({ scope }) => scope.kind === 'overview' || scope.storyId === 'length',

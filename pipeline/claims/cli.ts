@@ -22,6 +22,7 @@ import {
 import { formatUsage } from '../generate/usage';
 import { loadClaimsPrompts } from '../prompts';
 import { loadCountry } from '../review/actions';
+import { fetchPageText, recordPages, replayPages } from './local-fetch';
 import { checkClaims, claimsJobs, type ClaimsJob, type JobSelection } from './run';
 import { countVerdicts, formatCounts, isFlagged } from './store';
 import { scopeUnits } from './units';
@@ -44,7 +45,7 @@ Options:
   --no-fallback         do not retry refusals on the server's fallback model
   --content-dir <dir>   default ${DEFAULT_CONTENT_DIR}
   --claims-dir <dir>    where results are saved (default ${CLAIMS_DIR})
-  --record <dir>        save every response, to replay later
+  --record <dir>        save every response and local page fetch, to replay later
   --replay <dir>        replay recorded responses instead of calling the API
 `;
 
@@ -100,6 +101,9 @@ async function main(): Promise<number> {
     ? new ReplayClient(values.replay)
     : new AnthropicModelClient({ fallbacks: !values['no-fallback'] });
   if (values.record) client = new RecordingClient(client, values.record);
+  // fetch_page answers are recorded and replayed with the responses, so a replay stays offline.
+  let fetchPage = values.replay ? replayPages(values.replay) : fetchPageText;
+  if (values.record) fetchPage = recordPages(fetchPage, values.record);
 
   const units = jobs.reduce((sum, job) => sum + scopeUnits(job.file, job.scope).length, 0);
   console.log(
@@ -115,6 +119,7 @@ async function main(): Promise<number> {
       limits: CLAIM_LIMITS,
       cacheTtl: mode === 'batch' ? '1h' : '5m',
       date: today(),
+      fetchPage,
     },
     jobs,
     mode,

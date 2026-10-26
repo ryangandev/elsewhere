@@ -3,7 +3,8 @@
 // The text is placeholder, not content; the place IDs are real gazetteer IDs and every cited URL
 // appears in a web search result of the same conversation, as the pipeline requires.
 // The claims-* fixtures check the drafted Chile overview and its "length" story against their
-// sources: pages fetched with web_fetch, then verdicts through submit_verdicts.
+// sources: pages fetched with web_fetch (or fetch_page when web_fetch fails), then verdicts
+// through submit_verdicts.
 //
 //   node --import tsx tests/pipeline/fixtures/build-replay.ts
 //
@@ -509,12 +510,16 @@ export function replayFixtures(): Record<string, unknown[]> {
       }),
     ],
     'claims-CHL-length': [
-      // Reads the page, then ends its turn without submitting and is reminded.
+      // web_fetch fails, so the page is fetched locally; then the turn ends without submitting.
       message(
-        [...webFetch('chile/geography', placeholder('the geography page')), text('Read it.')],
-        'end_turn',
+        [
+          ...webFetch('chile/geography', null),
+          toolUse('fetch_page', { url: url('chile/geography') }),
+        ],
+        'tool_use',
         { input: 6000, output: 300, fetches: 1 },
       ),
+      message([text('Read it.')], 'end_turn', { input: 400, cacheRead: 6000, output: 100 }),
       message(
         [
           toolUse('submit_verdicts', {

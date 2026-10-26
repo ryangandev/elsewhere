@@ -43,7 +43,7 @@ export type SessionSetup<T = CountryFile> = {
   repairMessage: (issues: string[]) => string;
   nudgeMessage: string;
   /** Answer a client tool other than the submission tool. */
-  runTool: (name: string, input: unknown) => string;
+  runTool: (name: string, input: unknown) => string | Promise<string>;
   /** Validate a submission and turn it into a content file. */
   submit: (input: unknown, context: { model: string; evidence: Set<string> }) => Submission<T>;
   /** Which URLs a response retrieved; defaults to every page a web tool returned. */
@@ -148,7 +148,7 @@ export class DraftSession<T = CountryFile> {
     this.state = { status: 'failed', reason, lastDraft: this.lastDraft };
   }
 
-  handle(message: BetaMessage, batch: boolean): void {
+  async handle(message: BetaMessage, batch: boolean): Promise<void> {
     if (!this.running) throw new Error(`Session ${this.tag} is not running`);
     addUsage(this.usage, message.usage, batch);
     const evidence = this.setup.evidence ?? retrievedUrls;
@@ -191,14 +191,14 @@ export class DraftSession<T = CountryFile> {
     }
   }
 
-  private handleToolUse(message: BetaMessage): void {
+  private async handleToolUse(message: BetaMessage): Promise<void> {
     const calls = message.content.filter(
       (block): block is BetaToolUseBlock => block.type === 'tool_use',
     );
     const results: BetaToolResultBlockParam[] = [];
     for (const call of calls) {
       if (call.name !== this.setup.submitTool) {
-        results.push(this.runTool(call));
+        results.push(await this.runTool(call));
         continue;
       }
       this.lastDraft = call.input;
@@ -232,12 +232,12 @@ export class DraftSession<T = CountryFile> {
     this.messages.push({ role: 'user', content: results });
   }
 
-  private runTool(call: BetaToolUseBlock): BetaToolResultBlockParam {
+  private async runTool(call: BetaToolUseBlock): Promise<BetaToolResultBlockParam> {
     try {
       return {
         type: 'tool_result',
         tool_use_id: call.id,
-        content: this.setup.runTool(call.name, call.input),
+        content: await this.setup.runTool(call.name, call.input),
       };
     } catch (error) {
       return {

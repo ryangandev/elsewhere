@@ -1,13 +1,17 @@
 // One claim check conversation: Claude fetches the cited pages of an overview or a story with the
-// server-side web fetch tool, then submits a verdict per unit through a strict tool. It runs on
+// server-side web fetch tool (or, for a page that refuses it, fetch_page from this computer), then
+// submits a verdict per unit through a strict tool. It runs on
 // the drafting session loop (pipeline/generate/session.ts), so pause_turn, reminders and repairs
 // work the same way, and it records and replays through the same ModelClient.
 import type { BetaTool, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta/messages';
+import { z } from 'zod';
 import type { CountryFile } from '../../src/content/schema';
 import { CLAIM_FETCH_MAX_CONTENT_TOKENS, type Effort, type GenerationLimits } from '../config';
 import { toStrictJsonSchema } from '../generate/draft-schema';
+import { normalizeUrl } from '../generate/evidence';
 import type { SessionSetup } from '../generate/session';
 import { render, type ClaimsPromptSet } from '../prompts';
+import type { PageFetcher } from './local-fetch';
 import type { ClaimCheck } from './store';
 import { checkVerdicts, fetchedUrls, SubmitVerdicts } from './verdicts';
 import { citedSources, scopeUnits, type ClaimScope, type ClaimUnit } from './units';
@@ -21,6 +25,8 @@ export type ClaimsContext = {
   cacheTtl: '5m' | '1h';
   /** The day of the run, recorded on every result. */
   date: string;
+  /** Answers fetch_page: a local fetch in real runs, a stub in replays and tests. */
+  fetchPage: PageFetcher;
 };
 
 /** Results by unit key. */
@@ -30,6 +36,10 @@ export const claimsTag = (countryId: string, scope: ClaimScope) =>
   scope.kind === 'overview' ? `claims-${countryId}` : `claims-${countryId}-${scope.storyId}`;
 
 const SUBMIT_TOOL = 'submit_verdicts';
+
+const FetchPageInput = z.strictObject({
+  url: z.string().describe('A source URL from the task, exactly as listed.'),
+});
 
 function tools(limits: GenerationLimits): BetaToolUnion[] {
   return [
@@ -41,6 +51,13 @@ function tools(limits: GenerationLimits): BetaToolUnion[] {
       name: 'web_fetch',
       max_uses: limits.webFetchesPerRequest,
       max_content_tokens: CLAIM_FETCH_MAX_CONTENT_TOKENS,
+    },
+    {
+      name: 'fetch_page',
+      description:
+        "Fetch one of the task's source URLs from the editor's computer and return its text. Use it only when web_fetch could not read that page (an error, a bot challenge, or no article text). It reads HTML and plain text, not PDFs, and runs no scripts.",
+      strict: true,
+      input_schema: toStrictJsonSchema(FetchPageInput) as BetaTool.InputSchema,
     },
     // Strict: the verdict schema is small and fixed, so it compiles for every scope.
     {
@@ -84,6 +101,9 @@ export function claimSession(
 ): SessionSetup<ClaimChecks> & { units: ClaimUnit[] } {
   const units = scopeUnits(file, scope);
   const sources = citedSources(units);
+  const sourceUrls = new Map(sources.map((source) => [normalizeUrl(source.url), source.url]));
+  /** Source pages fetch_page read, which count as fetched like web_fetch results. */
+  const fetchedLocally = new Set<string>();
   const ttl = context.cacheTtl === '1h' ? { ttl: '1h' as const } : {};
   const task = render(context.prompts.task, {
     ...scopeText(file, scope),
@@ -116,15 +136,27 @@ export function claimSession(
         issues: issues.map((issue) => `- ${issue}`).join('\n'),
       }),
     nudgeMessage: render(context.prompts.nudge, {}),
-    runTool: (name) => {
-      throw new Error(`Unknown tool "${name}"`);
+    runTool: async (name, input) => {
+      if (name !== 'fetch_page') throw new Error(`Unknown tool "${name}"`);
+      const requested = FetchPageInput.parse(input).url;
+      const url = sourceUrls.get(normalizeUrl(requested));
+      if (!url) throw new Error(`${requested} is not a source URL in this task`);
+      try {
+        const text = await context.fetchPage(url);
+        fetchedLocally.add(normalizeUrl(url));
+        return `Text of ${url}, fetched from the editor's computer:\n\n${text}`;
+      } catch (error) {
+        throw new Error(
+          `Could not fetch ${url}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     },
     evidence: fetchedUrls,
     submit: (input, { model, evidence }) => {
       const result = checkVerdicts(input, {
         units,
         sources,
-        fetched: evidence,
+        fetched: new Set([...evidence, ...fetchedLocally]),
         stamp: {
           checkedAt: context.date,
           model,

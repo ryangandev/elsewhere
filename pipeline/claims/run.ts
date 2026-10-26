@@ -153,7 +153,7 @@ async function drive(entry: Entry, options: ClaimsOptions): Promise<void> {
         tag: session.tag,
         request: session.request(),
       });
-      session.handle(message, false);
+      await session.handle(message, false);
     } catch (error) {
       if (isFatal(error)) throw error;
       session.fail(describeError(error));
@@ -193,7 +193,7 @@ async function runBatch(entries: Entry[], options: ClaimsOptions): Promise<Claim
     for (const { session } of running) {
       const outcome = outcomes.get(session.tag);
       if (!outcome) session.fail('missing from batch results');
-      else if (outcome.type === 'succeeded') session.handle(outcome.message, true);
+      else if (outcome.type === 'succeeded') await session.handle(outcome.message, true);
       else session.fail(`batch request ${outcome.type}: ${outcome.error}`);
     }
     for (const entry of running.filter((item) => !item.session.running)) {

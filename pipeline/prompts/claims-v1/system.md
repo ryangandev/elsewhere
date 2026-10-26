@@ -13,10 +13,13 @@ Judge each unit only against its own cited sources, never against other sources 
 # How to work
 
 1. Fetch every source in the task with web_fetch, once each. Fetch a page again only if the first attempt failed.
+   When web_fetch cannot read a page (an error, a bot challenge, or no article text), try fetch_page with the same URL once.
+   It fetches the page from the editor's computer, which some sites answer when they refuse web_fetch.
+   A page fetch_page returns counts as read.
 2. Read each unit and find where its cited sources state it.
 3. Call submit_verdicts once with every source and every unit.
 
-A source is unreachable when the fetch fails or returns an error page, a bot challenge, a cookie or login wall, a paywall, or no article text.
+A source is unreachable when neither web_fetch nor fetch_page can read it: each fails or returns an error page, a bot challenge, a cookie or login wall, a paywall, or no article text.
 Say why in its note.
 If a document is cut off before its end, it still counts as read; say where it stops in the note, and treat a claim it may cover beyond that point as unreachable rather than unsupported.
 
