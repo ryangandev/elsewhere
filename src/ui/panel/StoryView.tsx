@@ -5,13 +5,18 @@ import type { StoryPageView, TrailView } from '@/domain/view-models';
 import { format, messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 import { MapConnections } from './MapConnections';
-import { SectionSources } from './SourcesDetails';
+import { NextQuestions } from './NextQuestions';
+import { ProvenanceNote } from './ProvenanceNote';
+import { SectionSources, SourcesDetails } from './SourcesDetails';
 import { StoryLink } from './StoryLink';
 import { useAutoFocus } from './use-auto-focus';
 
 type Props = { view: StoryPageView; trail?: TrailView };
 
-/** One answered question: the short answer, its map connections, and where to go next. */
+/**
+ * One answered question: the short answer, its map connections and sources, and then the way
+ * onward: the trail's next stop when on a trail, and the next questions.
+ */
 export function StoryView({ view, trail }: Props) {
   const { go } = useAtlas();
   const heading = useAutoFocus<HTMLHeadingElement>();
@@ -51,6 +56,8 @@ export function StoryView({ view, trail }: Props) {
         ))}
       </div>
       <blockquote>{view.takeaway}</blockquote>
+      <SourcesDetails sources={view.sources} question />
+      <ProvenanceNote provenance={view.provenance} />
       {trail && (
         <section className="next-stop">
           {nextStop ? (
@@ -72,14 +79,7 @@ export function StoryView({ view, trail }: Props) {
           )}
         </section>
       )}
-      {next.length > 0 && (
-        <section className="related-stories">
-          <div className="section-label">{text.leadsToAnother}</div>
-          {next.map((link) => (
-            <StoryLink key={link.key} link={link} />
-          ))}
-        </section>
-      )}
+      <NextQuestions next={next} />
     </>
   );
 }
