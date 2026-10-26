@@ -5,10 +5,26 @@ import type { BetaContentBlock } from '@anthropic-ai/sdk/resources/beta/messages
 
 const URL_PATTERN = /https?:\/\/[^\s"'<>\\)\]]+/g;
 
-/** A URL in a comparable form: no fragment, no "www.", no trailing slash, lowercase host. */
-export function normalizeUrl(url: string): string {
+/** Query parameters that track a visit or record consent rather than choose the page. */
+const TRACKING_PARAM = /^(utm_|cmp|fbclid$|gclid$|msclkid$|mc_cid$|mc_eid$|redirectedfrom$)/i;
+
+/** A URL without tracking parameters, as a source should be cited. */
+export function cleanUrl(url: string): string {
   try {
     const parsed = new URL(url.trim());
+    for (const name of [...parsed.searchParams.keys()]) {
+      if (TRACKING_PARAM.test(name)) parsed.searchParams.delete(name);
+    }
+    return parsed.toString();
+  } catch {
+    return url.trim();
+  }
+}
+
+/** A URL in a comparable form: no tracking parameters, fragment, "www." or trailing slash, lowercase host. */
+export function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(cleanUrl(url));
     const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
     const path = parsed.pathname.replace(/\/+$/, '');
     return `${host}${path}${parsed.search}`;

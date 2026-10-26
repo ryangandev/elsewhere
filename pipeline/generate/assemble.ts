@@ -9,6 +9,7 @@ import type {
   Story,
 } from '../../src/content/schema';
 import type { CountryDraft, DraftSource, DraftStory } from './draft-schema';
+import { cleanUrl } from './evidence';
 
 export type AssembleContext = {
   countryId: string;
@@ -34,7 +35,7 @@ function citedSources(declared: DraftSource[], cited: string[], date: string): S
   const result: Source[] = [];
   for (const id of new Set(cited)) {
     const source = byId.get(id);
-    if (source) result.push({ ...source, accessedAt: date });
+    if (source) result.push({ ...source, url: cleanUrl(source.url), accessedAt: date });
   }
   return result;
 }

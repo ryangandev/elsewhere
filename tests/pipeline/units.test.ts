@@ -16,7 +16,7 @@ import {
   toStrictJsonSchema,
   toToolJsonSchema,
 } from '../../pipeline/generate/draft-schema';
-import { normalizeUrl, retrievedUrls } from '../../pipeline/generate/evidence';
+import { cleanUrl, normalizeUrl, retrievedUrls } from '../../pipeline/generate/evidence';
 import { AnthropicModelClient, MissingApiKeyError } from '../../pipeline/generate/model-client';
 import { BatchFile, checkPlan, readBatch } from '../../pipeline/generate/plan';
 import { estimateCost, emptyUsage } from '../../pipeline/generate/usage';
@@ -62,6 +62,18 @@ describe('evidence', () => {
   it('normalizes URLs for comparison', () => {
     expect(normalizeUrl('https://WWW.Example.org/a/b/#part')).toBe('example.org/a/b');
     expect(normalizeUrl('https://example.org/a?b=1')).toBe('example.org/a?b=1');
+    expect(normalizeUrl('https://example.org/a?b=1&utm_source=x&cmpIsGdpr=false')).toBe(
+      'example.org/a?b=1',
+    );
+  });
+
+  it('cites URLs without tracking parameters', () => {
+    expect(cleanUrl('https://kids.example.org/a/1?cmpCountryCode=US&cmpIsGdpr=false')).toBe(
+      'https://kids.example.org/a/1',
+    );
+    expect(cleanUrl('https://example.org/a?id=7&utm_medium=email')).toBe(
+      'https://example.org/a?id=7',
+    );
   });
 
   it('counts retrieved pages, not requested ones', () => {

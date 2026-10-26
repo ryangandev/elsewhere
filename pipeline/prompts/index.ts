@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export const CURRENT_PROMPT_VERSION = 'v2';
+export const CURRENT_PROMPT_VERSION = 'v3';
 
 const PROMPTS_DIR = 'pipeline/prompts';
 

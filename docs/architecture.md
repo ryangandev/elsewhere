@@ -167,7 +167,7 @@ Nobody writes content JSON by hand.
 pipeline/
   config.ts        paths, default model and effort, per-request limits
   content-tree.ts  reads and writes one locale's tree on disk (content/en, or a temporary copy in tests)
-  prompts/v1/      versioned prompt files; the version is recorded in provenance
+  prompts/v<n>/    versioned prompt files; the version is recorded in provenance
   batches/         batch definitions (pilot.json) and the question plans generated for them
   generate/        plan, draft and redraft (npm run content:generate)
   validate/        every content:check rule plus source URL reachability (npm run content:verify)
@@ -196,7 +196,7 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    The tool is not strict: the API refuses to compile a whole country draft into a strict grammar, so a shape mistake goes through the repair loop like any other problem.
    The pipeline adds its own rules: every cited URL came back from a search or fetch in the same conversation, next questions point to existing or planned stories, planned and inbound story IDs are kept, a country has 4 to 6 stories, and text is English.
    Problems go back to the model as a tool error, up to three repairs; a job that still fails saves its last draft and log in `pipeline/.cache/failed/`.
-   The pipeline fills in what the model does not write: known IDs, each entry's own source list, `accessedAt` (the run date) and `provenance: { generatedBy, generatedAt, promptVersion, status: 'draft' }`.
+   The pipeline fills in what the model does not write: known IDs, each entry's own source list with tracking parameters removed from its URLs, `accessedAt` (the run date) and `provenance: { generatedBy, generatedAt, promptVersion, status: 'draft' }`.
    The model never sets a camera; the globe frames the scene.
    An existing draft is replaced only with `--regenerate`, and a file with reviewed content only with `--force`.
 3. **Verify.**
