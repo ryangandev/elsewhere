@@ -81,7 +81,12 @@ function taskText(prompts: ParaphrasePromptSet, file: CountryFile, storyIds: str
           `## ${story.id}`,
           `Question: ${story.question}`,
           `Category: ${story.category}`,
-          `Summary: ${story.summary}`,
+          // The reviewed text grounds the names a phrasing may use; see the system prompt.
+          `Story text: ${[
+            story.summary,
+            ...story.sections.map((section) => section.text),
+            story.takeaway,
+          ].join(' ')}`,
         ].join('\n'),
       )
       .join('\n\n'),

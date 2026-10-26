@@ -250,7 +250,8 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
 4. **Paraphrase.**
    `content:paraphrase -- <country>...` (or `--all`) writes [paraphrases](#content-model) for every story that has none or whose question changed since they were written; `--regenerate` replaces current ones too, and `--dry-run` lists the stories without calling the API.
    Each country is one small structured-output request (Claude Opus 5.5 at `low` effort by default, `--model` and `--effort` to change), a few countries at a time.
-   The task gives each story's question, category and summary, and lists the country's other questions so phrasings stay apart from them; the response schema allows only the IDs asked for.
+   The task gives each story's question, category and reviewed text, and lists the country's other questions so phrasings stay apart from them; the response schema allows only the IDs asked for.
+   The story's text grounds the phrasings: they may use the places, people and terms it names, since readers search by those, but add nothing it does not say and take no side it does not take.
    The response must cover every story asked for, in English, and pass every content rule for paraphrases; problems go back to the model, up to two repairs, and a country that still fails is left as it was.
    The step writes only `paraphrases` (with the model, date and `paraphrase/v<n>` prompt version), never a story's text, sources or provenance.
    Paraphrase edits do not reset review: they restate a reviewed question and make no claims, so there is nothing new to source-check, and review shows them so a misleading phrasing can still be caught.
@@ -490,9 +491,10 @@ Client indexes are static route handlers (`dynamic = 'force-static'`), written t
 | Index | Built by | Used by | Size (raw / gzip) |
 | --- | --- | --- | --- |
 | `/atlas/labels.json` | `buildCountryLabels` | globe labels; the globe mounts once it loads | 29 KB / 9 KB |
-| `/atlas/index.json` | `buildAtlasIndex` | question input and search, library, recent history, trail drawer, resume | 45 KB / 11 KB |
+| `/atlas/index.json` | `buildAtlasIndex` | question input and search, library, recent history, trail drawer, resume | 48 KB / 12 KB |
 
 The atlas index holds every country, every question with its path, category, summary, build-time keywords (TF-IDF over the story text) and paraphrase words (the words of its paraphrases that the question lacks, each once, without stop words), every trail with its stop paths, and the home screen's suggested questions (offered when a query is not answered).
+Paraphrase words cost about 125 bytes per question (40 gzipped), less than half of shipping the phrasings whole, because search matches words, not sentences.
 It grows with the question bank, so it can be split by country if it gets too large to load whole.
 
 ## Discovery and navigation

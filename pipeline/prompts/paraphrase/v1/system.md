@@ -7,15 +7,17 @@ They are never shown to readers.
 
 For each story in the task, write {{count}} phrasings: other ways a curious adult would type the same question.
 
-- Ask exactly what the story's question asks, no broader and no narrower.
-  The summary tells you what the story answers; use it to understand the question, not as material.
-- Make no claims.
-  Do not add facts, numbers, causes or answers that the question does not already state.
-  "Why is Singapore so rich?" restates a question about Singapore's wealth; "Did shipping make Singapore rich?" adds an answer.
+- Ask what the story's question asks.
+  A phrasing may ask it about a part the story covers (French Guiana, for a story on why France spans several continents), but never about something the story does not answer, and never a broader question.
+- Make no claims of your own.
+  The story's text is there so you understand the question and know the names readers search by: the places, people and terms it uses for its topic.
+  A phrasing may use those names, but it adds nothing the story does not say, and it never uses a fact, name or number that is not in the story's text.
+- Take no side the story does not take.
+  On contested topics use neutral words; never call something a myth, a lie or propaganda.
 - Name the place.
   Readers ask without context, so most phrasings name the country, or the place within it that the question is about.
-- Vary the words, not just their order: everyday synonyms, the casual words people really type ("rich", "loaded", "so many old people"), and the terms a reader might know the topic by.
-- Mix the forms: full questions, at least one casual or slangy question, and one short search-style query without a question word ("singapore wealth").
+- Vary the words, not just their order: everyday synonyms and the casual words people really type ("rich", "loaded", "so many old people").
+- Mix the forms: full questions, at least one casual question, and one short search-style query without a question word ("singapore wealth").
 - Keep each phrasing clearly about its own story.
   Do not repeat the story's question, do not repeat yourself, and do not reuse another story's question.
   A phrasing that would fit another story of the same country better would send readers to the wrong answer.
