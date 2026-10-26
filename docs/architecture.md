@@ -138,9 +138,12 @@ Rules:
   In production the loaders drop drafts and every starter question, next question and trail stop that points at one; development shows drafts.
 - Locale is a directory, so a Chinese edition is a parallel `content/zh/` tree with the same IDs.
 
-Loaders in `src/content/index.ts` are synchronous, free of Node APIs, and server-only (see [Server and client boundary](#server-and-client-boundary)):
+Loaders in `src/content/index.ts` are synchronous and server-only (see [Server and client boundary](#server-and-client-boundary)):
 `getCountry(id or slug)`, `listCountries`, `getStory`, `getStoryBySlug`, `listStories`, `listTrails`, `getPlaceNote`, `getMapCountry` (all 258 map identities, edited or not) and `resolveScene`.
-Files reach the loaders through static imports in `src/content/registry.ts`; `content:check` fails when a file is not registered.
+Content files are discovered, not registered: `readContentTree` in `src/content/files.ts` reads every `countries/*.json` file, ordered by file name, and the known top-level files (`trails.json`, `places.json`) when content is first read.
+A file that cannot be read, is not JSON, or does not match the schema fails with its path; an unknown top-level JSON file fails too, so a new kind of content file is added to `TOP_LEVEL_FILES` and the schema together.
+The loaders, `content:check`, the pipeline and the tests all read content this way, from paths relative to the repository root, where Next.js, the scripts and Vitest run.
+In development the loaders compare the tree's file sizes and modification times at most twice a second and reload content when they change, so an edited or new file shows on the next page load without restarting the server.
 
 A story scene without a `camera` borrows its country scene's camera when both focus the same country.
 Framing from the focus country's area alone is too close for very small countries such as Singapore, and a story's route then leaves the frame.
@@ -203,7 +206,7 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Changes go through notes and regeneration rather than JSON edits, so every text stays sourced.
 5. **Commit.**
    Reviewed JSON is committed like code; git history is the content history.
-   A new country file must also be registered in `src/content/registry.ts`, which `content:check` enforces and the pipeline does not edit.
+   A new country file needs nothing else: the loaders discover it.
 
 Pending references: a draft story may link to a planned story in a country that has no content file yet, so a batch can link its countries before all of them are drafted.
 `findPendingReferences` in `src/content/validate.ts` lists them; `content:check` accepts them in drafts and rejects them in reviewed stories, and review will not approve a story that has one.

@@ -37,7 +37,6 @@ Steps 1 to 5 are merged; step 6 (question-first experience) is in progress.
   Drafts fall back to `flow` routes there; fixing the gazetteer needs the Natural Earth sources (`npm run maps:gazetteer`).
 - Two source URLs in reviewed content are gone (HTTP 404): India's `rajbhasha.gov.in` languages page and Singapore's `population2024.pdf`, so `npm run content:verify` fails until they are replaced.
   IBGE (Brazil) and two UNESCO pages (France, Turkey) refuse automated checks (HTTP 403) and need a manual look.
-- Generated country files must be registered in `src/content/registry.ts` before `npm run content:check` passes.
 
 ## Next steps
 

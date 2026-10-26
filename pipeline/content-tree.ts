@@ -1,8 +1,9 @@
 // Reading and writing one locale's content tree on disk. The pipeline works on a directory
-// (content/en by default, a temporary copy in tests) instead of the loaders' static registry,
-// so it sees every file, including drafts written moments ago.
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+// (content/en by default, a temporary copy in tests) and reads it with the same discovery as the
+// loaders, so it sees every file, including drafts written moments ago.
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { COUNTRIES_DIR, readContentTree, type ContentFile } from '../src/content/files';
 import { createLandIndex, type LandIndex } from '../src/content/geometry';
 import {
   CountryFile,
@@ -13,7 +14,7 @@ import {
 import type { ContentInput } from '../src/content/validate';
 import { GAZETTEER_FILE, LAND_GEOMETRY_FILE, MAP_COUNTRIES_FILE } from './config';
 
-export type RawFile = { file: string; data: unknown };
+export type RawFile = ContentFile;
 
 export const readJson = (file: string): unknown => JSON.parse(readFileSync(file, 'utf8'));
 
@@ -22,18 +23,13 @@ export function writeJson(file: string, data: unknown): void {
   writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
 }
 
-export const countriesDir = (contentDir: string) => join(contentDir, 'countries');
+export const countriesDir = (contentDir: string) => join(contentDir, COUNTRIES_DIR);
 
 export const countryFilePath = (contentDir: string, slug: string) =>
   join(countriesDir(contentDir), `${slug}.json`);
 
 export function readCountryFiles(contentDir: string): RawFile[] {
-  const dir = countriesDir(contentDir);
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((name) => name.endsWith('.json'))
-    .sort()
-    .map((name) => ({ file: join(dir, name), data: readJson(join(dir, name)) }));
+  return readContentTree(contentDir).countryFiles;
 }
 
 /** Every country file that passes the schema, keyed by country ID. Invalid files are skipped. */
@@ -64,19 +60,10 @@ export function contentInput(
   replace: RawFile[] = [],
 ): Omit<ContentInput, 'land'> {
   const replaced = new Set(replace.map(({ file }) => file));
+  const tree = readContentTree(contentDir);
   return {
-    countryFiles: [
-      ...readCountryFiles(contentDir).filter(({ file }) => !replaced.has(file)),
-      ...replace,
-    ],
-    trails: {
-      file: join(contentDir, 'trails.json'),
-      data: readJson(join(contentDir, 'trails.json')),
-    },
-    placeNotes: {
-      file: join(contentDir, 'places.json'),
-      data: readJson(join(contentDir, 'places.json')),
-    },
+    ...tree,
+    countryFiles: [...tree.countryFiles.filter(({ file }) => !replaced.has(file)), ...replace],
     gazetteer: { file: GAZETTEER_FILE, data: readJson(GAZETTEER_FILE) },
     mapCountries: { file: MAP_COUNTRIES_FILE, data: readJson(MAP_COUNTRIES_FILE) },
   };

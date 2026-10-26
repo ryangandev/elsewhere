@@ -1,6 +1,8 @@
 // Typed, synchronous access to one locale's content.
 // Draft content is visible only when includeDrafts is set; references to hidden content
 // (starter questions, next questions, trail stops) are removed so nothing links to a draft.
+import type { z } from 'zod';
+import type { ContentFile, ContentTree } from './files';
 import { getPlace, routePoints } from './geo';
 import type { MapScene } from './map-scene';
 import {
@@ -15,12 +17,8 @@ import {
   type Trail,
 } from './schema';
 
-/** Raw (unparsed) content files of one locale. */
-export type ContentSources = {
-  countryFiles: unknown[];
-  trails: unknown;
-  placeNotes: unknown;
-};
+/** Raw (unparsed) content files of one locale, as read by readContentTree. */
+export type ContentSources = ContentTree;
 
 export type ContentStore = {
   /** An edited country by ID ("SGP", any case) or slug ("singapore"). */
@@ -39,6 +37,11 @@ export type ContentStore = {
 
 export type ContentStoreOptions = {
   includeDrafts: boolean;
+  /**
+   * A fingerprint of the sources. When given, it is checked on every read and the content is
+   * loaded again when it changes; the development server uses this to pick up edited files.
+   */
+  revision?: () => string;
 };
 
 type Indexed = {
@@ -52,8 +55,18 @@ type Indexed = {
 
 const storyKey = (countryId: string, storyId: string) => `${countryId}/${storyId}`;
 
+/** Parse one content file, naming the file when it does not match the schema. */
+function parseFile<T>(schema: z.ZodType<T>, { file, data }: ContentFile): T {
+  const result = schema.safeParse(data);
+  if (result.success) return result.data;
+  const problems = result.error.issues
+    .map((issue) => `  ${issue.path.join('.') || '(root)'}: ${issue.message}`)
+    .join('\n');
+  throw new Error(`Content file ${file} does not match the schema:\n${problems}`);
+}
+
 function buildIndex(sources: ContentSources, { includeDrafts }: ContentStoreOptions): Indexed {
-  const files = sources.countryFiles.map((file) => CountryFile.parse(file));
+  const files = sources.countryFiles.map((file) => parseFile(CountryFile, file));
   const visible = (status: 'draft' | 'reviewed') => includeDrafts || status === 'reviewed';
 
   const visibleFiles = files
@@ -86,7 +99,7 @@ function buildIndex(sources: ContentSources, { includeDrafts }: ContentStoreOpti
   }
   countries.sort((a, b) => a.name.localeCompare(b.name));
 
-  const trails = TrailsFile.parse(sources.trails)
+  const trails = parseFile(TrailsFile, sources.trails)
     .map((trail) => ({ ...trail, stops: trail.stops.filter(isVisible) }))
     .filter((trail) => trail.stops.length >= 2);
 
@@ -96,17 +109,28 @@ function buildIndex(sources: ContentSources, { includeDrafts }: ContentStoreOpti
     countriesBySlug: new Map(countries.map((country) => [country.slug, country])),
     stories,
     trails,
-    placeNotes: PlaceNotesFile.parse(sources.placeNotes),
+    placeNotes: parseFile(PlaceNotesFile, sources.placeNotes),
   };
 }
 
+/**
+ * Typed access to one locale's content. `sources` is the content itself or a function that reads
+ * it; either way it is parsed on first use, so importing the loaders costs nothing until content
+ * is read.
+ */
 export function createContentStore(
-  sources: ContentSources,
+  sources: ContentSources | (() => ContentSources),
   options: ContentStoreOptions,
 ): ContentStore {
-  // Parse on first use, so importing the loaders costs nothing until content is read.
-  let cached: Indexed | undefined;
-  const index = () => (cached ??= buildIndex(sources, options));
+  const load = typeof sources === 'function' ? sources : () => sources;
+  let cached: { index: Indexed; revision: string | undefined } | undefined;
+  const index = () => {
+    const revision = options.revision?.();
+    if (!cached || cached.revision !== revision) {
+      cached = { index: buildIndex(load(), options), revision };
+    }
+    return cached.index;
+  };
 
   const getCountry = (idOrSlug: string) =>
     index().countriesById.get(idOrSlug.toUpperCase()) ??

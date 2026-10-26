@@ -1,6 +1,7 @@
 // Content validation: zod shapes plus everything a shape cannot check on its own.
 // Used by `npm run content:check` and the content tests. Pure: callers pass the raw data in.
 import type { z } from 'zod';
+import type { ContentFile, ContentTree } from './files';
 import type { LandIndex } from './geometry';
 import { findRouteLandCrossings } from './geo';
 import {
@@ -23,12 +24,9 @@ export type ContentIssue = {
   message: string;
 };
 
-export type ContentInput = {
-  countryFiles: { file: string; data: unknown }[];
-  trails: { file: string; data: unknown };
-  placeNotes: { file: string; data: unknown };
-  gazetteer: { file: string; data: unknown };
-  mapCountries: { file: string; data: unknown };
+export type ContentInput = ContentTree & {
+  gazetteer: ContentFile;
+  mapCountries: ContentFile;
   /** Land geometry for checking that sea routes stay at sea. Skipped when omitted. */
   land?: LandIndex;
 };

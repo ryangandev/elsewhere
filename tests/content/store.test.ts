@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as content from '../../src/content';
 import { getPlace } from '../../src/content/geo';
+import { localeContentDir, readContentTree } from '../../src/content/files';
 import { CountryFile } from '../../src/content/schema';
 import { createContentStore, type ContentSources } from '../../src/content/store';
 import { readJson } from './load';
+
+const entry = (file: string) => ({ file, data: readJson(file) });
 
 describe('loaders', () => {
   it('find countries by ID or slug', () => {
@@ -78,9 +81,12 @@ describe('draft filtering', () => {
     singapore.stories[1].provenance = draft;
     malaysia.country.provenance = draft;
     return {
-      countryFiles: [singapore, malaysia],
-      trails: readJson('content/en/trails.json'),
-      placeNotes: readJson('content/en/places.json'),
+      countryFiles: [
+        { file: 'singapore.json', data: singapore },
+        { file: 'malaysia.json', data: malaysia },
+      ],
+      trails: entry('content/en/trails.json'),
+      placeNotes: entry('content/en/places.json'),
     };
   }
   const draftStory = 'shipping';
@@ -117,20 +123,9 @@ describe('draft filtering', () => {
   it('is what the default loaders do for the build environment', () => {
     // Tests run outside production, so the default store includes drafts; all English content
     // is reviewed, so the result is the same either way.
-    const production = createContentStore(
-      {
-        countryFiles: contentFiles(),
-        trails: readJson('content/en/trails.json'),
-        placeNotes: readJson('content/en/places.json'),
-      },
-      { includeDrafts: false },
-    );
+    const production = createContentStore(readContentTree(localeContentDir('en')), {
+      includeDrafts: false,
+    });
     expect(production.listStories()).toEqual(content.listStories());
   });
 });
-
-function contentFiles(): unknown[] {
-  return content
-    .listCountries()
-    .map((country) => readJson(`content/en/countries/${country.slug}.json`));
-}
