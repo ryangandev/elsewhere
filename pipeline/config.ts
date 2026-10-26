@@ -48,6 +48,38 @@ export const DEFAULT_LIMITS: GenerationLimits = {
   maxTokens: 64000,
 };
 
+export type KnownBlockedUrl = {
+  /** The day a person opened the page in a browser and saw it support the content. */
+  openedOn: string;
+  /** What the page is, so the next person knows what to look for. */
+  page: string;
+};
+
+/**
+ * Cited pages that are known to be fine but refuse automated checks (a bot challenge answering
+ * 401, 403 or 429). The source URL check counts them as ok instead of unverified, but only for
+ * those refusals: a page that goes missing (404, 410, dead host) is still broken. Each entry
+ * lapses after KNOWN_BLOCKED_RECHECK_DAYS and turns back into a warning, so someone opens the
+ * page again. Add exact URLs only, after opening them; never whole hosts.
+ */
+export const KNOWN_BLOCKED_URLS: Record<string, KnownBlockedUrl> = {
+  'https://agenciadenoticias.ibge.gov.br/en/agencia-press-room/2185-news-agency/releases-en/25812-ibge-lanca-mapa-inedito-de-biomas-e-sistema-costeiro-marinho-2':
+    {
+      openedOn: '2026-10-26',
+      page: 'IBGE News Agency release on the map of biomes and the coastal-marine system',
+    },
+  'https://whc.unesco.org/en/list/356': {
+    openedOn: '2026-10-26',
+    page: 'UNESCO World Heritage List entry for the Historic Areas of Istanbul',
+  },
+  'https://whc.unesco.org/en/list/600': {
+    openedOn: '2026-10-26',
+    page: 'UNESCO World Heritage List entry for Paris, Banks of the Seine',
+  },
+};
+
+export const KNOWN_BLOCKED_RECHECK_DAYS = 180;
+
 /** Stories per country, from docs/status.md (pilot batch decision). */
 export const STORIES_PER_COUNTRY = { min: 4, max: 6 };
 

@@ -19,10 +19,10 @@ const round = (value: number) => Math.round(value * 10) / 10;
 function describe(place: GazetteerPlace): string {
   const kind =
     place.kind === 'water'
-      ? place.surface === 'land'
-        ? 'river'
-        : place.path
-          ? 'strait (route follows its passage)'
+      ? place.path
+        ? 'passage (a route follows it end to end)'
+        : place.surface === 'land'
+          ? 'river'
           : 'sea'
       : place.kind === 'country'
         ? `country ${place.countryId}`
@@ -42,7 +42,7 @@ export function sharedListing(): string {
   return [
     'Format: id | name | kind | lat, lng (for orientation only; never write coordinates).',
     section(
-      'Seas, straits and rivers',
+      'Seas, straits, canals and rivers',
       places.filter((place) => place.kind === 'water'),
     ),
     section(

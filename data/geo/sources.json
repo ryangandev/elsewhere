@@ -32,13 +32,13 @@
     },
     "filters": {
       "marine": "all named features except river mouths",
-      "rivers": "featurecla River, scalerank <= 2",
+      "rivers": "featurecla River, scalerank <= 2; canals named in gazetteer-overrides.json",
       "regions": "scalerank <= 3",
       "places": "scalerank <= 2, or a national capital",
       "admin1": "only features listed in gazetteer-overrides.json"
     },
     "overrides": "data/geo/gazetteer-overrides.json",
     "seaPointGeometry": "public/maps/countries-detail.geojson",
-    "features": 1251
+    "features": 1254
   }
 }

@@ -140,9 +140,12 @@ Rules:
   In production the loaders drop drafts and every starter question, next question and trail stop that points at one; development shows drafts.
 - Locale is a directory, so a Chinese edition is a parallel `content/zh/` tree with the same IDs.
 
-Loaders in `src/content/index.ts` are synchronous, free of Node APIs, and server-only (see [Server and client boundary](#server-and-client-boundary)):
+Loaders in `src/content/index.ts` are synchronous and server-only (see [Server and client boundary](#server-and-client-boundary)):
 `getCountry(id or slug)`, `listCountries`, `getStory`, `getStoryBySlug`, `listStories`, `listTrails`, `getHome`, `getPlaceNote`, `getMapCountry` (all 258 map identities, edited or not) and `resolveScene`.
-Files reach the loaders through static imports in `src/content/registry.ts`; `content:check` fails when a file is not registered.
+Content files are discovered, not registered: `readContentTree` in `src/content/files.ts` reads every `countries/*.json` file, ordered by file name, and the known top-level files (`trails.json`, `places.json`, `home.json`) when content is first read.
+A file that cannot be read, is not JSON, or does not match the schema fails with its path; an unknown top-level JSON file fails too, so a new kind of content file is added to `TOP_LEVEL_FILES` and the schema together.
+The loaders, `content:check`, the pipeline and the tests all read content this way, from paths relative to the repository root, where Next.js, the scripts and Vitest run.
+In development the loaders compare the tree's file sizes and modification times at most twice a second and reload content when they change, so an edited or new file shows on the next page load without restarting the server.
 
 A story scene without a `camera` borrows its country scene's camera when both focus the same country.
 Framing from the focus country's area alone is too close for very small countries such as Singapore, and a story's route then leaves the frame.
@@ -193,6 +196,8 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
 3. **Verify.**
    `content:verify` runs every `content:check` rule, lists pending references, and checks every source URL.
    A URL is ok (2xx), broken (404, 410 or an unknown host; fails the command) or unverified (401, 403, 429, 5xx or a timeout; a warning to open by hand).
+   Some sites refuse every automated request with a bot challenge; after a person opens such a page and finds it supports the content, its exact URL goes in `KNOWN_BLOCKED_URLS` in `pipeline/config.ts` with the date, and a 401, 403 or 429 from it then counts as ok.
+   An entry never excuses a 404, 410 or dead host, never covers a whole site, and lapses after 180 days, when the page is a warning again until someone reopens it.
    It tries HEAD then GET, retries twice with backoff, limits requests per host, and caches results in `pipeline/.cache/url-status.json` (ok for 30 days, others for a day).
    `--offline` skips the network and reports cached results.
 4. **Review.**
@@ -205,7 +210,7 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Changes go through notes and regeneration rather than JSON edits, so every text stays sourced.
 5. **Commit.**
    Reviewed JSON is committed like code; git history is the content history.
-   A new country file must also be registered in `src/content/registry.ts`, which `content:check` enforces and the pipeline does not edit.
+   A new country file needs nothing else: the loaders discover it.
 
 Pending references: a draft story may link to a planned story in a country that has no content file yet, so a batch can link its countries before all of them are drafted.
 `findPendingReferences` in `src/content/validate.ts` lists them; `content:check` accepts them in drafts and rejects them in reviewed stories, and review will not approve a story that has one.
@@ -238,17 +243,25 @@ Geo data in `data/geo/` is generated from Natural Earth 10m datasets, which are 
 - `countries.json` (`npm run maps:countries`) holds all 258 map identities: ID, slug, English name, region, population and label anchor.
 - `gazetteer.json` (`npm run maps:gazetteer`) holds about 1,250 named places (37 KB gzipped): every country, named seas and straits, major rivers, physical regions, and major cities and capitals.
   IDs are slugs of the English name; when two kinds share a name, the lower-priority one gets a suffix, so `singapore` is the country and `singapore-city` the city.
-- `gazetteer-overrides.json` is the only hand-maintained input: a short list of extra Natural Earth features to include, renames to common English names, and the few features Natural Earth lacks.
+- `gazetteer-overrides.json` is the only hand-maintained input: a short list of extra Natural Earth features to include, renames to common English names, extra passages, canals, and the few features Natural Earth lacks.
   Added features are anchored to Natural Earth geometry, never to typed coordinates, and every entry gives a reason.
+  The Suez and Panama canals come from Natural Earth's river and lake centerlines, which have no marine polygon for them.
+  The Strait of Hormuz, which Natural Earth draws only as the line where the Persian Gulf and Gulf of Oman polygons meet, is labelled at the middle of that line.
 
 Sea routes are checked against `public/maps/countries-detail.geojson`, the detailed geometry the globe draws; the base geometry's coarser coastlines close narrow straits such as the Bosporus.
 
 - Every sea place has a label point that is at sea in that geometry.
   A water body whose polygon is entirely covered by simplified land is dropped (currently only the Luzon Strait).
-- Straits and channels also get a passage `path` along their long axis.
-  A route through a strait follows the path, because a single label point inside a winding strait forces the line across a shore.
+- Straits, channels, canals and a few listed gulfs (the Gulf of Suez, the Gulf of Saint Lawrence) are passages: they get a passage `path`, and a route through one follows it end to end, because a single label point inside a winding strait forces the line across a shore.
+- A strait's path is traced by `scripts/passage-paths.mjs`: the cheapest way through its water on a grid of 0.5 to 4 km cells, from one end of its long axis to the other, preferring cells far from shore so the path keeps to mid-channel, then simplified without adding land.
+  Natural Earth's marine polygons are drawn loosely (some straits are only slivers along each shore), so the path may use open water up to 30 km outside the polygon, and each end moves to open water nearby.
+  Where the axis does not reach the real entrances (the Northwest Passage archipelago, the bending Strait of Magellan), the overrides set the ends where the polygon meets two named water bodies.
+  A canal's path is its centerline.
 - A route is sampled along great circles every 2 km.
   Land within 50 km of a land waypoint (a port) is allowed, and crossings of 15 km or less are ignored, so small islands do not fail a route.
+- Segments between points of one passage path are not sampled: the build traced them through the passage's water.
+  Marine passages stay off the globe's land (a test checks every one), canals cross the land they cut through, and the build prints any other passage that crosses land the geometry closes (only about 1 km of the Saint Lawrence River).
+  The legs into and out of a passage are checked like every other segment, so a route that skips a passage still fails.
 
 What can go wrong:
 
@@ -256,8 +269,9 @@ What can go wrong:
   This is why places come from the gazetteer and routes are checked against land polygons.
 - Ocean label points sit in the middle of the ocean, far from most scenes.
   Prefer the nearest marginal sea (the Philippine Sea rather than the Pacific) when a story means the water off a coast.
-- The gazetteer has no canals (Suez, Panama) and no Strait of Hormuz, and the passage paths of Bab-el-Mandeb, the Bristol Channel, Hudson Strait, the Northwest Passage, the Saint Lawrence River and the Strait of Magellan cross land in the detailed geometry.
-  A sea route through any of them fails the land check, so drafts draw a sea route to each side and join them with a short `flow` route until the gazetteer is fixed.
+- Gazetteer label points are only as good as the named places near a coast: the gazetteer has no Celtic Sea, Cabot Strait or minor ports, so some realistic routes need a passage or port the gazetteer lacks and fail the land check.
+  Add the Natural Earth feature through the overrides rather than drawing a `flow` route.
+- Natural Earth has no polygon for the Drake Passage (only slivers along its shores), so it has a label point and no passage path.
 - A URL that resolves does not prove it supports the claim.
   Review remains necessary; the pipeline only removes mechanical errors.
 - A source can be live and still not say what the text claims; there is no automatic claim check yet.

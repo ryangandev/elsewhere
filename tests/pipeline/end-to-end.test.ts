@@ -8,7 +8,7 @@ import { parsedCountryFiles, readCountryFile } from '../../pipeline/content-tree
 import { ReplayClient } from '../../pipeline/generate/model-client';
 import { BatchFile, generatePlan, planMap } from '../../pipeline/generate/plan';
 import { generate } from '../../pipeline/generate/run';
-import { loadPrompts } from '../../pipeline/prompts';
+import { CURRENT_PROMPT_VERSION, loadPrompts } from '../../pipeline/prompts';
 import { approve, fileReport, requestRevision } from '../../pipeline/review/actions';
 import { countrySummary } from '../../pipeline/review/summary';
 import { verifyContent } from '../../pipeline/validate/verify';
@@ -77,7 +77,7 @@ describe('content pipeline, end to end on replayed responses', () => {
     expect(chile.country.provenance).toEqual({
       generatedBy: 'claude-opus-5-5',
       generatedAt: RUN_DATE,
-      promptVersion: 'v1',
+      promptVersion: CURRENT_PROMPT_VERSION,
       status: 'draft',
     });
     expect(chile.stories.map((story) => story.id)).toEqual(['length', 'desert', 'copper', 'andes']);

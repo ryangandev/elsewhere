@@ -34,11 +34,8 @@ Steps 1 to 6 are merged; step 7 (scale and ship) is next.
 
 ## Known content pipeline issues
 
-- Sea routes cannot pass the Suez or Panama canals, the Strait of Hormuz, Bab-el-Mandeb, the Bristol Channel, Hudson Strait, the Northwest Passage, the Saint Lawrence River or the Strait of Magellan: the first three are missing from the gazetteer and the others have passage paths that cross land.
-  Drafts fall back to `flow` routes there; fixing the gazetteer needs the Natural Earth sources (`npm run maps:gazetteer`).
-- Two source URLs in reviewed content are gone (HTTP 404): India's `rajbhasha.gov.in` languages page and Singapore's `population2024.pdf`, so `npm run content:verify` fails until they are replaced.
-  IBGE (Brazil) and two UNESCO pages (France, Turkey) refuse automated checks (HTTP 403) and need a manual look.
-- Generated country files must be registered in `src/content/registry.ts` before `npm run content:check` passes.
+- Singapore's "Language" quick fact and its "Move up the value chain" step cite only `singstat-population-2024` (SingStat Population Trends), which states population and ethnic composition but not the official languages, the national language, or inequality.
+  They need a source that states those claims, such as the Constitution of Singapore (Article 153A) for languages.
 
 ## Next steps
 

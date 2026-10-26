@@ -98,6 +98,12 @@ export type RouteWaypoint = {
   point: LatLng;
   /** Whether the waypoint itself is at sea or on land (a port or coastal place). */
   surface: 'sea' | 'land';
+  /**
+   * For a point of a passage path, the index of its stop in the route. Segments between points
+   * of the same passage follow the path the gazetteer build traced through the passage's water,
+   * so the land check skips them.
+   */
+  passage?: number;
 };
 
 /** A route stop before expansion: a straits-like feature may carry a passage path. */
@@ -130,7 +136,7 @@ export function expandRouteStops(stops: RouteStop[]): RouteWaypoint[] {
       path =
         distanceKm(next, backward.at(-1)!) < distanceKm(next, forward.at(-1)!) ? backward : forward;
     }
-    for (const point of path) waypoints.push({ id: stop.id, point, surface: 'sea' });
+    for (const point of path) waypoints.push({ id: stop.id, point, surface: 'sea', passage: index });
   });
   return waypoints;
 }
@@ -170,6 +176,10 @@ export const SEA_ROUTE_CHECK_DEFAULTS: Required<SeaRouteCheckOptions> = {
  * Find places where a sea route crosses land.
  * Each segment between consecutive waypoints is sampled along its great circle;
  * consecutive land samples are reported as one crossing.
+ * Segments inside one passage path (a strait, channel or canal) are not sampled: the gazetteer
+ * build traced that path through the passage's own water and verified it, including where the
+ * land geometry closes the water (a canal, or a river channel narrower than the coastline
+ * detail). The segments into and out of a passage are checked like any other.
  */
 export function findSeaRouteLandCrossings(
   waypoints: RouteWaypoint[],
@@ -185,6 +195,7 @@ export function findSeaRouteLandCrossings(
   for (let index = 1; index < waypoints.length; index += 1) {
     const from = waypoints[index - 1];
     const to = waypoints[index];
+    if (from.passage !== undefined && from.passage === to.passage) continue;
     const samples = interpolateGreatCircle(from.point, to.point, stepKm);
     const spacingKm = distanceKm(from.point, to.point) / Math.max(1, samples.length - 1);
     let current: LandCrossing | undefined;

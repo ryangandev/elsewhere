@@ -1,5 +1,5 @@
 {
-  "description": "Hand-maintained inputs to scripts/build-gazetteer.mjs. 'include' adds Natural Earth features that the default filters leave out, by dataset and ne_id. 'rename' replaces a Natural Earth name with its common English form before the ID is derived. 'features' adds the few features Natural Earth lacks; each is anchored to Natural Earth geometry (a gazetteer place, or the part of a country polygon containing a place), never to typed coordinates. Keep every list short and give every entry a reason.",
+  "description": "Hand-maintained inputs to scripts/build-gazetteer.mjs. 'include' adds Natural Earth features that the default filters leave out, by dataset and ne_id. 'rename' replaces a Natural Earth name with its common English form before the ID is derived. 'passages' gives marine features other than straits and channels a passage path, by ne_id, and with 'between' ends a passage where it meets two named water bodies instead of at the ends of its long axis. 'canals' adds canals by their name in Natural Earth's river and lake centerlines; the joined centerline is the canal's passage path. 'features' adds the few features Natural Earth lacks; each is anchored to Natural Earth geometry (a gazetteer place, the part of a country polygon containing a place, or the line where two marine polygons meet), never to typed coordinates. Keep every list short and give every entry a reason.",
   "include": [
     {
       "dataset": "places",
@@ -64,6 +64,41 @@
       "reason": "English name of the river."
     }
   ],
+  "passages": [
+    {
+      "neId": 1159119103,
+      "name": "Gulf of Suez",
+      "reason": "Sea routes through the Suez Canal continue down the whole gulf to the Red Sea. The gulf bends, so a straight line from the canal to its label point crosses the Egyptian shore."
+    },
+    {
+      "neId": 1159116661,
+      "name": "Northwest Passage",
+      "between": ["baffin-bay", "amundsen-gulf"],
+      "reason": "Natural Earth's polygon covers the whole Arctic archipelago, whose long axis runs north to south. The passage runs from Lancaster Sound, where it meets Baffin Bay, to the Amundsen Gulf and the Beaufort Sea beyond."
+    },
+    {
+      "neId": 1159116715,
+      "name": "Gulf of Saint Lawrence",
+      "between": ["north-atlantic-ocean", "saint-lawrence-river"],
+      "reason": "Ships cross the gulf between Cabot Strait and the Saint Lawrence River. Its label point lies east of Anticosti Island, so a straight line from it to the river crosses the island."
+    },
+    {
+      "neId": 1159118553,
+      "name": "Strait of Magellan",
+      "between": ["south-atlantic-ocean", "south-pacific-ocean"],
+      "reason": "The strait bends sharply, so the ends of its long axis fall inside it, short of the Atlantic entrance at Cabo Virgenes. The passage runs from the Atlantic entrance to the Pacific one."
+    }
+  ],
+  "canals": [
+    {
+      "name": "Suez Canal",
+      "reason": "Sea routes between the Mediterranean and the Red Sea pass through it. Natural Earth has it only as river and lake centerlines (scalerank 6), not as a marine polygon."
+    },
+    {
+      "name": "Panama Canal",
+      "reason": "Sea routes between the Caribbean and the Pacific pass through it. Natural Earth has it only as river and lake centerlines (scalerank 6), not as a marine polygon."
+    }
+  ],
   "features": [
     {
       "id": "peninsular-malaysia",
@@ -85,6 +120,18 @@
         "placeId": "planalto-central"
       },
       "reason": "Natural Earth has no biome features. The Cerrado savanna covers Brazil's central plateau, so it is labelled at Natural Earth's Planalto Central."
+    },
+    {
+      "id": "strait-of-hormuz",
+      "name": "Strait of Hormuz",
+      "kind": "water",
+      "surface": "sea",
+      "anchor": {
+        "type": "junction",
+        "placeIds": ["persian-gulf", "gulf-of-oman"],
+        "radiusKm": 100
+      },
+      "reason": "Natural Earth's marine polygons have no Strait of Hormuz: the Persian Gulf and Gulf of Oman polygons meet across it. Labelled at the middle of their shared boundary, with a passage from the Persian Gulf to the Gulf of Oman through their water within 100 km of it."
     }
   ]
 }

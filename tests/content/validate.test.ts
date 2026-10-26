@@ -1,20 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { englishContent } from '../../src/content/registry';
-import { CountryFile, StoryRef, TrailStop } from '../../src/content/schema';
+import { StoryRef, TrailStop } from '../../src/content/schema';
 import { validateContent } from '../../src/content/validate';
 import { contentInput, landIndex } from './load';
 
 describe('content', () => {
   it('passes every schema, integrity, gazetteer and sea-route check', () => {
     expect(validateContent({ ...contentInput(), land: landIndex() })).toEqual([]);
-  });
-
-  it('registers every country file for the loaders', () => {
-    const ids = (files: unknown[]) =>
-      files.map((data) => CountryFile.parse(data).country.id).sort();
-    expect(ids(englishContent.countryFiles)).toEqual(
-      ids(contentInput().countryFiles.map(({ data }) => data)),
-    );
   });
 
   it('is English only, apart from native country names', () => {
