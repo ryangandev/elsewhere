@@ -42,8 +42,18 @@ export type LabelLayoutContext = {
   container: HTMLElement;
   features: ReadonlyMap<string, CountryFeature>;
   unproject: (x: number, y: number) => { lat: number; lng: number } | null;
+  // The id of the country whose land is at a point; undefined at sea.
+  countryAt: (point: { lat: number; lng: number }) => string | undefined;
   bounds: DOMRect;
   occluders: Iterable<Element>;
+};
+
+/** Accessible names for label buttons, supplied by the app so the globe holds no interface text. */
+export type GlobeLabelMessages = {
+  /** A country name, which opens that country. */
+  exploreCountry(name: string): string;
+  /** A scene place, which finds that place on the globe. */
+  locatePlace(name: string): string;
 };
 
 type LabelCallbacks = {
@@ -182,6 +192,7 @@ function occluderRects(occluders: Iterable<Element>, bounds: DOMRect) {
 // so navigation touches only the place labels that actually changed.
 export function createLabelLayer(
   countries: readonly CountryLabelData[],
+  messages: GlobeLabelMessages,
   callbacks: LabelCallbacks,
 ) {
   const countryLabels: CountryLabel[] = [];
@@ -191,7 +202,7 @@ export function createLabelLayer(
     element.dataset.country = country.id;
     const name = country.shortName ?? country.name;
     element.textContent = stackedName(name) ?? name;
-    element.setAttribute('aria-label', `Explore ${country.name}`);
+    element.setAttribute('aria-label', messages.exploreCountry(country.name));
     element.setAttribute('aria-hidden', 'true');
     element.tabIndex = -1;
     element.addEventListener('mouseenter', () => callbacks.onHoverCountry(country.id));
@@ -235,7 +246,7 @@ export function createLabelLayer(
     element.classList.toggle('active', label.active);
     element.dataset.place = place.id;
     element.textContent = place.name;
-    element.setAttribute('aria-label', `Locate ${place.name}`);
+    element.setAttribute('aria-label', messages.locatePlace(place.name));
     // The text or style may have changed.
     label.width = 0;
   };
@@ -300,7 +311,15 @@ export function createLabelLayer(
     },
 
     // Returns true when a country name moved and the HTML layer must re-read the datums.
-    layout({ globe, container, features, unproject, bounds, occluders }: LabelLayoutContext) {
+    layout({
+      globe,
+      container,
+      features,
+      unproject,
+      countryAt,
+      bounds,
+      occluders,
+    }: LabelLayoutContext) {
       if (!measureHost) {
         measureHost = document.createElement('div');
         measureHost.className = 'globe-label-measure';
@@ -319,7 +338,7 @@ export function createLabelLayer(
         bottom: bounds.height - 12,
       };
       return arrangeLabels({
-        view: createLabelView(globe, unproject, frame),
+        view: createLabelView(globe, unproject, countryAt, frame),
         countries: countryLabels,
         places: [...contextLabels.values()],
         selectedId,

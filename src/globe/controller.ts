@@ -1,12 +1,12 @@
 import { fetchCountries, type AtlasGlobeAssets } from './assets';
 import { HOME_VIEW } from './camera';
 import type { GlobeEngine } from './engine';
-import type { CountryLabelData } from './label-layer';
+import type { CountryLabelData, GlobeLabelMessages } from './label-layer';
 import { EMPTY_SCENE, type CameraView, type MapScene } from './scene';
 import { diffScene, type SceneChanges } from './scene-diff';
 
 export { DEFAULT_GLOBE_ASSETS, type AtlasGlobeAssets } from './assets';
-export type { CountryLabelData } from './label-layer';
+export type { CountryLabelData, GlobeLabelMessages } from './label-layer';
 
 export type GlobeStatus = 'loading' | 'ready' | 'error';
 
@@ -21,6 +21,8 @@ export type AtlasGlobeEvents = {
 export type AtlasGlobeOptions = {
   // Country names and anchors. Read once; the globe never imports app or content data.
   labels: readonly CountryLabelData[];
+  // Accessible names for the labels; the globe holds no interface text of its own.
+  messages: GlobeLabelMessages;
   assets: AtlasGlobeAssets;
   // Elements the labels must not cover, such as panels over the globe. Measured at each layout.
   occluders?: () => Iterable<Element>;
@@ -93,6 +95,7 @@ export function createAtlasGlobe(container: HTMLElement, options: AtlasGlobeOpti
     engine = createGlobeEngine({
       container,
       labels: options.labels,
+      messages: options.messages,
       assets: options.assets,
       homeView: options.homeView ?? HOME_VIEW,
       occluders: options.occluders ?? (() => []),
