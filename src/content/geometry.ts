@@ -116,9 +116,22 @@ export type RouteStop = RouteWaypoint & {
  * Replace each stop that has a passage path with the path's points, oriented in the direction
  * of travel: the end nearer the previous point comes first (or, for the first stop, the end
  * farther from the next stop).
+ *
+ * A port next to a passage is on it, such as Punta Arenas on the Strait of Magellan or Istanbul
+ * on the Bosporus: a route to such a port leaves the passage at the path point nearest the port,
+ * and a route from one joins the passage at the point nearest it, instead of sailing to the far
+ * end and back across the land beside it.
  */
 export function expandRouteStops(stops: RouteStop[]): RouteWaypoint[] {
   const waypoints: RouteWaypoint[] = [];
+  const isPort = (stop: RouteStop | undefined): stop is RouteStop =>
+    stop !== undefined && !(stop.path && stop.path.length >= 2) && stop.surface === 'land';
+  const nearest = (path: LatLng[], point: LatLng) =>
+    path.reduce(
+      (best, candidate, index) =>
+        distanceKm(point, candidate) < distanceKm(point, path[best]) ? index : best,
+      0,
+    );
   stops.forEach((stop, index) => {
     if (!stop.path || stop.path.length < 2) {
       waypoints.push({ id: stop.id, point: stop.point, surface: stop.surface });
@@ -126,16 +139,21 @@ export function expandRouteStops(stops: RouteStop[]): RouteWaypoint[] {
     }
     const forward = stop.path;
     const backward = [...stop.path].reverse();
+    const [before, after] = [stops[index - 1], stops[index + 1]];
     const previous = waypoints.at(-1)?.point;
-    const next = stops[index + 1]?.point;
+    const next = after?.point;
+    const towardNext = () =>
+      distanceKm(next!, backward.at(-1)!) < distanceKm(next!, forward.at(-1)!) ? backward : forward;
     let path = forward;
-    if (previous) {
+    if (previous && !(isPort(before) && next)) {
       path =
         distanceKm(previous, backward[0]) < distanceKm(previous, forward[0]) ? backward : forward;
     } else if (next) {
-      path =
-        distanceKm(next, backward.at(-1)!) < distanceKm(next, forward.at(-1)!) ? backward : forward;
+      path = towardNext();
     }
+    const start = isPort(before) ? nearest(path, before.point) : 0;
+    const end = isPort(after) ? nearest(path, after.point) : path.length - 1;
+    path = end >= start ? path.slice(start, end + 1) : path.slice(end, start + 1).reverse();
     for (const point of path) waypoints.push({ id: stop.id, point, surface: 'sea', passage: index });
   });
   return waypoints;
