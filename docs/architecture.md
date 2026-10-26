@@ -85,6 +85,22 @@ How it is built:
 - The tab icon is a file convention: `app/icon.svg`, plus `app/favicon.ico` for the browser's automatic `/favicon.ico` request, which would otherwise reach `app/[country]`.
   `app/apple-icon.png` is the full-bleed home screen icon for iOS, which rounds the corners itself.
 
+How Vercel serves it:
+
+- The Vercel project uses the Next.js framework preset; its builder detects `output: 'export'` and deploys `out/` as static files, with no functions.
+  A local `vercel build` shows what that means: pages are served without `.html` (`/singapore`), a trailing slash redirects to the path without one, and any path that is not a file answers 404 with `out/404.html`, the designed not-found page.
+- `vercel.json` holds what static files cannot: response headers, and the prototype query URL redirects described below.
+- Caching is left to Vercel's defaults, which already fit.
+  Content-hashed files under `/_next/static` are served as `public, max-age=31536000, immutable`.
+  Every other file, HTML included, gets Vercel's static default, so the browser revalidates it (a cheap 304) and sees a new deployment at once.
+  The basemap, the country geometry and the atlas indexes keep fixed URLs, so they are not marked immutable: a long browser cache would keep stale geometry, or an index whose paths no longer match the pages.
+  The site uses system fonts, so there are no font files to cache.
+- Every response carries a Content Security Policy that allows same-origin resources only, plus `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and a `Permissions-Policy` that turns off camera, microphone, geolocation, payment, USB and topics.
+  Inline scripts and styles are allowed, because a static export carries the React Server Components payload in inline scripts and there is no server to add nonces.
+  Framing is allowed, so the site can be embedded in a portfolio; it has no sign-in or actions to clickjack.
+  Vercel adds HSTS itself.
+- The e2e tests add the headers from `vercel.json` to every page they load (`e2e/fixtures.ts`) and fail on any Content Security Policy violation, so a change that needs another origin fails there first.
+
 What changed from the prototype:
 
 - `vinext` (a beta reimplementation of Next.js on Vite) was replaced by Next.js itself.
@@ -525,6 +541,8 @@ Adding Chinese later means adding a catalog and a `content/zh/` tree, with no co
 - Pipeline tests in `tests/pipeline/` run plan, draft, verify, review and redraft end to end on replayed model responses.
 - Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, robots.txt, the sitemap and canonical links, back and forward, trails, saving a story to your atlas, share, and the About sheet.
   A phone project runs the core loop (home, ask, story, follow), the reading panel collapsing to a strip and giving the globe its room, and share through a stubbed system share sheet at 390 by 844 with touch.
+  Every page loads with the production response headers from `vercel.json`, and a Content Security Policy violation fails the test, like an uncaught error does.
+  `npx serve` cannot apply the prototype query URL redirects, so `tests/deployment.test.ts` covers those against the compiled Vercel routes instead.
   The specs find things by role and visible text, read expected questions and sources from `content/en/`, and never depend on globe pixels or on WebGL (one spec runs with WebGL disabled).
   Run `npm run build` first, then `npm run test:e2e`; CI runs it as its own `e2e` job and keeps the Playwright report when it fails.
   CI runners have no GPU and render the globe in software, so tests there get twice the local time limits.

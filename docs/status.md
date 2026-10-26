@@ -48,7 +48,7 @@ Follow [Migration plan](architecture.md#migration-plan).
 
 Fix these where the migration touches them, or explicitly drop them with the code they belong to.
 
-- In development, an unknown path such as `/atlantis` answers 500 instead of 404 unless the request asks for HTML, because `output: 'export'` forbids unknown params; the static build serves a plain 404.
+- In development, an unknown path such as `/atlantis` answers 500 instead of 404 unless the request asks for HTML, because `output: 'export'` forbids unknown params; the static build and Vercel answer 404 with the designed not-found page.
   The icons the browser requests on its own are real files (`app/favicon.ico`, `app/apple-icon.png`), so they are not affected.
 - Search is lexical: prefix matching, TF-IDF keywords and a short synonym list.
   A question phrased with none of a story's words ("What makes Singapore wealthy?" works, "Why is Singapore loaded?" does not) is reported as unanswered; revisit with embeddings or pipeline-generated paraphrases once the question bank grows.
