@@ -10,11 +10,12 @@ Check [docs/status.md](docs/status.md) for which migration step is current befor
 
 ```sh
 npm ci
-npm run dev        # http://localhost:5173
-npx tsc --noEmit
+npm run dev        # http://localhost:3000
+npm run typecheck
 npm run lint
 npm test
-npm run build
+npm run build      # static export to out/
+npm run format     # Prettier
 ```
 
 ## Rules
@@ -25,3 +26,5 @@ npm run build
 - Map places come from the gazetteer, never from hand- or model-written coordinates. See [Content pipeline](docs/architecture.md#content-pipeline).
 - Keep the 4K image basemap and sphere-based picking; they were chosen by measurement. See [Globe](docs/architecture.md#globe).
 - Do not change [docs/product.md](docs/product.md) without Ryan's agreement.
+- Interface strings live in the message catalog in `src/i18n/`, keyed by message ID. See [Internationalization](docs/architecture.md#internationalization).
+- Write readable, normally formatted code. Run `npm run format` before committing.
