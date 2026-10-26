@@ -8,8 +8,8 @@ import {
   type LabelDatum,
   type PlaceLabel,
   type Rect,
+  stackedName,
 } from './cartography';
-import { mapLabelName, stackedName } from './label-names';
 import { diffKeyed, samePlace } from './scene-diff';
 import type { ScenePlace } from './scene';
 
@@ -18,6 +18,8 @@ export type { LabelDatum } from './cartography';
 export type CountryLabelData = {
   id: string;
   name: string;
+  /** The short form an atlas prints on the land ("Russia"); the full name stays accessible. */
+  shortName?: string;
   lat: number;
   lng: number;
   // Steradians, as produced by d3-geo's geoArea.
@@ -187,7 +189,7 @@ export function createLabelLayer(
     const element = createLabelButton(() => callbacks.onSelectCountry(country.id));
     element.className = 'atlas-country-name';
     element.dataset.country = country.id;
-    const name = mapLabelName(country);
+    const name = country.shortName ?? country.name;
     element.textContent = stackedName(name) ?? name;
     element.setAttribute('aria-label', `Explore ${country.name}`);
     element.setAttribute('aria-hidden', 'true');

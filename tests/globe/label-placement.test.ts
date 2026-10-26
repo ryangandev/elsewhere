@@ -7,10 +7,10 @@ import {
   labelScale,
   nudgeDirection,
   positionOrder,
+  stackedName,
   type CountryFeature,
 } from '../../src/globe/cartography';
 import { labelCandidates } from '../../src/globe/label-candidates';
-import { mapLabelName, stackedName } from '../../src/globe/label-names';
 import index from '../../data/geo/countries.json';
 
 const base = JSON.parse(
@@ -160,17 +160,23 @@ describe('fit and nudge', () => {
 });
 
 describe('map names', () => {
+  // Short names are generated from Natural Earth's NAME field by scripts/build-countries.mjs.
+  const countries: { id: string; name: string; shortName?: string }[] = index;
+  const shortName = (id: string) => countries.find((country) => country.id === id)?.shortName;
+
   it('uses short atlas forms and keeps other names', () => {
-    expect(mapLabelName({ id: 'RUS', name: 'Russian Federation' })).toBe('Russia');
-    expect(mapLabelName({ id: 'COD', name: 'Democratic Republic of the Congo' })).toBe(
-      'Dem. Rep. Congo',
-    );
-    expect(mapLabelName({ id: 'FRA', name: 'France' })).toBe('France');
+    expect(shortName('RUS')).toBe('Russia');
+    expect(shortName('COD')).toBe('Dem. Rep. Congo');
+    expect(shortName('FRA')).toBeUndefined();
+    // Natural Earth's NAME is longer here ("United States of America"), so there is none.
+    expect(shortName('USA')).toBeUndefined();
   });
 
-  it('keeps every map name no longer than the full name', () => {
-    for (const country of index)
-      expect(mapLabelName(country).length, country.id).toBeLessThanOrEqual(country.name.length);
+  it('keeps every short name shorter than the full name', () => {
+    for (const country of countries) {
+      if (country.shortName)
+        expect(country.shortName.length, country.id).toBeLessThan(country.name.length);
+    }
   });
 
   it('breaks a multi-word name where the longer line is shortest', () => {

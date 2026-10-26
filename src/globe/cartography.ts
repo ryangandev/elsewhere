@@ -511,3 +511,19 @@ function placePlace(place: PlaceLabel, view: LabelView, occupied: Rect[]) {
   element.style.translate = placement ? `${placement.x}px ${placement.y}px` : '0 0';
   if (placement) occupied.push(pad(placement.box, 5));
 }
+
+// The name on two lines, broken at the space that keeps the longer line shortest.
+// Single-word names stay whole. The line break collapses to a space while the name
+// renders on one line, so the same text serves both forms.
+export function stackedName(name: string): string | undefined {
+  let best: string | undefined;
+  let longest = Infinity;
+  for (let at = name.indexOf(' '); at > 0; at = name.indexOf(' ', at + 1)) {
+    const length = Math.max(at, name.length - at - 1);
+    if (length < longest) {
+      longest = length;
+      best = `${name.slice(0, at)}\n${name.slice(at + 1)}`;
+    }
+  }
+  return best;
+}

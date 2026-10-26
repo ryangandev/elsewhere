@@ -240,7 +240,7 @@ npm run content:review -- show CHL --content-dir /tmp/elsewhere-en
 
 Geo data in `data/geo/` is generated from Natural Earth 10m datasets, which are cached in `.map-sources/` and recorded with URL and SHA-256 in `data/geo/sources.json`:
 
-- `countries.json` (`npm run maps:countries`) holds all 258 map identities: ID, slug, English name, region, population and label anchor.
+- `countries.json` (`npm run maps:countries`) holds all 258 map identities: ID, slug, English name and short map name, region, population and label anchor.
 - `gazetteer.json` (`npm run maps:gazetteer`) holds about 1,260 named places (37 KB gzipped): every country, named seas and straits, major rivers, physical regions, and major cities and capitals.
   IDs are slugs of the English name; when two kinds share a name, the lower-priority one gets a suffix, so `singapore` is the country and `singapore-city` the city.
 - `gazetteer-overrides.json` is the only hand-maintained input: a short list of extra Natural Earth features to include, renames to common English names, extra passages, canals, and the few features Natural Earth lacks.
@@ -330,7 +330,7 @@ How labels are laid out:
 - Layout keeps a visible name at its current point while that point faces the camera, and otherwise tries the points by room foreshortened by the view, so a country near the horizon is named from its visible side.
 - A name must fit: land of that country under the center and four corners of its ink box, inside the map frame, and clear of occluders and earlier labels.
   A near miss may shift a small step away from the failing corners, and a multi-word name may break onto two lines.
-- Names use short atlas forms (`label-names.ts`, after Natural Earth's short names), with the full name kept as the accessible name.
+- Names use short atlas forms: `scripts/build-countries.mjs` writes Natural Earth's short `NAME` ("Russia", "Dem. Rep. Congo") as `shortName` in `data/geo/countries.json` when it is shorter than the full name, the label index carries it, and the full name stays the accessible name.
 - Type steps with zoom (11px at world zoom, 13px at regional zoom, the base size closer in); sizes are measured once per step, in a hidden host for names globe.gl has not attached yet.
 - Visible names get slightly less padding and a small priority bonus, so names do not flicker as the camera moves.
 
@@ -344,8 +344,8 @@ Modules:
 | `geography.ts` | Country geometry, borders, fills, picking, detail refinement |
 | `borders.ts`, `fills.ts`, `country-lookup.ts`, `projection.ts` | Merged line buffers, lazy merged caps, bounds-filtered lookup, sphere unprojection |
 | `label-layer.ts` | Label elements, scene updates, measurement, occluder rectangles |
-| `cartography.ts` | Pure label layout: candidate order, priority, screen-space fit, nudges, collisions |
-| `label-candidates.ts`, `label-names.ts` | Interior label points per country; short map names and two-line breaks |
+| `cartography.ts` | Pure label layout: candidate order, priority, screen-space fit, nudges, collisions, two-line breaks |
+| `label-candidates.ts` | Interior label points per country |
 | `interactions.ts` | Pointer hover, tooltip, click selection |
 | `route-layer.ts` | Route paths styled by kind |
 | `materials.ts` | Image basemap material and camera-relative lights |
@@ -379,7 +379,6 @@ What can go wrong:
 - globe.gl applies a new size to its camera in a debounced update, so layout waits until the camera's aspect matches the size; projecting earlier puts names in the wrong place.
 - globe.gl writes every label's `transform` each frame, so a CSS transition on `transform`, such as the global `button` rule, makes labels trail the globe and cross each other; `globe.css` turns it off for pins.
 - Some medium countries, such as Pakistan and the United Kingdom, still have no name at world zoom where their neighbors take the space or the name does not fit.
-- Short names live in `label-names.ts` until the content model carries a short name per country.
 
 ## Server and client boundary
 
