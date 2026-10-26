@@ -13,6 +13,7 @@ Keep headings stable, because this table links to them.
 | Where does code live, and how do the parts fit? | [architecture.md#code-map](architecture.md#code-map) |
 | What is the content schema? | [architecture.md#content-model](architecture.md#content-model) |
 | How does the globe work, and why? | [architecture.md#globe](architecture.md#globe) |
+| What runs on the server versus in the browser? | [architecture.md#server-and-client-boundary](architecture.md#server-and-client-boundary) |
 | What is the order of the refactor? | [architecture.md#migration-plan](architecture.md#migration-plan) |
 | What is happening now, and what waits on Ryan? | [status.md](status.md) |
 

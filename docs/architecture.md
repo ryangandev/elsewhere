@@ -265,6 +265,16 @@ What can go wrong:
 - globe.gl recreates every label element when its `htmlElement` accessor changes, so it is set exactly once.
 - Long names can fail the fit test at world zoom and stay hidden until the camera is closer.
 
+## Server and client boundary
+
+Content modules (`src/content/`, `content/`, `data/geo/gazetteer.json`, zod) are server-only and never enter the browser bundle.
+Pages are server components: they load content at build time and pass small, already-resolved view models (the story or country to read, its resolved `MapScene`, its next questions with titles) to client components.
+The persistent shell in the root layout does not load content itself; the current page hands it the scene and destination through a small client bridge component.
+Data the client needs across pages is generated at build time as compact indexes: country labels for the globe, and a search and title index for search, the library, and recent history.
+
+Why: the question bank grows to well over a thousand stories.
+Bundling it, the gazetteer, and zod into the client would cost megabytes on every visit, while each page only needs one story.
+
 ## Discovery and navigation
 
 - Paths are the source of truth for the current destination: `/`, `/<country>`, `/<country>/<story>`.
