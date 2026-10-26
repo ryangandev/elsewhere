@@ -483,7 +483,7 @@ Reading:
 ## Styling
 
 - Tailwind v4 serves the shadcn primitives in `src/ui/primitives/`.
-  Everything else is plain CSS, one stylesheet beside the components it styles, imported by those components: `src/ui/shell/shell.css`, `src/ui/panel/panel.css`, `reading.css`, `map-overlays.css` and `story-link.css`, `src/ui/dialogs/dialogs.css`, `src/ui/home/home.css`, `src/ui/search/search.css`, and `src/globe/globe.css`.
+  Everything else is plain CSS, one stylesheet beside the components it styles, imported by those components: `src/ui/shell/shell.css`, `src/ui/panel/panel.css`, `reading.css`, `map-overlays.css`, `map-connections.css` and `story-link.css`, `src/ui/dialogs/dialogs.css`, `src/ui/home/home.css`, `src/ui/search/search.css`, and `src/globe/globe.css`.
 - `app/globals.css` keeps only the design tokens, base element styles, and the shell's grid.
   `.world-app` sets `--gutter`, `--header`, `--footer`, `--inset` and `--panel-width` for each screen size, and `.globe-area` is placed from them, so everything that reads those variables follows.
 - Each class is styled in one place.

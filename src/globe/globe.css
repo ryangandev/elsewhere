@@ -1,5 +1,17 @@
-/* Globe-owned styles. Shared class names (globe-render, atlas-country-name, context-label,
-   water-label, map-tooltip, globe-error) keep their base styles in app/globals.css. */
+/* Everything the globe draws: its box, the labels over it, the hover tooltip and the failure
+   message. Page chrome around the globe is in src/ui/. */
+
+.globe-render {
+  width: 100%;
+  height: 100%;
+}
+.globe-render canvas {
+  outline: none;
+}
+/* The renderer's box follows the sphere's outline, so its corners do not catch pointer events. */
+.globe-render .scene-container {
+  border-radius: 50%;
+}
 
 /* The controller's container: positions the hover tooltip and fills the globe area. */
 .globe-host {
@@ -9,24 +21,149 @@
 }
 
 /* Country names over the blue image basemap: light text with a dark halo. */
-.globe-render .atlas-country-name {
+.atlas-country-name {
+  border: 0;
+  padding: 2px 3px;
+  background: transparent;
+  white-space: nowrap;
   color: #f0f3e9;
+  font:
+    500 14px/1.35 Arial,
+    sans-serif;
+  letter-spacing: 0.25px;
   text-shadow:
     0 1px 3px #071923,
     0 0 6px #071923d9;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.22s ease,
+    visibility 0.22s ease,
+    color 0.15s;
 }
-.globe-render .atlas-country-name:hover {
+.atlas-country-name.is-visible {
+  visibility: visible;
+  pointer-events: auto;
+}
+.atlas-country-name:hover {
   color: #fff7cd;
 }
-.globe-render .atlas-country-name:focus-visible {
-  outline-color: #eef2d3;
+.atlas-country-name:focus-visible {
+  outline: 2px solid #eef2d3;
+  outline-offset: 3px;
+  border-radius: 3px;
 }
-.globe-render .atlas-country-name.is-selected {
+.atlas-country-name.is-selected {
   color: #fff4c4;
+  font-weight: 600;
 }
-.globe-render .atlas-country-name.is-callout {
+/* Only a selected tiny country needs a callout over the surrounding sea. */
+.atlas-country-name.is-callout {
+  background: #f0f2e5;
+  border-radius: 4px;
+  padding: 5px 8px;
   color: #24392c;
   text-shadow: none;
+  box-shadow: 0 2px 12px #061b2833;
+}
+/* A multi-word name broken onto two lines where one line does not fit. */
+.atlas-country-name.is-stacked {
+  white-space: pre-line;
+  line-height: 1.12;
+}
+/* Country names step down in size at wider zooms (see labelScale in cartography.ts). */
+.globe-host[data-label-scale='world'] .atlas-country-name {
+  font-size: 11px;
+}
+.globe-host[data-label-scale='region'] .atlas-country-name {
+  font-size: 13px;
+}
+
+/* Place pins (scene places and water bodies). They are HTML buttons, so they must receive input
+   above the renderer's transparent label layer. */
+.globe-pin {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid #edf0dc18;
+  border-radius: 5px;
+  background: #17333bc9;
+  box-shadow: 0 2px 12px #00131b18;
+  color: #eef1e4;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.35px;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  /* Colors only: globe.gl owns the transform (see the button rule in app/globals.css). */
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.globe-pin.water-label {
+  background: #15333b85;
+  color: #d2e3e7;
+  font-family: Georgia, serif;
+  font-size: 15px;
+  font-style: italic;
+}
+.globe-pin:hover {
+  background: #142e3bc7;
+  border-color: #cedbbc33;
+  color: #f6f3d7;
+}
+.globe-pin.active {
+  background: #142e3be8;
+  border-color: #d6ddab77;
+}
+
+/* The country name that follows the pointer over the sphere. */
+.globe-tooltip {
+  position: absolute;
+  z-index: 2;
+  padding: 9px 13px;
+  background: #f6f8f0;
+  color: #1c302e;
+  border-radius: 6px;
+  font: 13px Arial;
+  box-shadow: 0 3px 15px #0004;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* The message that replaces the globe when WebGL is unavailable. */
+.globe-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(300px, calc(100% - 48px));
+  text-align: center;
+  font-size: 14px;
+  color: #ccdad9;
+  z-index: 3;
+}
+.globe-error strong {
+  font:
+    400 22px/1.25 Georgia,
+    serif;
+  color: #e6ece0;
+}
+.globe-error p {
+  margin: 10px 0 20px;
+  line-height: 1.6;
+  color: #9db1bb;
+}
+.globe-error button {
+  background: #203c48;
+  color: #d8e6dc;
+  border: 1px solid #49616a;
+  border-radius: 5px;
+  padding: 10px 16px;
 }
 
 /* Parks label elements globe.gl has not attached yet, so layout can measure them.
@@ -42,16 +179,8 @@
   visibility: hidden !important;
 }
 
-/* Country names step down in size at wider zooms (see labelScale in cartography.ts). */
-.globe-host[data-label-scale='world'] .atlas-country-name {
-  font-size: 11px;
-}
-.globe-host[data-label-scale='region'] .atlas-country-name {
-  font-size: 13px;
-}
-
-/* A multi-word name broken onto two lines where one line does not fit. */
-.globe-render .atlas-country-name.is-stacked {
-  white-space: pre-line;
-  line-height: 1.12;
+@media (prefers-reduced-motion: reduce) {
+  .atlas-country-name {
+    transition: none;
+  }
 }

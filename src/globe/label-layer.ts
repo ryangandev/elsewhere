@@ -241,7 +241,7 @@ export function createLabelLayer(
     const { place, element } = label;
     label.active = place.id === focusPlaceId;
     label.water = place.kind === 'water';
-    element.className = 'globe-pin context-label';
+    element.className = 'globe-pin';
     element.classList.toggle('water-label', label.water);
     element.classList.toggle('active', label.active);
     element.dataset.place = place.id;
