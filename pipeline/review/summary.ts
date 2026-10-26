@@ -1,7 +1,26 @@
 // Readable summaries of drafts for review in the terminal: questions, sections with their
-// sources, the map scene by place name, and the validation warnings that concern the file.
+// sources and claim check verdicts, the map scene by place name, and the validation warnings
+// that concern the file.
 import type { CountryFile, SceneSpec, Source, Story } from '../../src/content/schema';
 import type { ContentIssue, PendingReference } from '../../src/content/validate';
+import {
+  claimProblems,
+  countVerdicts,
+  describeCheck,
+  formatCounts,
+  unitStatuses,
+  type ClaimsFile,
+} from '../claims/store';
+import {
+  overviewUnit,
+  quickFactUnit,
+  scopeLabel,
+  scopeUnits,
+  sectionUnit,
+  whyItMattersUnit,
+  type ClaimScope,
+  type ClaimUnit,
+} from '../claims/units';
 import { gazetteerPlaces, requireMapCountry } from '../content-tree';
 import type { UrlStatus } from '../validate/urls';
 
@@ -12,6 +31,8 @@ export type ReviewContext = {
   issues: ContentIssue[];
   pending: PendingReference[];
   urlStatuses: Map<string, UrlStatus>;
+  /** Saved claim check results for the country. */
+  claims: ClaimsFile;
 };
 
 let placeNames: Map<string, string> | undefined;
@@ -37,6 +58,10 @@ function status(entry: { provenance: Story['provenance'] }): string {
 }
 
 const cite = (ids: string[]) => `[${ids.join(', ')}]`;
+
+/** The claim check result for a unit, indented under its text. */
+const claimLines = (unit: ClaimUnit, context: ReviewContext) =>
+  describeCheck(context.claims.checks[unit.key]).map((line) => `      ${line}`);
 
 function scene(spec: SceneSpec, files: Map<string, CountryFile>): string[] {
   const lines = [`  Focus: ${countryName(spec.focusCountryId, files)}`];
@@ -85,9 +110,14 @@ export function storySummary(story: Story, context: ReviewContext): string {
     `  ${story.summary}`,
     '',
   ];
-  for (const section of story.sections) {
-    lines.push(`  ${section.title} ${cite(section.sourceIds)}`, `    ${section.text}`, '');
-  }
+  story.sections.forEach((section, index) => {
+    lines.push(
+      `  ${section.title} ${cite(section.sourceIds)}`,
+      `    ${section.text}`,
+      ...claimLines(sectionUnit(story, section, index + 1), context),
+      '',
+    );
+  });
   lines.push(
     `  Takeaway: ${story.takeaway}`,
     '',
@@ -132,17 +162,19 @@ export function countrySummary(
       '',
       `  ${country.overview.summary} ${cite(country.overview.sourceIds)}`,
       `  ${country.overview.geography}`,
+      ...claimLines(overviewUnit(country), context),
       '',
       '  Why it matters',
-      ...country.overview.whyItMatters.map(
-        (item) => `  - ${item.title}: ${item.text} ${cite(item.sourceIds)}`,
-      ),
+      ...country.overview.whyItMatters.flatMap((item, index) => [
+        `  - ${item.title}: ${item.text} ${cite(item.sourceIds)}`,
+        ...claimLines(whyItMattersUnit(country, item, index + 1), context),
+      ]),
       '',
       '  Quick facts',
-      ...country.quickFacts.map(
-        (fact) =>
-          `  - ${fact.label}: ${fact.value}${fact.asOf ? ` (${fact.asOf})` : ''} ${cite(fact.sourceIds)}`,
-      ),
+      ...country.quickFacts.flatMap((fact, index) => [
+        `  - ${fact.label}: ${fact.value}${fact.asOf ? ` (${fact.asOf})` : ''} ${cite(fact.sourceIds)}`,
+        ...claimLines(quickFactUnit(country, fact, index + 1), context),
+      ]),
       '',
       '  Starter questions',
       ...country.starterStoryIds.map(
@@ -159,6 +191,24 @@ export function countrySummary(
     );
   }
   for (const story of stories) lines.push(storySummary(story, context), '');
+
+  const scopes: ClaimScope[] = [
+    ...(storyId ? [] : [{ kind: 'overview' as const }]),
+    ...stories.map((story) => ({ kind: 'story' as const, storyId: story.id })),
+  ];
+  const claimStatuses = scopes.map((scope) => ({
+    scope,
+    statuses: unitStatuses(scopeUnits(file, scope), context.claims),
+  }));
+  const needsAttention = claimStatuses.flatMap(({ scope, statuses }) =>
+    claimProblems(statuses, scopeLabel(country.id, scope)),
+  );
+  lines.push(
+    '## Claim check',
+    `  ${formatCounts(countVerdicts(claimStatuses.flatMap(({ statuses }) => statuses)))}`,
+    ...needsAttention.map((problem) => `  - ${problem}`),
+    '',
+  );
 
   const warnings = [
     ...context.issues.map((issue) => `${issue.path}: ${issue.message}`),
