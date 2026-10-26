@@ -1,6 +1,6 @@
-import { geoContains } from 'd3-geo';
 import type { Feature, Polygon, MultiPolygon } from 'geojson';
 import type { GlobeInstance } from 'globe.gl';
+import { countryContains } from './country-lookup';
 import { labelCandidates } from './label-candidates';
 
 export type CountryFeature = Feature<Polygon | MultiPolygon, { ADM0_A3: string; ADMIN: string }>;
@@ -158,7 +158,7 @@ const BOTTOM_RIGHT = 16;
 export function fitFailures(feature: CountryFeature, rect: Rect, unproject: Unproject) {
   const onLand = (x: number, y: number) => {
     const point = unproject(x, y);
-    return !!point && geoContains(feature, [point.lng, point.lat]);
+    return !!point && countryContains(feature, point.lng, point.lat);
   };
   if (!onLand((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2)) return CENTER;
   return (

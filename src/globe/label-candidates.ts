@@ -1,5 +1,6 @@
 import { geoArea } from 'd3-geo';
 import type { MultiPolygon, Polygon, Position } from 'geojson';
+import { ringContains } from './country-lookup';
 
 // Where a country's name may sit. The Natural Earth label point comes first, followed by a
 // few well-spread interior points with the most room around them. Layout picks the first
@@ -33,16 +34,6 @@ const HORIZONTAL_WEIGHT = 0.5;
 const MIN_PART_SHARE = 0.2;
 const MAX_PARTS = 3;
 const MIN_ROOM_SHARE = 0.5;
-
-function ringContains(ring: Position[], lng: number, lat: number) {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i];
-    const [xj, yj] = ring[j];
-    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
 
 const partContains = (part: Part, lng: number, lat: number) =>
   ringContains(part.rings[0], lng, lat) &&
