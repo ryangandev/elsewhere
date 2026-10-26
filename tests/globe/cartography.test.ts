@@ -7,7 +7,7 @@ import {
   placeContextLabel,
   type CountryFeature,
 } from '../../src/globe/cartography';
-import index from '@/content/legacy/country-index.json';
+import index from '../../data/geo/countries.json';
 
 const geometry = (name: string) =>
   JSON.parse(readFileSync(new URL(`../../public/maps/${name}.geojson`, import.meta.url), 'utf8'))
@@ -33,7 +33,7 @@ describe('cartography', () => {
     for (const place of index) {
       const feature = detail.find((item) => item.properties.ADM0_A3 === place.id)!;
       expect(geoContains(feature, [place.lng, place.lat]), place.name).toBe(true);
-      expect(Number.isFinite(place.rank)).toBe(true);
+      expect(Number.isFinite(place.labelRank)).toBe(true);
     }
   });
 

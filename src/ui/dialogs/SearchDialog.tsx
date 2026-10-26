@@ -2,12 +2,11 @@
 
 import { ArrowRight, ArrowUpRight, Compass, MapPin, Search, X } from 'lucide-react';
 import { useRef, useState, type RefObject } from 'react';
-import { countries } from '@/content/legacy/data';
-import { directory, getCountry } from '@/domain/catalog';
-import { destinationKey, topicDestination } from '@/domain/destination';
-import { searchAtlas, type SearchResult } from '@/domain/search';
+import type { AtlasLookup } from '@/domain/atlas-index';
+import { isPlaceQuery, searchAtlas, type SearchResult } from '@/domain/search';
 import { format, messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
+import { useAtlasIndex } from '../atlas/use-indexes';
 import {
   Command,
   CommandGroup,
@@ -51,22 +50,17 @@ function groupOrder(prefersPlaces: boolean): { kind: ResultKind; title: string }
   return prefersPlaces ? [country, map, story] : [story, country, map];
 }
 
-/** True when the query names a place, so places should be listed before questions. */
-function isPlaceQuery(results: SearchResult[], query: string): boolean {
-  const normalized = query.trim().toLowerCase();
-  return results.some(
-    (result) =>
-      result.kind !== 'story' &&
-      (result.title.toLowerCase() === normalized ||
-        result.destination.countryId.toLowerCase() === normalized ||
-        !!getCountry(result.destination.countryId)?.native.toLowerCase().includes(normalized)),
-  );
+function resultSubtitle(result: SearchResult): string {
+  if (result.kind === 'story') return result.subtitle;
+  const kind =
+    result.kind === 'country' ? messages.search.countryStory : messages.search.basicOverview;
+  return `${result.subtitle} · ${kind}`;
 }
 
 function ResultIcon({ result }: { result: SearchResult }) {
   if (result.kind === 'story') return <Search size={16} />;
   if (result.kind === 'map') return <MapPin size={17} />;
-  return <span className="search-flag">{getCountry(result.destination.countryId)?.flag}</span>;
+  return <span className="search-flag">{result.flag}</span>;
 }
 
 function SearchContents({
@@ -76,13 +70,9 @@ function SearchContents({
   inputRef: RefObject<HTMLInputElement | null>;
   onClose: () => void;
 }) {
-  const { country: current, go } = useAtlas();
+  const index = useAtlasIndex();
   const [query, setQuery] = useState('');
   const text = messages.search;
-
-  const results = searchAtlas(query, current?.id);
-  const profile = getCountry(current?.id);
-  const groups = groupOrder(isPlaceQuery(results, query));
 
   return (
     <Command shouldFilter={false} className="search-command">
@@ -100,83 +90,105 @@ function SearchContents({
         aria-label={text.inputLabel}
       />
       <CommandList>
-        {query.trim().length === 0 ? (
-          <>
-            {profile && (
-              <CommandGroup
-                heading={format(text.stayCurious, { country: profile.name.toUpperCase() })}
-              >
-                {profile.topics.map((topic, index) => (
-                  <CommandItem
-                    key={topic.id}
-                    value={topic.title}
-                    onSelect={() => go(topicDestination(profile, index))}
-                  >
-                    <Search size={15} />
-                    <span>
-                      <strong>{topic.title}</strong>
-                      <small>{topic.category}</small>
-                    </span>
-                    <ArrowRight size={15} />
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-            <CommandGroup heading={text.tenPlaces}>
-              {countries.map((item) => (
-                <CommandItem
-                  key={item.id}
-                  value={item.id}
-                  onSelect={() => go({ countryId: item.id })}
-                >
-                  <span className="search-flag">{item.flag}</span>
-                  <span>
-                    <strong>{item.name}</strong>
-                    <small>{item.region}</small>
-                  </span>
-                  <ArrowUpRight size={15} />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </>
-        ) : results.length === 0 ? (
-          <div className="search-empty">
-            <Compass size={27} />
-            <h3>{text.emptyTitle}</h3>
-            <p>{text.empty}</p>
-            <button onClick={() => setQuery('')}>
-              {text.browse}
-              <ArrowRight size={14} />
-            </button>
-          </div>
+        {index.data ? (
+          <SearchResults lookup={index.data} query={query} onBrowse={() => setQuery('')} />
         ) : (
-          groups.map((group) => {
-            const matches = results.filter((result) => result.kind === group.kind);
-            if (!matches.length) return null;
-            return (
-              <CommandGroup heading={group.title} key={group.kind}>
-                {matches.map((result) => {
-                  const value = `${result.kind}:${destinationKey(result.destination)}`;
-                  return (
-                    <CommandItem key={value} value={value} onSelect={() => go(result.destination)}>
-                      <ResultIcon result={result} />
-                      <span>
-                        <strong>{result.title}</strong>
-                        <small>{result.subtitle}</small>
-                      </span>
-                      <ArrowUpRight size={15} />
-                    </CommandItem>
-                  );
-                })}
-              </CommandGroup>
-            );
-          })
+          <div className="search-empty" role="status">
+            <Compass size={27} />
+            <p>{index.failed ? text.unavailable : text.loading}</p>
+          </div>
         )}
       </CommandList>
       <div className="search-foot">
         <span>{text.keys}</span>
-        <span>{format(text.footer, { count: directory.length })}</span>
+        {index.data && (
+          <span>{format(text.footer, { count: index.data.index.countries.length })}</span>
+        )}
       </div>
     </Command>
   );
+}
+
+function SearchResults({
+  lookup,
+  query,
+  onBrowse,
+}: {
+  lookup: AtlasLookup;
+  query: string;
+  onBrowse: () => void;
+}) {
+  const { destination, go } = useAtlas();
+  const text = messages.search;
+  const { index } = lookup;
+
+  if (query.trim().length === 0) {
+    const current = destination ? lookup.country(destination.countryId) : undefined;
+    const currentStories = current ? lookup.stories(current.id) : [];
+    const edited = index.countries.filter((country) => country.edited);
+    return (
+      <>
+        {current && currentStories.length > 0 && (
+          <CommandGroup heading={format(text.stayCurious, { country: current.name.toUpperCase() })}>
+            {currentStories.map((story) => (
+              <CommandItem key={story.id} value={story.path} onSelect={() => go(story.path)}>
+                <Search size={15} />
+                <span>
+                  <strong>{story.question}</strong>
+                  <small>{story.category}</small>
+                </span>
+                <ArrowRight size={15} />
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+        <CommandGroup heading={format(text.editedPlaces, { count: edited.length })}>
+          {edited.map((country) => (
+            <CommandItem key={country.id} value={country.path} onSelect={() => go(country.path)}>
+              <span className="search-flag">{country.flag}</span>
+              <span>
+                <strong>{country.name}</strong>
+                <small>{country.region}</small>
+              </span>
+              <ArrowUpRight size={15} />
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </>
+    );
+  }
+
+  const results = searchAtlas(index, query, destination?.countryId);
+  if (results.length === 0) {
+    return (
+      <div className="search-empty">
+        <Compass size={27} />
+        <h3>{text.emptyTitle}</h3>
+        <p>{text.empty}</p>
+        <button onClick={onBrowse}>
+          {text.browse}
+          <ArrowRight size={14} />
+        </button>
+      </div>
+    );
+  }
+
+  return groupOrder(isPlaceQuery(index, query)).map((group) => {
+    const matches = results.filter((result) => result.kind === group.kind);
+    if (!matches.length) return null;
+    return (
+      <CommandGroup heading={group.title} key={group.kind}>
+        {matches.map((result) => (
+          <CommandItem key={result.key} value={result.key} onSelect={() => go(result.href)}>
+            <ResultIcon result={result} />
+            <span>
+              <strong>{result.title}</strong>
+              <small>{resultSubtitle(result)}</small>
+            </span>
+            <ArrowUpRight size={15} />
+          </CommandItem>
+        ))}
+      </CommandGroup>
+    );
+  });
 }

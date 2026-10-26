@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { directory, getCountry } from '@/domain/catalog';
+import { listMapCountries } from '@/content';
 import {
   parseLibrary,
   RECENT_LIMIT,
@@ -10,8 +10,9 @@ import {
 } from '@/domain/library';
 
 const empty: Library = { saved: [], recent: [] };
+const directory = listMapCountries();
 
-test('malformed, obsolete, duplicate, and overlong local libraries are safe to restore', () => {
+test('malformed, duplicate, and overlong local libraries are safe to restore', () => {
   assert.deepEqual(parseLibrary('not json'), empty);
   assert.deepEqual(parseLibrary('null'), empty);
   const restore = parseLibrary(
@@ -19,26 +20,25 @@ test('malformed, obsolete, duplicate, and overlong local libraries are safe to r
       saved: [
         null,
         {},
-        { countryId: 'BAD' },
+        { countryId: 'bad' },
         { countryId: 'SGP', topicId: 'shipping' },
-        { countryId: 'SGP', topicId: 'shipping' },
+        { countryId: 'SGP', storyId: 'shipping' },
       ],
-      recent: directory.map((c) => ({ countryId: c.id })),
+      recent: directory.map((country) => ({ countryId: country.id })),
     }),
   );
-  assert.equal(restore.saved.length, 1);
-  assert.ok(getCountry(restore.saved[0].countryId));
+  assert.deepEqual(restore.saved, [{ countryId: 'SGP', storyId: 'shipping' }]);
   assert.equal(restore.recent.length, RECENT_LIMIT);
 });
 
 test('saving toggles a destination regardless of the trail it was reached from', () => {
   const saved = toggleSaved(empty, {
     countryId: 'SGP',
-    topicId: 'shipping',
+    storyId: 'shipping',
     trailId: 'water-connects',
   });
   assert.equal(saved.saved.length, 1);
-  assert.deepEqual(toggleSaved(saved, { countryId: 'SGP', topicId: 'shipping' }).saved, []);
+  assert.deepEqual(toggleSaved(saved, { countryId: 'SGP', storyId: 'shipping' }).saved, []);
 });
 
 test('visits move to the front without duplicates and are capped', () => {

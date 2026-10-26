@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { describeDestination } from '@/domain/describe';
-import { destinationFromPath } from '@/domain/paths';
-import { storyStaticParams } from '@/domain/static-params';
+import { describePage, matchStoryRoute, storyStaticParams } from '@/domain/page-views';
+import { ShellBridge } from '@/ui/atlas/ShellBridge';
 import { DestinationPanel } from '@/ui/panel/DestinationPanel';
+import { PathRedirect } from '@/ui/shell/PathRedirect';
 
 type Props = { params: Promise<{ country: string; story: string }> };
 
@@ -15,9 +15,11 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { country, story } = await params;
-  const destination = destinationFromPath(`/${country}/${story}`);
-  const summary = destination && describeDestination(destination);
-  if (!summary) return {};
+  const match = matchStoryRoute(country, story);
+  if (!match) return {};
+  if (match.kind === 'redirect')
+    return { robots: { index: false }, alternates: { canonical: match.href } };
+  const summary = describePage(match.view);
   return {
     title: summary.title,
     description: summary.description,
@@ -27,7 +29,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function StoryPage({ params }: Props) {
   const { country, story } = await params;
-  const destination = destinationFromPath(`/${country}/${story}`);
-  if (!destination?.topicId) notFound();
-  return <DestinationPanel countryId={destination.countryId} topicId={destination.topicId} />;
+  const match = matchStoryRoute(country, story);
+  if (!match) notFound();
+  if (match.kind === 'redirect') return <PathRedirect href={match.href} />;
+  return (
+    <>
+      <ShellBridge page={match.view.shell} />
+      <DestinationPanel view={match.view} />
+    </>
+  );
 }

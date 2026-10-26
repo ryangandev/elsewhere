@@ -1,53 +1,48 @@
 'use client';
 
-import { ArrowUpRight } from 'lucide-react';
-import type { Country } from '@/content/legacy/data';
-import { relatedStories } from '@/domain/recommendations';
-import { destinationKey } from '@/domain/destination';
-import { messages } from '@/i18n';
+import { ArrowRight, ArrowUpRight } from 'lucide-react';
+import type { CountryPageView } from '@/domain/view-models';
+import { format, messages } from '@/i18n';
 import { DestinationLink } from '../DestinationLink';
 import { MapConnections } from './MapConnections';
 import { StoryLink } from './StoryLink';
 import { useAutoFocus } from './use-auto-focus';
 
-/** The capital of Indonesia is moving, so its figure is dated. */
-const DATED_CAPITAL = 'IDN';
-
-/** An edited country overview: the short story, quick facts, and its questions. */
-export function CountryView({ profile }: { profile: Country }) {
+/** An edited country overview: the short story, quick facts, and the questions it leads with. */
+export function CountryView({ view }: { view: CountryPageView }) {
   const heading = useAutoFocus<HTMLHeadingElement>();
   const text = messages.country;
-  const related = relatedStories({ countryId: profile.id });
 
   return (
     <>
       <div className="country-region">
-        {profile.region}
+        {view.country.region}
         <span>· {text.overview}</span>
       </div>
       <h2 ref={heading} tabIndex={-1} className="country-title">
-        <span>{profile.flag}</span>
-        {profile.name}
+        <span>{view.flag}</span>
+        {view.title}
       </h2>
-      <p className="native-name">{profile.native}</p>
-      <h3 className="country-kicker">{profile.kicker}</h3>
-      <p className="country-summary">{profile.summary}</p>
-      <div className="quick-facts">
-        <div>
-          <span>{text.population}</span>
-          <strong>{profile.population}</strong>
+      {view.nativeName && <p className="native-name">{view.nativeName}</p>}
+      <h3 className="country-kicker">{view.kicker}</h3>
+      <p className="country-summary">{view.summary}</p>
+      {view.quickFacts.length > 0 && (
+        <div className="quick-facts">
+          {view.quickFacts.map((fact) => (
+            <div key={fact.label}>
+              <span>
+                {fact.asOf
+                  ? format(text.factAsOf, { label: fact.label, asOf: fact.asOf })
+                  : fact.label}
+              </span>
+              <strong>{fact.value}</strong>
+            </div>
+          ))}
         </div>
-        <div>
-          <span>
-            {text.capital}
-            {profile.id === DATED_CAPITAL ? ' · 2024' : ''}
-          </span>
-          <strong>{profile.capital}</strong>
-        </div>
-      </div>
+      )}
       <section className="matters">
         <h4>{text.whyItMatters}</h4>
-        {profile.matters.map((item, index) => (
+        {view.whyItMatters.map((item, index) => (
           <div key={item.title}>
             <span>0{index + 1}</span>
             <p>
@@ -57,31 +52,43 @@ export function CountryView({ profile }: { profile: Country }) {
           </div>
         ))}
       </section>
-      <MapConnections places={profile.neighbors} note={profile.geography} />
+      <MapConnections map={view.map} />
       <section className="topics" id="curiosity-topics">
         <div className="topics-heading">
           <h4>{text.followCuriosity}</h4>
           <span>{text.goDeeper}</span>
         </div>
-        {profile.topics.map((topic) => (
-          <DestinationLink
-            key={topic.id}
-            destination={{ countryId: profile.id, topicId: topic.id }}
-          >
+        {view.starters.map((link) => (
+          <DestinationLink key={link.key} href={link.href}>
             <span>
-              <small>{topic.category}</small>
-              {topic.title}
+              <small>{link.category}</small>
+              {link.title}
             </span>
             <ArrowUpRight size={18} />
           </DestinationLink>
         ))}
       </section>
-      <section className="related-stories">
-        <div className="section-label">{text.connectedPlaces}</div>
-        {related.map((item) => (
-          <StoryLink key={destinationKey(item)} destination={item} caption={item.connection} />
-        ))}
-      </section>
+      {view.moreQuestions.length > 0 && (
+        <details className="more-questions">
+          <summary>
+            {messages.story.moreQuestions} {view.title}
+          </summary>
+          {view.moreQuestions.map((link) => (
+            <DestinationLink key={link.key} href={link.href}>
+              {link.title}
+              <ArrowRight size={14} />
+            </DestinationLink>
+          ))}
+        </details>
+      )}
+      {view.connections.length > 0 && (
+        <section className="related-stories">
+          <div className="section-label">{text.connectedPlaces}</div>
+          {view.connections.map((link) => (
+            <StoryLink key={link.key} link={link} />
+          ))}
+        </section>
+      )}
     </>
   );
 }

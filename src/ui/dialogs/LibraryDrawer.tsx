@@ -2,23 +2,32 @@
 
 import { ArrowRight, Bookmark, Globe2, History, MapPin, X } from 'lucide-react';
 import { useState, type KeyboardEvent } from 'react';
-import { getCountry, getMapCountry } from '@/domain/catalog';
-import { destinationKey, getTopic, type Destination } from '@/domain/destination';
+import { linkFor, type AtlasLookup } from '@/domain/atlas-index';
+import { destinationKey, type Destination } from '@/domain/destination';
 import { format, messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
+import { useAtlasIndex } from '../atlas/use-indexes';
 import { DestinationLink } from '../DestinationLink';
 import { StoryLink } from '../panel/StoryLink';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '../primitives/sheet';
 
 type View = 'saved' | 'recent';
 
+/** The first country offered from an empty library. */
+const START_COUNTRY_ID = 'SGP';
+
 const TAB_KEYS = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
 
 export function LibraryDrawer() {
   const { dialog, openDialog, library, persistenceFailed, toggleSave, go } = useAtlas();
   const [view, setView] = useState<View>('saved');
+  const open = dialog === 'library';
+  // Titles come from the atlas index; entries it no longer knows are not shown.
+  const index = useAtlasIndex(open);
+  const lookup = index.data;
   const text = messages.library;
-  const items = library[view];
+  const items = lookup ? library[view].filter((item) => linkFor(lookup, item) !== undefined) : [];
+  const start = lookup?.country(START_COUNTRY_ID);
 
   function changeTab(event: KeyboardEvent<HTMLButtonElement>) {
     if (!TAB_KEYS.includes(event.key)) return;
@@ -36,13 +45,12 @@ export function LibraryDrawer() {
   }
 
   return (
-    <Sheet open={dialog === 'library'} onOpenChange={(open) => openDialog(open ? 'library' : null)}>
+    <Sheet open={open} onOpenChange={(next) => openDialog(next ? 'library' : null)}>
       <SheetContent className="atlas-drawer library-drawer">
         <Bookmark size={28} />
         <SheetTitle>{text.title}</SheetTitle>
         <SheetDescription>
-          {text.description}
-          {persistenceFailed ? text.storageUnavailable : text.storedLocally}
+          {text.description} {persistenceFailed ? text.storageUnavailable : text.storedLocally}
         </SheetDescription>
         <div className="library-tabs" role="tablist" aria-label={messages.topbar.atlas}>
           <button
@@ -77,10 +85,11 @@ export function LibraryDrawer() {
           aria-labelledby={`${view}-tab`}
           className="library-items"
         >
-          {items.length ? (
+          {!lookup ? null : items.length ? (
             items.map((item) => (
               <LibraryRow
                 key={destinationKey(item)}
+                lookup={lookup}
                 item={item}
                 removable={view === 'saved'}
                 onRemove={() => toggleSave(item)}
@@ -91,10 +100,12 @@ export function LibraryDrawer() {
               <Globe2 size={44} />
               <h3>{view === 'saved' ? text.emptySavedTitle : text.emptyRecentTitle}</h3>
               <p>{view === 'saved' ? text.emptySaved : text.emptyRecent}</p>
-              <button onClick={() => go({ countryId: 'SGP' })}>
-                {text.startWithSingapore}
-                <ArrowRight size={15} />
-              </button>
+              {start && (
+                <button onClick={() => go(start.path)}>
+                  {format(text.startWith, { name: start.name })}
+                  <ArrowRight size={15} />
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -104,28 +115,31 @@ export function LibraryDrawer() {
 }
 
 function LibraryRow({
+  lookup,
   item,
   removable,
   onRemove,
 }: {
+  lookup: AtlasLookup;
   item: Destination;
   removable: boolean;
   onRemove: () => void;
 }) {
-  const profile = getCountry(item.countryId);
-  const country = getMapCountry(item.countryId);
-  const label = getTopic(item)?.title ?? country?.name ?? '';
+  const link = linkFor(lookup, item);
+  if (!link) return null;
+  const edited = lookup.country(item.countryId)?.edited ?? false;
+  const label = link.category ? link.title : link.countryName;
 
   return (
     <div className="library-row">
-      {profile ? (
-        <StoryLink destination={item} />
+      {edited ? (
+        <StoryLink link={link} />
       ) : (
-        <DestinationLink destination={item} className="story-link">
+        <DestinationLink href={link.href} className="story-link">
           <MapPin size={17} />
           <span>
             <small>{messages.library.onTheMap}</small>
-            <strong>{country?.name}</strong>
+            <strong>{link.countryName}</strong>
           </span>
           <ArrowRight size={15} />
         </DestinationLink>

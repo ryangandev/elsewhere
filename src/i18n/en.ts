@@ -103,7 +103,11 @@ export const en = {
     groupCountries: 'COUNTRY STORIES',
     groupMap: 'LOCATE ON THE GLOBE',
     stayCurious: 'STAY CURIOUS ABOUT {country}',
-    tenPlaces: 'TEN PLACES. MANY WAYS IN.',
+    editedPlaces: '{count} PLACES. MANY WAYS IN.',
+    countryStory: 'Country story',
+    basicOverview: 'Basic overview',
+    loading: 'Opening the atlas…',
+    unavailable: 'The atlas could not be loaded. Check your connection and try again.',
     emptyTitle: 'A question for another day.',
     empty:
       'We don’t have a story matching that yet. Try a country name or a topic like shipping, language, or forests.',
@@ -131,7 +135,7 @@ export const en = {
       'Tap the bookmark on a country or question. It will be waiting here when you return.',
     emptyRecentTitle: 'Your next discovery starts here.',
     emptyRecent: 'The places and questions you explore will appear here.',
-    startWithSingapore: 'Start with Singapore',
+    startWith: 'Start with {name}',
     onTheMap: 'On the map',
     remove: 'Remove {name} from saved',
   },
@@ -179,8 +183,7 @@ export const en = {
   },
   country: {
     overview: '60 SECOND OVERVIEW',
-    population: 'POPULATION · 2024',
-    capital: 'CAPITAL',
+    factAsOf: '{label} · {asOf}',
     whyItMatters: 'Why it matters',
     followCuriosity: 'Follow your curiosity',
     goDeeper: 'GO A LITTLE DEEPER',
@@ -201,9 +204,6 @@ export const en = {
     guideWhereTitle: 'Where is {name}?',
     guideWhere:
       'Locate {name} in {region}. Rotate and zoom to compare coastlines, islands and nearby shapes. The map anchor is a location reference, not a capital.',
-    guideLifeTitle: 'How might geography shape everyday life?',
-    guideLife:
-      'Use the map to form questions about transport and connections. A shape alone cannot establish economic, cultural or political facts.',
     guideVerifyTitle: 'What should I verify next?',
     guideVerify:
       'Compare official statistics, local government and museum sources. Record publication years and distinguish countries, territories and cartographic units.',
@@ -214,11 +214,15 @@ export const en = {
   },
   sources: {
     questionSummary: 'Sources & further reading',
-    countrySummary: 'The essentials & sources',
-    language: 'Language',
-    currency: 'Currency',
-    countryLevel: 'Country-level background sources for this editorial exploration.',
+    countrySummary: 'Sources',
     caveat:
-      'Population figures use a rounded 2024 reference. Map paths illustrate relationships, not exact routes.',
+      'Figures carry the year they describe. Map paths illustrate relationships, not exact routes.',
+    cited: 'Sources: ',
+  },
+  provenance: {
+    aiAssisted: 'AI-assisted',
+    byHand: 'Edited by hand',
+    reviewed: 'reviewed {date}',
+    draft: 'draft, not yet reviewed',
   },
 };

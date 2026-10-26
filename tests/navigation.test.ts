@@ -1,165 +1,124 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { countries } from '@/content/legacy/data';
-import { directory, getCountry, nearbyCountries, topicIds } from '@/domain/catalog';
-import { describeDestination } from '@/domain/describe';
-import { destinationKey, getTopic, topicDestination, validDestination } from '@/domain/destination';
-import { destinationFromPath, destinationPath, legacyQueryToPath } from '@/domain/paths';
-import { relatedStories } from '@/domain/recommendations';
-import { countryStaticParams, storyStaticParams } from '@/domain/static-params';
-import { trails } from '@/domain/trails';
+import { listMapCountries, listStories, listTrails } from '@/content';
+import { destinationKey, parseDestination } from '@/domain/destination';
+import {
+  countryStaticParams,
+  matchCountryRoute,
+  matchStoryRoute,
+  storyStaticParams,
+} from '@/domain/page-views';
+import { destinationPath } from '@/domain/paths';
+import { countryFromSegment, countrySlug, storyFromSegment } from '@/domain/slugs';
 
-test('every country and question has a unique, round-trippable path', () => {
-  assert.equal(countries.length, 10);
-  assert.equal(countries.flatMap((country) => country.topics).length, 30);
-  const paths = new Set<string>();
-  for (const country of countries) {
-    assert.equal(country.topics.length, topicIds[country.id].length);
-    for (const [index, topic] of country.topics.entries()) {
-      const destination = topicDestination(country, index);
-      const path = destinationPath(destination);
-      assert.ok(!paths.has(path));
-      paths.add(path);
-      assert.deepEqual(destinationFromPath(path), destination);
-      assert.equal(getTopic(destination), topic);
-      assert.ok(country.sources.length > 0);
-      for (const source of topic.sources ?? country.sources) {
-        assert.equal(new URL(source.url).protocol, 'https:');
-      }
-      for (const [lat, lng] of topic.route ?? []) {
-        assert.ok(lat >= -90 && lat <= 90);
-        assert.ok(lng >= -180 && lng <= 180);
-      }
-    }
-  }
-});
-
-test('paths are lowercase slugs of permanent IDs', () => {
+test('paths use readable slugs of permanent IDs', () => {
   assert.equal(destinationPath(null), '/');
-  assert.equal(destinationPath({ countryId: 'SGP' }), '/sgp');
-  assert.equal(destinationPath({ countryId: 'SGP', topicId: 'shipping' }), '/sgp/shipping');
+  assert.equal(destinationPath({ countryId: 'SGP' }), '/singapore');
+  assert.equal(destinationPath({ countryId: 'CAN' }), '/canada');
+  assert.equal(destinationPath({ countryId: 'USA' }), '/united-states');
+  assert.equal(destinationPath({ countryId: 'SGP', storyId: 'shipping' }), '/singapore/shipping');
   assert.equal(
-    destinationPath({ countryId: 'SGP', topicId: 'shipping', trailId: 'water-connects' }),
-    '/sgp/shipping?trail=water-connects',
+    destinationPath({ countryId: 'SGP', storyId: 'shipping', trailId: 'water-connects' }),
+    '/singapore/shipping?trail=water-connects',
   );
+  assert.throws(() => destinationPath({ countryId: 'XXX' }));
+  assert.throws(() => destinationPath({ countryId: 'SGP', storyId: 'no-such-story' }));
 });
 
-test('unknown paths are not destinations', () => {
-  assert.equal(destinationFromPath('/'), null);
-  assert.equal(destinationFromPath('/unknown'), null);
-  assert.equal(destinationFromPath('/sgp/not-a-question'), null);
-  assert.equal(destinationFromPath('/jpn/shipping'), null);
-  assert.equal(destinationFromPath('/sgp/shipping/extra'), null);
-  assert.deepEqual(destinationFromPath('/sgp/'), { countryId: 'SGP' });
-  assert.deepEqual(destinationFromPath('/can'), { countryId: 'CAN' });
+test('every map identity has a unique slug that maps back to its ID', () => {
+  const countries = listMapCountries();
+  assert.equal(countries.length, 258);
+  const slugs = new Set(countries.map((country) => countrySlug(country.id)));
+  assert.equal(slugs.size, countries.length);
+  for (const country of countries) {
+    assert.deepEqual(countryFromSegment(countrySlug(country.id)), {
+      countryId: country.id,
+      canonical: true,
+    });
+    // Interim ID paths must never collide with a readable slug.
+    assert.ok(!slugs.has(country.id.toLowerCase()), country.id);
+  }
 });
 
-test('a trail is kept only for a question that is a stop on it', () => {
-  assert.deepEqual(destinationFromPath('/sgp/shipping', 'water-connects'), {
-    countryId: 'SGP',
-    topicId: 'shipping',
-    trailId: 'water-connects',
+test('every question has a unique path that round-trips to its IDs', () => {
+  const paths = new Set<string>();
+  for (const story of listStories()) {
+    const path = destinationPath({ countryId: story.countryId, storyId: story.id });
+    assert.ok(!paths.has(path), path);
+    paths.add(path);
+    const [, countrySegment, storySegment] = path.split('/');
+    const country = countryFromSegment(countrySegment)!;
+    assert.equal(country.countryId, story.countryId);
+    assert.equal(storyFromSegment(country.countryId, storySegment, true), story.id);
+  }
+  assert.equal(paths.size, listStories().length);
+});
+
+test('unknown paths are not pages', () => {
+  assert.equal(matchCountryRoute('atlantis'), undefined);
+  assert.equal(matchCountryRoute('SGP'), undefined);
+  assert.equal(matchStoryRoute('singapore', 'not-a-question'), undefined);
+  assert.equal(matchStoryRoute('japan', 'shipping'), undefined);
+  assert.equal(matchStoryRoute('canada', 'shipping'), undefined);
+});
+
+test('interim ID paths redirect to readable paths', () => {
+  assert.deepEqual(matchCountryRoute('sgp'), { kind: 'redirect', href: '/singapore' });
+  assert.deepEqual(matchCountryRoute('can'), { kind: 'redirect', href: '/canada' });
+  assert.deepEqual(matchStoryRoute('sgp', 'shipping'), {
+    kind: 'redirect',
+    href: '/singapore/shipping',
   });
-  assert.deepEqual(destinationFromPath('/sgp/wealth', 'water-connects'), {
-    countryId: 'SGP',
-    topicId: 'wealth',
-  });
-  assert.deepEqual(destinationFromPath('/sgp/shipping', 'no-such-trail'), {
-    countryId: 'SGP',
-    topicId: 'shipping',
-  });
+  assert.equal(matchStoryRoute('sgp', 'not-a-question'), undefined);
+  assert.equal(matchCountryRoute('singapore')?.kind, 'page');
+  assert.equal(matchStoryRoute('singapore', 'shipping')?.kind, 'page');
 });
 
-test('prototype query URLs translate to path URLs and degrade to a valid page', () => {
-  assert.equal(legacyQueryToPath('?country=sgp&topic=shipping'), '/sgp/shipping');
-  assert.equal(
-    legacyQueryToPath('?country=sgp&topic=shipping&trail=water-connects'),
-    '/sgp/shipping?trail=water-connects',
-  );
-  assert.equal(legacyQueryToPath('?country=sgp'), '/sgp');
-  assert.equal(legacyQueryToPath('?country=jpn&topic=shipping'), '/jpn');
-  assert.equal(legacyQueryToPath('?country=can&topic=shipping'), '/can');
-  assert.equal(legacyQueryToPath('?country=sgp&topic=wealth&trail=water-connects'), '/sgp/wealth');
-  assert.equal(legacyQueryToPath('?country=unknown&topic=shipping'), null);
-  assert.equal(legacyQueryToPath(''), null);
-  assert.equal(legacyQueryToPath('?other=1'), null);
-});
-
-test('untrusted input becomes a valid destination or nothing', () => {
-  assert.equal(validDestination({ countryId: 123 }), null);
-  assert.equal(validDestination(null), null);
-  assert.equal(validDestination('SGP'), null);
-});
-
-test('every page is generated statically', () => {
-  assert.equal(countryStaticParams().length, directory.length);
-  assert.equal(directory.length, 258);
-  assert.equal(storyStaticParams().length, 30);
-  const paths = [...countryStaticParams().map((p) => `/${p.country}`)];
-  paths.push(...storyStaticParams().map((p) => `/${p.country}/${p.story}`));
+test('every page and interim redirect is generated statically', () => {
+  const countries = countryStaticParams();
+  const stories = storyStaticParams();
+  assert.equal(countries.length, 258 * 2);
+  assert.equal(stories.length, listStories().length * 2);
+  const paths = [
+    ...countries.map((params) => `/${params.country}`),
+    ...stories.map((params) => `/${params.country}/${params.story}`),
+  ];
   assert.equal(new Set(paths).size, paths.length);
-  for (const path of paths) assert.ok(destinationFromPath(path), path);
-});
-
-test('every page has a real title and description', () => {
-  for (const params of countryStaticParams()) {
-    const destination = destinationFromPath(`/${params.country}`)!;
-    const summary = describeDestination(destination);
-    assert.ok(
-      summary && summary.title.length > 0 && summary.description.length > 20,
-      params.country,
-    );
-  }
-  for (const params of storyStaticParams()) {
-    const destination = destinationFromPath(`/${params.country}/${params.story}`)!;
-    const summary = describeDestination(destination);
-    assert.equal(summary?.title, getTopic(destination)?.title);
+  for (const params of countries) assert.ok(matchCountryRoute(params.country), params.country);
+  for (const params of stories) {
+    assert.ok(matchStoryRoute(params.country, params.story), `${params.country}/${params.story}`);
   }
 });
 
-test('trails have valid, distinct questions and preserve their exact step in a link', () => {
-  for (const trail of trails) {
+test('trail stops are distinct questions that keep their trail in a link', () => {
+  for (const trail of listTrails()) {
     assert.equal(new Set(trail.stops.map(destinationKey)).size, trail.stops.length);
     for (const stop of trail.stops) {
-      const destination = { countryId: stop.countryId, topicId: stop.topicId, trailId: trail.id };
-      assert.ok(getTopic(stop));
-      assert.deepEqual(
-        destinationFromPath(...splitPath(destinationPath(destination))),
-        destination,
-      );
+      const path = destinationPath({ ...stop, trailId: trail.id });
+      const url = new URL(path, 'https://example.test');
+      assert.equal(url.searchParams.get('trail'), trail.id);
     }
   }
 });
 
-/** Splits a path URL into the pathname and trail parameter that a page receives. */
-function splitPath(url: string): [string, string | null] {
-  const parsed = new URL(url, 'https://example.test');
-  return [parsed.pathname, parsed.searchParams.get('trail')];
-}
-
-test('every editorial destination leads to valid stories in another country', () => {
-  for (const country of countries) {
-    for (const index of country.topics.keys()) {
-      const related = relatedStories(topicDestination(country, index));
-      assert.ok(related.length > 0);
-      for (const next of related) {
-        assert.ok(getTopic(next));
-        assert.notEqual(next.countryId, country.id);
-      }
-    }
-  }
-});
-
-test('the location directory has unique identities and valid, non-placeholder coordinates', () => {
-  assert.equal(new Set(directory.map((c) => c.id)).size, directory.length);
-  for (const location of directory) {
-    assert.ok(Number.isFinite(location.lat) && Math.abs(location.lat) <= 90, location.name);
-    assert.ok(Number.isFinite(location.lng) && Math.abs(location.lng) <= 180, location.name);
-  }
-  const canada = directory.find((c) => c.id === 'CAN')!;
-  assert.ok(canada.lat > 40 && canada.lng < -50);
-  assert.equal(nearbyCountries(canada)[0].id, 'USA');
-  const singapore = directory.find((c) => c.id === 'SGP')!;
-  assert.equal(nearbyCountries(singapore)[0].id, 'MYS');
-  assert.ok(getCountry('SGP'));
+test('stored destinations are parsed structurally, including prototype entries', () => {
+  assert.equal(parseDestination({ countryId: 123 }), null);
+  assert.equal(parseDestination(null), null);
+  assert.equal(parseDestination('SGP'), null);
+  assert.equal(parseDestination({ countryId: 'sgp' }), null);
+  assert.deepEqual(parseDestination({ countryId: 'SGP', topicId: 'shipping' }), {
+    countryId: 'SGP',
+    storyId: 'shipping',
+  });
+  assert.deepEqual(
+    parseDestination({ countryId: 'SGP', storyId: 'shipping', trailId: 'water-connects' }),
+    { countryId: 'SGP', storyId: 'shipping', trailId: 'water-connects' },
+  );
+  // A trail only makes sense on a question; malformed IDs are dropped.
+  assert.deepEqual(parseDestination({ countryId: 'SGP', trailId: 'water-connects' }), {
+    countryId: 'SGP',
+  });
+  assert.deepEqual(parseDestination({ countryId: 'SGP', storyId: 'Not A Slug' }), {
+    countryId: 'SGP',
+  });
 });

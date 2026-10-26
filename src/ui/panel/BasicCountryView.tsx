@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowUpRight, Compass } from 'lucide-react';
-import { countryBasics, nearbyCountries, type MapCountry } from '@/domain/catalog';
+import type { MapCountryPageView } from '@/domain/view-models';
 import { format, messages } from '@/i18n';
 import { StoryLink } from './StoryLink';
 import { useAutoFocus } from './use-auto-focus';
@@ -9,22 +9,21 @@ import { useAutoFocus } from './use-auto-focus';
 const NATURAL_EARTH_URL =
   'https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-admin-0-countries/';
 
-function anchor(country: MapCountry): string {
-  const lat = `${Math.abs(country.lat).toFixed(1)}°${country.lat >= 0 ? 'N' : 'S'}`;
-  const lng = `${Math.abs(country.lng).toFixed(1)}°${country.lng >= 0 ? 'E' : 'W'}`;
-  return `${lat}, ${lng}`;
+function anchor({ lat, lng }: { lat: number; lng: number }): string {
+  const latText = `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}`;
+  const lngText = `${Math.abs(lng).toFixed(1)}°${lng >= 0 ? 'E' : 'W'}`;
+  return `${latText}, ${lngText}`;
 }
 
-/** Sourced geographic basics for a country or territory without an edited story yet. */
-export function BasicCountryView({ country }: { country: MapCountry }) {
+/** Map basics for a country or territory without editorial content yet. */
+export function BasicCountryView({ view }: { view: MapCountryPageView }) {
   const heading = useAutoFocus<HTMLHeadingElement>();
   const text = messages.basic;
-  const facts = countryBasics[country.id];
+  const { country, population } = view;
   const values = { name: country.name, region: country.region };
 
   const guides = [
     { title: format(text.guideWhereTitle, values), body: format(text.guideWhere, values) },
-    { title: text.guideLifeTitle, body: text.guideLife },
     { title: text.guideVerifyTitle, body: text.guideVerify },
   ];
 
@@ -48,12 +47,12 @@ export function BasicCountryView({ country }: { country: MapCountry }) {
           <strong>{anchor(country)}</strong>
         </div>
       </div>
-      {facts?.population != null && facts.populationYear && (
+      {population && (
         <div className="reference-population">
           <span>
-            {text.population} · {facts.populationYear}
+            {text.population} · {population.year}
           </span>
-          <strong>{new Intl.NumberFormat('en').format(facts.population)}</strong>
+          <strong>{new Intl.NumberFormat('en').format(population.value)}</strong>
           <small>{text.populationNote}</small>
         </div>
       )}
@@ -79,8 +78,8 @@ export function BasicCountryView({ country }: { country: MapCountry }) {
       </details>
       <section className="related-stories">
         <div className="section-label">{text.nearby}</div>
-        {nearbyCountries(country).map((item) => (
-          <StoryLink key={item.id} destination={{ countryId: item.id }} />
+        {view.nearby.map((link) => (
+          <StoryLink key={link.key} link={link} />
         ))}
       </section>
     </>

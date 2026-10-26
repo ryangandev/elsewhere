@@ -1,29 +1,28 @@
 'use client';
 
 import { ArrowRight, ArrowUpRight, Compass, Shuffle } from 'lucide-react';
-import { countries } from '@/content/legacy/data';
-import { getCountry } from '@/domain/catalog';
-import { getTopic } from '@/domain/destination';
+import { linkFor } from '@/domain/atlas-index';
+import type { HomeView } from '@/domain/view-models';
 import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
+import { useAtlasIndex } from '../atlas/use-indexes';
 import { DestinationLink } from '../DestinationLink';
 
-const STARTER_COUNT = 4;
-
 /** The home view: a few places to begin, a random pick, and the way back to the last story. */
-export function Discovery() {
+export function Discovery({ view }: { view: HomeView }) {
   const { go, library, openDialog } = useAtlas();
   const text = messages.home;
 
+  // The last story's title comes from the atlas index, loaded only when there is one.
   const lastRead = library.recent[0];
-  const lastCountry = getCountry(lastRead?.countryId);
-  const lastTopic = lastRead ? getTopic(lastRead) : undefined;
+  const index = useAtlasIndex(!!lastRead);
+  const resume = lastRead && index.data ? linkFor(index.data, lastRead) : undefined;
 
   function surprise() {
     const seen = new Set(library.recent.map((item) => item.countryId));
-    const unseen = countries.filter((item) => !seen.has(item.id));
-    const options = unseen.length ? unseen : countries;
-    go({ countryId: options[Math.floor(Math.random() * options.length)].id });
+    const unseen = view.surprise.filter((item) => !seen.has(item.countryId));
+    const options = unseen.length ? unseen : view.surprise;
+    go(options[Math.floor(Math.random() * options.length)].href);
   }
 
   return (
@@ -45,12 +44,12 @@ export function Discovery() {
         <span>↘</span>
       </div>
       <div className="country-picks">
-        {countries.slice(0, STARTER_COUNT).map((item) => (
-          <DestinationLink key={item.id} destination={{ countryId: item.id }}>
-            <span className="pick-flag">{item.flag}</span>
+        {view.picks.map((pick) => (
+          <DestinationLink key={pick.key} href={pick.href}>
+            <span className="pick-flag">{pick.flag}</span>
             <span>
-              <strong>{item.name}</strong>
-              <small>{item.kicker}</small>
+              <strong>{pick.countryName}</strong>
+              <small>{pick.title}</small>
             </span>
             <ArrowUpRight size={16} />
           </DestinationLink>
@@ -66,11 +65,11 @@ export function Discovery() {
         <span>{text.followThread}</span>
         <ArrowRight size={14} />
       </button>
-      {lastRead && lastCountry && (
-        <button className="resume-story" onClick={() => go(lastRead)}>
+      {resume && (
+        <button className="resume-story" onClick={() => go(resume.href)}>
           <span>{text.resume}</span>
           <strong>
-            {lastCountry.flag} {lastTopic ? lastTopic.title : lastCountry.name}
+            {resume.flag} {resume.category ? resume.title : resume.countryName}
           </strong>
           <ArrowUpRight size={14} />
         </button>

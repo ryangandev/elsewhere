@@ -1,7 +1,7 @@
 'use client';
 
 import { RotateCcw } from 'lucide-react';
-import { placeNotes } from '@/domain/place-notes';
+import type { PageView } from '@/domain/view-models';
 import { format, messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 
@@ -16,18 +16,17 @@ function coordinates(lat: number, lng: number): string {
 }
 
 /** The line of context under the globe: the place in focus, the story's map note, or where the country is. */
-export function MapCaption() {
-  const { country, topic, focus, focusPlace } = useAtlas();
-  if (!country) return null;
+export function MapCaption({ view }: { view: PageView }) {
+  const { focus, focusPlace } = useAtlas();
   const text = messages.caption;
+  const story = view.kind === 'story';
 
-  const title = focus ? text.closerLook : topic ? text.geographyMakesTheStory : text.everyPlace;
+  const title = focus ? text.closerLook : story ? text.geographyMakesTheStory : text.everyPlace;
   const body = focus
     ? focus.name
-    : topic
-      ? topic.mapNote
-      : `${country.region} · ${coordinates(country.lat, country.lng)}`;
-  const context = focus ? placeNotes[focus.name] : undefined;
+    : story
+      ? view.map.note
+      : `${view.country.region} · ${coordinates(view.country.lat, view.country.lng)}`;
 
   return (
     <div className={`map-caption ${focus ? 'has-focus' : ''}`}>
@@ -35,7 +34,7 @@ export function MapCaption() {
       <div>
         <strong>{title}</strong>
         <p>{body}</p>
-        {context && <small className="focus-context">{context}</small>}
+        {focus?.note && <small className="focus-context">{focus.note}</small>}
         {focus && (
           <button onClick={() => focusPlace(null)}>
             {text.backToConnection}

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createCountryLookup } from '../../src/globe/country-lookup';
 import type { CountryFeature } from '../../src/globe/cartography';
-import index from '@/content/legacy/country-index.json';
+import index from '../../data/geo/countries.json';
 
 const features = JSON.parse(
   readFileSync(new URL('../../public/maps/countries-detail.geojson', import.meta.url), 'utf8'),

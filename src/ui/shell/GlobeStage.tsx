@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { directory } from '@/domain/catalog';
-import { contextPlaces, countryLabels, legacyScene } from '@/domain/legacy-scene';
 import GlobeView, { type GlobeViewHandle } from '@/globe/GlobeView';
+import { EMPTY_SCENE, type MapScene } from '@/globe/scene';
 import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
+import { useCountryLabels } from '../atlas/use-indexes';
 
 // Page chrome that country and place labels must not cover.
 const OCCLUDERS =
@@ -14,60 +14,52 @@ const occluders = () => document.querySelectorAll(OCCLUDERS);
 
 /**
  * Lives in the root layout, so the globe controller is created once per visit.
- * GlobeView loads globe.gl only in the browser.
+ * It renders the scene the current page published, plus the place in focus.
+ * GlobeView loads globe.gl only in the browser; it mounts once the country labels arrive.
  */
 export function GlobeStage() {
-  const {
-    country,
-    profile,
-    topic,
-    focus,
-    focusPlace,
-    go,
-    globeCommand,
-    globeStatus,
-    setGlobeStatus,
-  } = useAtlas();
+  const { page, focus, focusPlace, go, globeCommand, globeStatus, setGlobeStatus } = useAtlas();
   const globe = useRef<GlobeViewHandle>(null);
+  const labels = useCountryLabels();
 
-  const scene = useMemo(
-    () => legacyScene(country, profile, topic, focus),
-    [country, profile, topic, focus],
+  const scene = useMemo<MapScene>(() => {
+    const published = page?.scene ?? EMPTY_SCENE;
+    return focus ? { ...published, focusPlaceId: focus.id } : published;
+  }, [page, focus]);
+
+  const paths = useMemo(
+    () => new Map((labels.data ?? []).map((label) => [label.id, label.path])),
+    [labels.data],
   );
-
   const select = useCallback(
     (id: string) => {
-      if (directory.some((item) => item.id === id)) go({ countryId: id });
+      const path = paths.get(id);
+      if (path) go(path);
     },
-    [go],
-  );
-
-  const focusById = useCallback(
-    (id: string) => {
-      const place =
-        contextPlaces(country, profile, topic).find((item) => item.name === id) ??
-        (focus?.name === id ? focus : undefined);
-      if (place) focusPlace(place);
-    },
-    [country, profile, topic, focus, focusPlace],
+    [paths, go],
   );
 
   useEffect(() => {
     if (globeCommand.seq) globe.current?.zoom(globeCommand.type);
   }, [globeCommand]);
 
+  // Without labels the globe still works; it only lacks country names.
+  const ready = labels.data !== undefined || labels.failed;
+
   return (
     <>
       <div className="globe-area">
-        <GlobeView
-          ref={globe}
-          scene={scene}
-          labels={countryLabels}
-          occluders={occluders}
-          onSelect={select}
-          onFocusPlace={focusById}
-          onStatus={setGlobeStatus}
-        />
+        {ready && (
+          <GlobeView
+            ref={globe}
+            scene={scene}
+            labels={labels.data ?? []}
+            occluders={occluders}
+            onSelect={select}
+            onFocusPlace={focusPlace}
+            onStatus={setGlobeStatus}
+          />
+        )}
       </div>
       {globeStatus === 'loading' && (
         <div className="globe-loading" role="status">

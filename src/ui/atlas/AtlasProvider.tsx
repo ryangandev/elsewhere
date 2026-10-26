@@ -1,20 +1,11 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
-import type { Country, Place, Topic } from '@/content/legacy/data';
-import { getCountry, getMapCountry, type MapCountry } from '@/domain/catalog';
-import { destinationKey, getTopic, type Destination } from '@/domain/destination';
-import { destinationFromPath, destinationPath } from '@/domain/paths';
+import { useRouter } from 'next/navigation';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import type { Destination } from '@/domain/destination';
 import { useLibrary, type LibraryState } from '@/domain/use-library';
+import type { ShellDestination, ShellPage } from '@/domain/view-models';
+import type { ScenePlace } from '@/globe/scene';
 import { messages } from '@/i18n';
 import { useNotice } from './use-notice';
 
@@ -23,16 +14,17 @@ export type GlobeStatus = 'loading' | 'ready' | 'error';
 export type GlobeCommand = { type: 'in' | 'out' | 'reset'; seq: number };
 
 export type AtlasState = LibraryState & {
-  /** Where the reader is, derived from the pathname. Null on the home view. */
-  destination: Destination | null;
-  country: MapCountry | null;
-  profile: Country | null;
-  topic: Topic | null;
-  go: (destination: Destination | null) => void;
+  /** What the current page published: where the reader is and the globe scene. Null at home. */
+  page: ShellPage | null;
+  destination: ShellDestination | null;
+  /** Called by ShellBridge; returns a function that withdraws this page again. */
+  publish: (page: ShellPage | null) => () => void;
+  /** Navigates to a path built on the server (from a view model or an index), or home. */
+  go: (href: string | null) => void;
 
-  /** The place the reader asked to look at more closely on the globe, if any. */
-  focus: Place | null;
-  focusPlace: (place: Place | null) => void;
+  /** The scene place the reader asked to look at more closely, if any. */
+  focus: ScenePlace | null;
+  focusPlace: (placeId: string | null) => void;
   /** On small screens the reading panel can shrink to give the map room. */
   compact: boolean;
   toggleCompact: () => void;
@@ -61,26 +53,27 @@ export function useAtlas(): AtlasState {
 }
 
 /**
- * Holds everything that must outlive a navigation: the globe's controls, dialogs, the notice,
- * and which place is in focus. It lives in the root layout, so route changes never reset it.
- * The current destination is not stored here; it is read from the pathname.
+ * Holds everything that must outlive a navigation: the published page, the globe's controls,
+ * dialogs, the notice, and which place is in focus. It lives in the root layout, so route
+ * changes never reset it. It never loads content: each page publishes its destination and
+ * scene through ShellBridge.
  */
 export function AtlasProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
   const library = useLibrary();
   const { notice, announce } = useNotice();
 
-  const destination = useMemo(() => destinationFromPath(pathname), [pathname]);
-  const key = destination ? destinationKey(destination) : '';
-  const country = getMapCountry(destination?.countryId) ?? null;
-  const profile = getCountry(destination?.countryId) ?? null;
-  const topic = getTopic(destination) ?? null;
+  const [page, setPage] = useState<ShellPage | null>(null);
+  const destination = page?.destination ?? null;
+  const key = destination?.key ?? '';
 
-  // Focus and compact mode belong to one destination; they are ignored once the path changes.
-  const [focusState, setFocusState] = useState<{ key: string; place: Place } | null>(null);
+  // Focus and compact mode belong to one destination; they are ignored once it changes.
+  const [focusState, setFocusState] = useState<{ key: string; placeId: string } | null>(null);
   const [compactKey, setCompactKey] = useState<string | null>(null);
-  const focus = focusState?.key === key ? focusState.place : null;
+  const focus =
+    (focusState?.key === key &&
+      page?.scene.places.find((place) => place.id === focusState.placeId)) ||
+    null;
   const compact = !!key && compactKey === key;
 
   const [globeStatus, setGlobeStatus] = useState<GlobeStatus>('loading');
@@ -88,12 +81,19 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
   const [dialog, setDialog] = useState<DialogName | null>(null);
   const [shareUrl, setShareUrl] = useState('');
 
+  const publish = useCallback((next: ShellPage | null) => {
+    setPage(next);
+    // Withdraw only if no other page has published since, so the order of effects between
+    // the outgoing and incoming page does not matter.
+    return () => setPage((current) => (current === next ? null : current));
+  }, []);
+
   const go = useCallback(
-    (next: Destination | null) => {
+    (href: string | null) => {
       setFocusState(null);
       setCompactKey(null);
       setDialog(null);
-      const path = destinationPath(next);
+      const path = href ?? '/';
       if (path !== window.location.pathname + window.location.search) {
         router.push(path, { scroll: false });
       }
@@ -102,7 +102,7 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
   );
 
   const focusPlace = useCallback(
-    (place: Place | null) => setFocusState(place ? { key, place } : null),
+    (placeId: string | null) => setFocusState(placeId ? { key, placeId } : null),
     [key],
   );
   const toggleCompact = useCallback(
@@ -151,19 +151,18 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
       }
       if (event.key !== 'Escape' || modalOpen || event.defaultPrevented) return;
       if (focus) setFocusState(null);
-      else if (topic && country) go({ countryId: country.id });
-      else if (country) go(null);
+      else if (destination?.storyId) go(destination.countryHref);
+      else if (destination) go(null);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [modalOpen, topic, country, focus, go]);
+  }, [modalOpen, destination, focus, go]);
 
   const state: AtlasState = {
     ...library,
+    page,
     destination,
-    country,
-    profile,
-    topic,
+    publish,
     go,
     focus,
     focusPlace,

@@ -1,11 +1,9 @@
 'use client';
 
 import { ArrowRight, Compass, Search } from 'lucide-react';
-import type { Country, Topic } from '@/content/legacy/data';
+import type { PageView } from '@/domain/view-models';
 import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
-
-type Props = { profile: Country | null; topic: Topic | null };
 
 function scrollToQuestions() {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -15,18 +13,18 @@ function scrollToQuestions() {
 }
 
 /** A country overview points to its questions; every other view offers search. */
-export function PanelFooter({ profile, topic }: Props) {
+export function PanelFooter({ view }: { view: PageView }) {
   const { openDialog } = useAtlas();
   const text = messages.panel;
 
   return (
     <div className="panel-footer">
-      {profile && !topic ? (
+      {view.kind === 'country' ? (
         <button className="curiosity-jump" onClick={scrollToQuestions}>
           <Compass size={16} />
           <span>{messages.country.followCuriosity}</span>
           <span>
-            {profile.topics.length} {text.questions}
+            {view.starters.length + view.moreQuestions.length} {text.questions}
             <ArrowRight size={14} />
           </span>
         </button>

@@ -4,9 +4,14 @@ import { ChevronRight, Globe2 } from 'lucide-react';
 import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 
-export function MapBreadcrumb() {
-  const { country, topic, go } = useAtlas();
-  if (!country) return null;
+type Props = {
+  country: { name: string; href: string };
+  /** The question's category, on a question page. */
+  category?: string;
+};
+
+export function MapBreadcrumb({ country, category }: Props) {
+  const { go } = useAtlas();
 
   return (
     <nav className="map-breadcrumb" aria-label={messages.breadcrumb.label}>
@@ -15,11 +20,11 @@ export function MapBreadcrumb() {
         {messages.breadcrumb.world}
       </button>
       <ChevronRight size={13} />
-      <button onClick={() => go({ countryId: country.id })}>{country.name}</button>
-      {topic && (
+      <button onClick={() => go(country.href)}>{country.name}</button>
+      {category && (
         <>
           <ChevronRight size={12} />
-          <span>{topic.category}</span>
+          <span>{category}</span>
         </>
       )}
     </nav>

@@ -2,40 +2,59 @@
 
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
-import { destinationKey, validDestination } from '@/domain/destination';
-import { ExplorerPanel } from './ExplorerPanel';
+import type { Destination } from '@/domain/destination';
+import { pageDestination, type PageView } from '@/domain/view-models';
 import { useAtlas } from '../atlas/AtlasProvider';
+import { ExplorerPanel } from './ExplorerPanel';
+import { MapBreadcrumb } from './MapBreadcrumb';
+import { MapCaption } from './MapCaption';
 
-type Props = { countryId: string; topicId?: string };
+type Props = { view: PageView };
 
 /**
- * The page content for a country or question.
- * The trail the reader arrived on is a search parameter, which is only known in the browser.
- * The panel is prerendered without a trail, then shows trail progress once the page hydrates.
+ * The page content for a country or question: the reading panel with its breadcrumb and map
+ * caption. The trail the reader arrived on is a search parameter, which is only known in the
+ * browser, so the panel is prerendered without a trail and shows trail progress once it hydrates.
  */
-export function DestinationPanel(props: Props) {
+export function DestinationPanel({ view }: Props) {
   return (
-    <Suspense fallback={<Panel {...props} />}>
-      <PanelWithTrail {...props} />
+    <Suspense fallback={<Panel view={view} />}>
+      <PanelWithTrail view={view} />
     </Suspense>
   );
 }
 
-function PanelWithTrail(props: Props) {
-  const trailId = useSearchParams().get('trail') ?? undefined;
-  return <Panel {...props} trailId={trailId} />;
+function PanelWithTrail({ view }: Props) {
+  const trailId = useSearchParams().get('trail');
+  return <Panel view={view} trailId={trailId} />;
 }
 
-function Panel({ countryId, topicId, trailId }: Props & { trailId?: string }) {
+function Panel({ view, trailId }: Props & { trailId?: string | null }) {
   const { visit } = useAtlas();
-  // A trail that does not include this question is dropped.
-  const destination = validDestination({ countryId, topicId, trailId });
-  const key = destination ? destinationKey(destination) : '';
-  const trail = destination?.trailId;
+  // A trail that does not include this question is ignored.
+  const trail = view.kind === 'story' ? view.trails.find((item) => item.id === trailId) : undefined;
+  const destination: Destination = {
+    ...pageDestination(view),
+    ...(trail ? { trailId: trail.id } : {}),
+  };
+  const { countryId, storyId, trailId: visitedTrail } = destination;
 
   useEffect(() => {
-    if (key) visit({ countryId, topicId, ...(trail ? { trailId: trail } : {}) });
-  }, [key, trail, countryId, topicId, visit]);
+    visit({
+      countryId,
+      ...(storyId ? { storyId } : {}),
+      ...(visitedTrail ? { trailId: visitedTrail } : {}),
+    });
+  }, [countryId, storyId, visitedTrail, visit]);
 
-  return destination ? <ExplorerPanel destination={destination} /> : null;
+  return (
+    <>
+      <MapBreadcrumb
+        country={view.country}
+        category={view.kind === 'story' ? view.category : undefined}
+      />
+      <ExplorerPanel view={view} destination={destination} trail={trail} />
+      <MapCaption view={view} />
+    </>
+  );
 }

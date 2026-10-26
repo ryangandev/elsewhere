@@ -1,4 +1,4 @@
-import { destinationKey, validDestination, type Destination } from './destination';
+import { destinationKey, parseDestination, type Destination } from './destination';
 
 /**
  * The reader's personal atlas: saved questions and recent history.
@@ -18,7 +18,7 @@ export const emptyLibrary: Library = { saved: [], recent: [] };
 function cleanList(items: unknown, limit: number): Destination[] {
   if (!Array.isArray(items)) return [];
   return items
-    .map(validDestination)
+    .map(parseDestination)
     .filter((item): item is Destination => item !== null)
     .filter(
       (item, index, all) =>
@@ -27,7 +27,10 @@ function cleanList(items: unknown, limit: number): Destination[] {
     .slice(0, limit);
 }
 
-/** Restores a stored library, discarding anything malformed, obsolete, duplicated, or over the limit. */
+/**
+ * Restores a stored library, discarding anything malformed, duplicated, or over the limit.
+ * Entries for content that no longer exists are kept here and hidden where they are shown.
+ */
 export function parseLibrary(value: string): Library {
   try {
     const parsed = JSON.parse(value);

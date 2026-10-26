@@ -1,60 +1,53 @@
 'use client';
 
 import { ArrowRight, MapPin } from 'lucide-react';
-import type { Place } from '@/content/legacy/data';
-import { linkedCountry } from '@/domain/catalog';
-import { placeNotes } from '@/domain/place-notes';
+import type { MapView } from '@/domain/view-models';
 import { format, messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 
-type Props = {
-  places: Place[];
-  note: string;
-  /** True when the globe draws an illustrative route for this story. */
-  hasRoute?: boolean;
-};
-
 /** Places the reader can tap to find on the globe, with a short note about the one in focus. */
-export function MapConnections({ places, note, hasRoute }: Props) {
+export function MapConnections({ map }: { map: MapView }) {
   const { focus, focusPlace, go } = useAtlas();
   const text = messages.connections;
-  const related = focus ? linkedCountry(focus) : null;
+  const focused = focus ? map.places.find((place) => place.id === focus.id) : undefined;
 
   return (
     <section className="map-connections" aria-label={text.label}>
       <div className="section-label">
         <MapPin size={14} />
         <span>{text.title}</span>
-        {hasRoute && <span className="route-key">{text.illustrativeRoute}</span>}
+        {map.hasRoute && <span className="route-key">{text.illustrativeRoute}</span>}
       </div>
-      <p>{note}</p>
-      <div className="place-chips">
-        {places.map((place) => (
-          <button
-            key={place.name}
-            aria-pressed={focus?.name === place.name}
-            onClick={() => focusPlace(focus?.name === place.name ? null : place)}
-          >
-            <span />
-            {place.name}
-          </button>
-        ))}
-      </div>
-      {focus ? (
+      <p>{map.note}</p>
+      {map.places.length > 0 && (
+        <div className="place-chips">
+          {map.places.map((place) => (
+            <button
+              key={place.id}
+              aria-pressed={focused?.id === place.id}
+              onClick={() => focusPlace(focused?.id === place.id ? null : place.id)}
+            >
+              <span />
+              {place.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {focused ? (
         <div className="place-detail" aria-live="polite">
-          <strong>{focus.name}</strong>
-          <p>{placeNotes[focus.name] ?? format(text.locate, { place: focus.name })}</p>
+          <strong>{focused.name}</strong>
+          <p>{focused.note ?? format(text.locate, { place: focused.name })}</p>
           <div>
-            {related && (
-              <button onClick={() => go({ countryId: related.id })}>
-                {text.explore} {related.name} <ArrowRight size={13} />
+            {focused.country && (
+              <button onClick={() => go(focused.country!.href)}>
+                {text.explore} {focused.country.name} <ArrowRight size={13} />
               </button>
             )}
             <button onClick={() => focusPlace(null)}>{text.showWhole}</button>
           </div>
         </div>
       ) : (
-        <small className="map-instruction">{text.instruction}</small>
+        map.places.length > 0 && <small className="map-instruction">{text.instruction}</small>
       )}
     </section>
   );
