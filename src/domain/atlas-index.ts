@@ -107,22 +107,3 @@ export function linkFor(lookup: AtlasLookup, destination: Destination): StoryLin
     title: story.question,
   };
 }
-
-/**
- * Translates the prototype's query-string URLs (`/?country=sgp&topic=shipping&trail=...`)
- * to path URLs. An unknown question falls back to its country and an unknown trail is dropped.
- * Returns null when the query does not name a country on the map.
- */
-export function legacyQueryToPath(search: string, lookup: AtlasLookup): string | null {
-  const params = new URLSearchParams(search);
-  const countryId = params.get('country')?.toUpperCase();
-  if (!countryId) return null;
-  const topic = params.get('topic');
-  const trail = params.get('trail');
-  const destination: Destination = {
-    countryId,
-    ...(topic ? { storyId: topic } : {}),
-    ...(topic && trail ? { trailId: trail } : {}),
-  };
-  return linkFor(lookup, destination)?.href ?? linkFor(lookup, { countryId })?.href ?? null;
-}

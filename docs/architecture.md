@@ -41,7 +41,9 @@ content/en/                generated and reviewed content, one file per country,
 data/geo/                  Natural Earth derived map identities and gazetteer
 pipeline/                  content generation, validation and review (step 5)
 scripts/                   geo data builds and content:check
-tests/                     unit tests; e2e/ for Playwright
+tests/                     unit tests
+e2e/                       Playwright end-to-end tests against out/
+vercel.json                Vercel redirects and response headers
 ```
 
 ## Platform
@@ -80,10 +82,16 @@ What changed from the prototype:
 - `vinext` (a beta reimplementation of Next.js on Vite) was replaced by Next.js itself.
 - The ChatGPT Sites and Cloudflare Worker template, D1/drizzle scaffolding, and unused shadcn components were removed.
   The three shadcn components in use (dialog, sheet, command) and button live in `src/ui/primitives/`.
-- Query-string URLs (`/?country=sgp&topic=shipping`) redirect to path URLs in the browser.
-  A static site cannot see query strings when it builds, so the home page runs a small client redirect (`LegacyUrlRedirect`).
-  It loads the atlas index only when the query names a country, and falls back to the country page when the question or trail no longer exists.
-  Follow-up: once the site is on Vercel, move it to `redirects` in the Vercel config so it becomes a real 308 response.
+- Query-string URLs (`/?country=sgp&topic=shipping&trail=water-connects`) answer with a permanent 308 redirect to the path URL, from `redirects` in `vercel.json`.
+  A static page cannot see the query string of the request that loaded it, so the redirect has to happen in front of the files.
+  Each rule matches the home path and the query by permanent ID: the country case-insensitively (the prototype accepted `sgp` and `SGP`), the question and trail exactly.
+  Rules are ordered most specific first, because Vercel applies the first match: a trail stop keeps its trail, any other question drops it, and any other country URL opens the country, so a question that no longer exists still lands on its country.
+  `src/domain/legacy-redirects.ts` builds the rules through `destinationPath`, from the frozen list of questions and trails the prototype published plus every map identity (the prototype had the same 258), and `npm run redirects:build` writes them into `vercel.json`.
+  Content added since never had a query URL, so new questions do not add rules.
+  `tests/deployment.test.ts` compiles `vercel.json` with Vercel's own routing utilities, matches requests against the result, and fails when the committed rules differ from what the builder produces.
+  Vercel passes the original query string on to the destination, so a redirected URL can keep `country` and `topic`; pages ignore them, and a trail the question is not on is ignored too.
+  There is no in-browser fallback: Vercel is the only host, and keeping a second copy of the mapping in the client would cost a script and an index fetch on the home page for links that only ever pointed at the prototype.
+  Serving `out/` locally (`npm start`, the e2e tests) therefore shows the home page for these URLs.
 
 ## Content model
 
@@ -439,7 +447,7 @@ Client indexes are static route handlers (`dynamic = 'force-static'`), written t
 | Index | Built by | Used by | Size (raw / gzip) |
 | --- | --- | --- | --- |
 | `/atlas/labels.json` | `buildCountryLabels` | globe labels; the globe mounts once it loads | 29 KB / 9 KB |
-| `/atlas/index.json` | `buildAtlasIndex` | question input and search, library, recent history, trail drawer, resume, old-URL redirect | 45 KB / 11 KB |
+| `/atlas/index.json` | `buildAtlasIndex` | question input and search, library, recent history, trail drawer, resume | 45 KB / 11 KB |
 
 The atlas index holds every country, every question with its path, category, summary and build-time keywords (TF-IDF over the story text), every trail with its stop paths, and the home screen's suggested questions (offered when a query is not answered).
 It grows with the question bank, so it can be split by country if it gets too large to load whole.
@@ -481,7 +489,7 @@ Reading:
 - A map-only country shows its basics and the nearest edited countries, measured between label anchors.
 - Bookmarks and recent history stay in localStorage, behind a small `library` interface so Stage 2 can add sync.
   They store destinations by ID and resolve titles and links through the atlas index; entries whose question no longer exists are hidden.
-- Old URLs redirect in the browser; see [Platform](#platform).
+- Prototype query URLs redirect on Vercel; see [Platform](#platform).
 
 ## Styling
 

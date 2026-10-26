@@ -1,0 +1,1933 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[bB][rR][aA]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "amazon" } },
+        { "type": "query", "key": "trail", "value": { "eq": "land-shapes-life" } }
+      ],
+      "destination": "/brazil/amazon?trail=land-shapes-life",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[cC][hH][nN]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "manufacturing" } },
+        { "type": "query", "key": "trail", "value": { "eq": "made-together" } }
+      ],
+      "destination": "/china/manufacturing?trail=made-together",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[iI][dD][nN]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "islands" } },
+        { "type": "query", "key": "trail", "value": { "eq": "water-connects" } }
+      ],
+      "destination": "/indonesia/islands?trail=water-connects",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[iI][nN][dD]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "monsoon" } },
+        { "type": "query", "key": "trail", "value": { "eq": "land-shapes-life" } }
+      ],
+      "destination": "/india/monsoon?trail=land-shapes-life",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[iI][nN][dD]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "technology" } },
+        { "type": "query", "key": "trail", "value": { "eq": "made-together" } }
+      ],
+      "destination": "/india/technology?trail=made-together",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[jJ][pP][nN]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "industry" } },
+        { "type": "query", "key": "trail", "value": { "eq": "made-together" } }
+      ],
+      "destination": "/japan/industry?trail=made-together",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[mM][yY][sS]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "two-shores" } },
+        { "type": "query", "key": "trail", "value": { "eq": "water-connects" } }
+      ],
+      "destination": "/malaysia/two-shores?trail=water-connects",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[mM][yY][sS]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "electronics" } },
+        { "type": "query", "key": "trail", "value": { "eq": "made-together" } }
+      ],
+      "destination": "/malaysia/electronics?trail=made-together",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[sS][gG][pP]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "shipping" } },
+        { "type": "query", "key": "trail", "value": { "eq": "water-connects" } }
+      ],
+      "destination": "/singapore/shipping?trail=water-connects",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[tT][uU][rR]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "straits" } },
+        { "type": "query", "key": "trail", "value": { "eq": "water-connects" } }
+      ],
+      "destination": "/turkey/straits?trail=water-connects",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[uU][sS][aA]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "geography" } },
+        { "type": "query", "key": "trail", "value": { "eq": "land-shapes-life" } }
+      ],
+      "destination": "/united-states/geography?trail=land-shapes-life",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[bB][rR][aA]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "amazon" } }
+      ],
+      "destination": "/brazil/amazon",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[bB][rR][aA]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "language" } }
+      ],
+      "destination": "/brazil/language",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[bB][rR][aA]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "agriculture" } }
+      ],
+      "destination": "/brazil/agriculture",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[cC][hH][nN]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "manufacturing" } }
+      ],
+      "destination": "/china/manufacturing",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[cC][hH][nN]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "population" } }
+      ],
+      "destination": "/china/population",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[cC][hH][nN]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "reforms" } }
+      ],
+      "destination": "/china/reforms",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[fF][rR][aA]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "paris" } }
+      ],
+      "destination": "/france/paris",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[fF][rR][aA]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "europe" } }
+      ],
+      "destination": "/france/europe",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[fF][rR][aA]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "overseas" } }
+      ],
+      "destination": "/france/overseas",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[iI][dD][nN]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "islands" } }
+      ],
+      "destination": "/indonesia/islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[iI][dD][nN]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "language" } }
+      ],
+      "destination": "/indonesia/language",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[iI][dD][nN]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "nature" } }
+      ],
+      "destination": "/indonesia/nature",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[iI][nN][dD]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "languages" } }
+      ],
+      "destination": "/india/languages",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[iI][nN][dD]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "monsoon" } }
+      ],
+      "destination": "/india/monsoon",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[iI][nN][dD]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "technology" } }
+      ],
+      "destination": "/india/technology",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[jJ][pP][nN]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "coasts" } }
+      ],
+      "destination": "/japan/coasts",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[jJ][pP][nN]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "industry" } }
+      ],
+      "destination": "/japan/industry",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[jJ][pP][nN]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "aging" } }
+      ],
+      "destination": "/japan/aging",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[mM][yY][sS]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "two-shores" } }
+      ],
+      "destination": "/malaysia/two-shores",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[mM][yY][sS]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "electronics" } }
+      ],
+      "destination": "/malaysia/electronics",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[mM][yY][sS]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "federation" } }
+      ],
+      "destination": "/malaysia/federation",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[sS][gG][pP]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "wealth" } }
+      ],
+      "destination": "/singapore/wealth",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[sS][gG][pP]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "shipping" } }
+      ],
+      "destination": "/singapore/shipping",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[sS][gG][pP]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "identity" } }
+      ],
+      "destination": "/singapore/identity",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[tT][uU][rR]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "straits" } }
+      ],
+      "destination": "/turkey/straits",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[tT][uU][rR]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "republic" } }
+      ],
+      "destination": "/turkey/republic",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[tT][uU][rR]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "identity" } }
+      ],
+      "destination": "/turkey/identity",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[uU][sS][aA]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "dollar" } }
+      ],
+      "destination": "/united-states/dollar",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[uU][sS][aA]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "geography" } }
+      ],
+      "destination": "/united-states/geography",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "country", "value": { "re": "^[uU][sS][aA]$" } },
+        { "type": "query", "key": "topic", "value": { "eq": "immigration" } }
+      ],
+      "destination": "/united-states/immigration",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][fF][gG]$" } }],
+      "destination": "/afghanistan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[wW][sS][bB]$" } }],
+      "destination": "/akrotiri",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][lL][dD]$" } }],
+      "destination": "/aland-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][lL][bB]$" } }],
+      "destination": "/albania",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[dD][zZ][aA]$" } }],
+      "destination": "/algeria",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][sS][mM]$" } }],
+      "destination": "/american-samoa",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][nN][dD]$" } }],
+      "destination": "/andorra",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][gG][oO]$" } }],
+      "destination": "/angola",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][iI][aA]$" } }],
+      "destination": "/anguilla",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][tT][aA]$" } }],
+      "destination": "/antarctica",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][tT][gG]$" } }],
+      "destination": "/antigua-and-barbuda",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][rR][gG]$" } }],
+      "destination": "/argentina",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][rR][mM]$" } }],
+      "destination": "/armenia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][bB][wW]$" } }],
+      "destination": "/aruba",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][tT][cC]$" } }],
+      "destination": "/ashmore-and-cartier-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][uU][sS]$" } }],
+      "destination": "/australia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][uU][tT]$" } }],
+      "destination": "/austria",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][zZ][eE]$" } }],
+      "destination": "/azerbaijan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][hH][sS]$" } }],
+      "destination": "/bahamas",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][hH][rR]$" } }],
+      "destination": "/bahrain",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[kK][aA][bB]$" } }],
+      "destination": "/baikonur-cosmodrome",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][jJ][nN]$" } }],
+      "destination": "/bajo-nuevo-bank-petrel-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][gG][dD]$" } }],
+      "destination": "/bangladesh",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][rR][bB]$" } }],
+      "destination": "/barbados",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][lL][rR]$" } }],
+      "destination": "/belarus",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][eE][lL]$" } }],
+      "destination": "/belgium",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][lL][zZ]$" } }],
+      "destination": "/belize",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][eE][nN]$" } }],
+      "destination": "/benin",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][mM][uU]$" } }],
+      "destination": "/bermuda",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][tT][nN]$" } }],
+      "destination": "/bhutan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][rR][tT]$" } }],
+      "destination": "/bir-tawil",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][oO][lL]$" } }],
+      "destination": "/bolivia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][iI][hH]$" } }],
+      "destination": "/bosnia-and-herzegovina",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][wW][aA]$" } }],
+      "destination": "/botswana",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][rR][aA]$" } }],
+      "destination": "/brazil",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][rR][iI]$" } }],
+      "destination": "/brazilian-island",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[iI][oO][tT]$" } }],
+      "destination": "/british-indian-ocean-territory",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[vV][gG][bB]$" } }],
+      "destination": "/british-virgin-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][rR][nN]$" } }],
+      "destination": "/brunei-darussalam",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][gG][rR]$" } }],
+      "destination": "/bulgaria",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][fF][aA]$" } }],
+      "destination": "/burkina-faso",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][dD][iI]$" } }],
+      "destination": "/burundi",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[kK][hH][mM]$" } }],
+      "destination": "/cambodia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][mM][rR]$" } }],
+      "destination": "/cameroon",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][aA][nN]$" } }],
+      "destination": "/canada",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][yY][mM]$" } }],
+      "destination": "/cayman-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][aA][fF]$" } }],
+      "destination": "/central-african-republic",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][cC][dD]$" } }],
+      "destination": "/chad",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][hH][lL]$" } }],
+      "destination": "/chile",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][hH][nN]$" } }],
+      "destination": "/china",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][lL][pP]$" } }],
+      "destination": "/clipperton-island",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][oO][lL]$" } }],
+      "destination": "/colombia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][oO][mM]$" } }],
+      "destination": "/comoros",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][oO][kK]$" } }],
+      "destination": "/cook-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][sS][iI]$" } }],
+      "destination": "/coral-sea-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][rR][iI]$" } }],
+      "destination": "/costa-rica",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][iI][vV]$" } }],
+      "destination": "/cote-divoire",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[hH][rR][vV]$" } }],
+      "destination": "/croatia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][uU][bB]$" } }],
+      "destination": "/cuba",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][uU][wW]$" } }],
+      "destination": "/curacao",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][yY][pP]$" } }],
+      "destination": "/cyprus",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][nN][mM]$" } }],
+      "destination": "/cyprus-un-buffer-zone",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][zZ][eE]$" } }],
+      "destination": "/czech-republic",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][rR][kK]$" } }],
+      "destination": "/dem-rep-korea",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][oO][dD]$" } }],
+      "destination": "/democratic-republic-of-the-congo",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[dD][nN][kK]$" } }],
+      "destination": "/denmark",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[eE][sS][bB]$" } }],
+      "destination": "/dhekelia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[dD][jJ][iI]$" } }],
+      "destination": "/djibouti",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[dD][mM][aA]$" } }],
+      "destination": "/dominica",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[dD][oO][mM]$" } }],
+      "destination": "/dominican-republic",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[eE][cC][uU]$" } }],
+      "destination": "/ecuador",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[eE][gG][yY]$" } }],
+      "destination": "/egypt",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][lL][vV]$" } }],
+      "destination": "/el-salvador",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][nN][qQ]$" } }],
+      "destination": "/equatorial-guinea",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[eE][rR][iI]$" } }],
+      "destination": "/eritrea",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[eE][sS][tT]$" } }],
+      "destination": "/estonia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[eE][tT][hH]$" } }],
+      "destination": "/ethiopia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[fF][rR][oO]$" } }],
+      "destination": "/faeroe-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[fF][lL][kK]$" } }],
+      "destination": "/falkland-islands-malvinas",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[fF][sS][mM]$" } }],
+      "destination": "/federated-states-of-micronesia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[fF][jJ][iI]$" } }],
+      "destination": "/fiji",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[fF][iI][nN]$" } }],
+      "destination": "/finland",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[fF][rR][aA]$" } }],
+      "destination": "/france",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][yY][fF]$" } }],
+      "destination": "/french-polynesia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][tT][fF]$" } }],
+      "destination": "/french-southern-and-antarctic-lands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][aA][bB]$" } }],
+      "destination": "/gabon",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][eE][oO]$" } }],
+      "destination": "/georgia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[dD][eE][uU]$" } }],
+      "destination": "/germany",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][hH][aA]$" } }],
+      "destination": "/ghana",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][iI][bB]$" } }],
+      "destination": "/gibraltar",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][rR][cC]$" } }],
+      "destination": "/greece",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][rR][lL]$" } }],
+      "destination": "/greenland",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][rR][dD]$" } }],
+      "destination": "/grenada",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][uU][mM]$" } }],
+      "destination": "/guam",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][tT][mM]$" } }],
+      "destination": "/guatemala",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][gG][yY]$" } }],
+      "destination": "/guernsey",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][iI][nN]$" } }],
+      "destination": "/guinea",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][nN][bB]$" } }],
+      "destination": "/guinea-bissau",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][uU][yY]$" } }],
+      "destination": "/guyana",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[hH][tT][iI]$" } }],
+      "destination": "/haiti",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[hH][mM][dD]$" } }],
+      "destination": "/heard-i-and-mcdonald-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[hH][nN][dD]$" } }],
+      "destination": "/honduras",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[hH][kK][gG]$" } }],
+      "destination": "/hong-kong",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[hH][uU][nN]$" } }],
+      "destination": "/hungary",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[iI][sS][lL]$" } }],
+      "destination": "/iceland",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[iI][nN][dD]$" } }],
+      "destination": "/india",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[iI][oO][aA]$" } }],
+      "destination": "/indian-ocean-territories",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[iI][dD][nN]$" } }],
+      "destination": "/indonesia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[iI][rR][nN]$" } }],
+      "destination": "/iran",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[iI][rR][qQ]$" } }],
+      "destination": "/iraq",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[iI][rR][lL]$" } }],
+      "destination": "/ireland",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[iI][mM][nN]$" } }],
+      "destination": "/isle-of-man",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[iI][sS][rR]$" } }],
+      "destination": "/israel",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[iI][tT][aA]$" } }],
+      "destination": "/italy",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[jJ][aA][mM]$" } }],
+      "destination": "/jamaica",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[jJ][pP][nN]$" } }],
+      "destination": "/japan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[jJ][eE][yY]$" } }],
+      "destination": "/jersey",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[jJ][oO][rR]$" } }],
+      "destination": "/jordan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[kK][aA][zZ]$" } }],
+      "destination": "/kazakhstan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[kK][eE][nN]$" } }],
+      "destination": "/kenya",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][wW][zZ]$" } }],
+      "destination": "/kingdom-of-eswatini",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[kK][iI][rR]$" } }],
+      "destination": "/kiribati",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[kK][oO][sS]$" } }],
+      "destination": "/kosovo",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[kK][wW][tT]$" } }],
+      "destination": "/kuwait",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[kK][gG][zZ]$" } }],
+      "destination": "/kyrgyzstan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[lL][aA][oO]$" } }],
+      "destination": "/lao-pdr",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[lL][vV][aA]$" } }],
+      "destination": "/latvia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[lL][bB][nN]$" } }],
+      "destination": "/lebanon",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[lL][sS][oO]$" } }],
+      "destination": "/lesotho",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[lL][bB][rR]$" } }],
+      "destination": "/liberia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[lL][bB][yY]$" } }],
+      "destination": "/libya",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[lL][iI][eE]$" } }],
+      "destination": "/liechtenstein",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[lL][tT][uU]$" } }],
+      "destination": "/lithuania",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[lL][uU][xX]$" } }],
+      "destination": "/luxembourg",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][aA][cC]$" } }],
+      "destination": "/macao",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][dD][gG]$" } }],
+      "destination": "/madagascar",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][wW][iI]$" } }],
+      "destination": "/malawi",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][yY][sS]$" } }],
+      "destination": "/malaysia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][dD][vV]$" } }],
+      "destination": "/maldives",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][lL][iI]$" } }],
+      "destination": "/mali",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][lL][tT]$" } }],
+      "destination": "/malta",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][hH][lL]$" } }],
+      "destination": "/marshall-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][rR][tT]$" } }],
+      "destination": "/mauritania",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][uU][sS]$" } }],
+      "destination": "/mauritius",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][eE][xX]$" } }],
+      "destination": "/mexico",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][dD][aA]$" } }],
+      "destination": "/moldova",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][cC][oO]$" } }],
+      "destination": "/monaco",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][nN][gG]$" } }],
+      "destination": "/mongolia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][nN][eE]$" } }],
+      "destination": "/montenegro",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][sS][rR]$" } }],
+      "destination": "/montserrat",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][aA][rR]$" } }],
+      "destination": "/morocco",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][oO][zZ]$" } }],
+      "destination": "/mozambique",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][mM][rR]$" } }],
+      "destination": "/myanmar",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[nN][aA][mM]$" } }],
+      "destination": "/namibia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[nN][rR][uU]$" } }],
+      "destination": "/nauru",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[nN][pP][lL]$" } }],
+      "destination": "/nepal",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[nN][lL][dD]$" } }],
+      "destination": "/netherlands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[nN][cC][lL]$" } }],
+      "destination": "/new-caledonia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[nN][zZ][lL]$" } }],
+      "destination": "/new-zealand",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[nN][iI][cC]$" } }],
+      "destination": "/nicaragua",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[nN][eE][rR]$" } }],
+      "destination": "/niger",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[nN][gG][aA]$" } }],
+      "destination": "/nigeria",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[nN][iI][uU]$" } }],
+      "destination": "/niue",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[nN][fF][kK]$" } }],
+      "destination": "/norfolk-island",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][kK][dD]$" } }],
+      "destination": "/north-macedonia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][yY][nN]$" } }],
+      "destination": "/northern-cyprus",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][nN][pP]$" } }],
+      "destination": "/northern-mariana-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[nN][oO][rR]$" } }],
+      "destination": "/norway",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[oO][mM][nN]$" } }],
+      "destination": "/oman",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][aA][kK]$" } }],
+      "destination": "/pakistan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][lL][wW]$" } }],
+      "destination": "/palau",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][sS][xX]$" } }],
+      "destination": "/palestine",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][aA][nN]$" } }],
+      "destination": "/panama",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][nN][gG]$" } }],
+      "destination": "/papua-new-guinea",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][rR][yY]$" } }],
+      "destination": "/paraguay",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][eE][rR]$" } }],
+      "destination": "/peru",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][hH][lL]$" } }],
+      "destination": "/philippines",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][cC][nN]$" } }],
+      "destination": "/pitcairn-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][oO][lL]$" } }],
+      "destination": "/poland",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][rR][tT]$" } }],
+      "destination": "/portugal",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][rR][iI]$" } }],
+      "destination": "/puerto-rico",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[qQ][aA][tT]$" } }],
+      "destination": "/qatar",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][pP][vV]$" } }],
+      "destination": "/republic-of-cabo-verde",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[kK][oO][rR]$" } }],
+      "destination": "/republic-of-korea",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][oO][gG]$" } }],
+      "destination": "/republic-of-the-congo",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[rR][oO][uU]$" } }],
+      "destination": "/romania",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[rR][uU][sS]$" } }],
+      "destination": "/russian-federation",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[rR][wW][aA]$" } }],
+      "destination": "/rwanda",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][hH][nN]$" } }],
+      "destination": "/saint-helena",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[kK][nN][aA]$" } }],
+      "destination": "/saint-kitts-and-nevis",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[lL][cC][aA]$" } }],
+      "destination": "/saint-lucia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][pP][mM]$" } }],
+      "destination": "/saint-pierre-and-miquelon",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[vV][cC][tT]$" } }],
+      "destination": "/saint-vincent-and-the-grenadines",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[bB][lL][mM]$" } }],
+      "destination": "/saint-barthelemy",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[mM][aA][fF]$" } }],
+      "destination": "/saint-martin",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[wW][sS][mM]$" } }],
+      "destination": "/samoa",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][mM][rR]$" } }],
+      "destination": "/san-marino",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][tT][pP]$" } }],
+      "destination": "/sao-tome-and-principe",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][aA][uU]$" } }],
+      "destination": "/saudi-arabia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][cC][rR]$" } }],
+      "destination": "/scarborough-reef",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][eE][nN]$" } }],
+      "destination": "/senegal",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][rR][bB]$" } }],
+      "destination": "/serbia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][eE][rR]$" } }],
+      "destination": "/serranilla-bank",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][yY][cC]$" } }],
+      "destination": "/seychelles",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[kK][aA][sS]$" } }],
+      "destination": "/siachen-glacier",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][lL][eE]$" } }],
+      "destination": "/sierra-leone",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][gG][pP]$" } }],
+      "destination": "/singapore",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][xX][mM]$" } }],
+      "destination": "/sint-maarten",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][vV][kK]$" } }],
+      "destination": "/slovakia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][vV][nN]$" } }],
+      "destination": "/slovenia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][lL][bB]$" } }],
+      "destination": "/solomon-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][oO][mM]$" } }],
+      "destination": "/somalia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][oO][lL]$" } }],
+      "destination": "/somaliland",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[zZ][aA][fF]$" } }],
+      "destination": "/south-africa",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][gG][sS]$" } }],
+      "destination": "/south-georgia-and-the-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][dD][sS]$" } }],
+      "destination": "/south-sudan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][pP][iI]$" } }],
+      "destination": "/southern-patagonian-ice-field",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[eE][sS][pP]$" } }],
+      "destination": "/spain",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[pP][gG][aA]$" } }],
+      "destination": "/spratly-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[lL][kK][aA]$" } }],
+      "destination": "/sri-lanka",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][dD][nN]$" } }],
+      "destination": "/sudan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][uU][rR]$" } }],
+      "destination": "/suriname",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][wW][eE]$" } }],
+      "destination": "/sweden",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[cC][hH][eE]$" } }],
+      "destination": "/switzerland",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][yY][rR]$" } }],
+      "destination": "/syria",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][wW][nN]$" } }],
+      "destination": "/taiwan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][jJ][kK]$" } }],
+      "destination": "/tajikistan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][zZ][aA]$" } }],
+      "destination": "/tanzania",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][hH][aA]$" } }],
+      "destination": "/thailand",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][mM][bB]$" } }],
+      "destination": "/the-gambia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][lL][sS]$" } }],
+      "destination": "/timor-leste",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][gG][oO]$" } }],
+      "destination": "/togo",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][oO][nN]$" } }],
+      "destination": "/tonga",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][tT][oO]$" } }],
+      "destination": "/trinidad-and-tobago",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][uU][nN]$" } }],
+      "destination": "/tunisia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][uU][rR]$" } }],
+      "destination": "/turkey",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][kK][mM]$" } }],
+      "destination": "/turkmenistan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][cC][aA]$" } }],
+      "destination": "/turks-and-caicos-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[tT][uU][vV]$" } }],
+      "destination": "/tuvalu",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[uU][gG][aA]$" } }],
+      "destination": "/uganda",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[uU][kK][rR]$" } }],
+      "destination": "/ukraine",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[aA][rR][eE]$" } }],
+      "destination": "/united-arab-emirates",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[gG][bB][rR]$" } }],
+      "destination": "/united-kingdom",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[uU][sS][aA]$" } }],
+      "destination": "/united-states",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[uU][mM][iI]$" } }],
+      "destination": "/united-states-minor-outlying-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[vV][iI][rR]$" } }],
+      "destination": "/united-states-virgin-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[uU][rR][yY]$" } }],
+      "destination": "/uruguay",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[uU][sS][gG]$" } }],
+      "destination": "/us-naval-base-guantanamo-bay",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[uU][zZ][bB]$" } }],
+      "destination": "/uzbekistan",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[vV][uU][tT]$" } }],
+      "destination": "/vanuatu",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[vV][aA][tT]$" } }],
+      "destination": "/vatican",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[vV][eE][nN]$" } }],
+      "destination": "/venezuela",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[vV][nN][mM]$" } }],
+      "destination": "/vietnam",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[wW][lL][fF]$" } }],
+      "destination": "/wallis-and-futuna-islands",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[sS][aA][hH]$" } }],
+      "destination": "/western-sahara",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[yY][eE][mM]$" } }],
+      "destination": "/yemen",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[zZ][mM][bB]$" } }],
+      "destination": "/zambia",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "query", "key": "country", "value": { "re": "^[zZ][wW][eE]$" } }],
+      "destination": "/zimbabwe",
+      "permanent": true
+    }
+  ]
+}

@@ -10,7 +10,7 @@ The platform workstream (migration steps 1 and 2) moved it to Next.js with path 
 The globe workstream (step 4) replaced the prototype globe with the controller in `src/globe/`; labels follow printed-atlas rules and stay apart from story places.
 The content workstream (step 3) added the schema, the English edition in `content/en/` (files are discovered, not registered), and the gazetteer with sea passages.
 Pages read only `content/en/` through server-only loaders, hand the shell serializable view models, and the browser loads two build-time indexes instead of content modules.
-URLs use readable slugs; prototype query URLs redirect in the browser.
+URLs use readable slugs; prototype query URLs get permanent redirects from `vercel.json`.
 The content pipeline workstream (step 5) added generation, verification and review commands in `pipeline/`; no content has been generated with them yet.
 The question-first experience (step 6) made the home a question input with suggested questions from `content/en/home.json`, shared with Cmd K.
 Step 7 has started: Playwright e2e tests cover the core loop on desktop and phone, and a visual polish pass covered every surface at 1440, 1024 and 390 pixels wide.
@@ -50,7 +50,6 @@ Fix these where the migration touches them, or explicitly drop them with the cod
 
 - In development, an unknown path such as `/atlantis` answers 500 instead of 404 unless the request asks for HTML, because `output: 'export'` forbids unknown params; the static build serves a plain 404.
   The icons the browser requests on its own are real files (`app/favicon.ico`, `app/apple-icon.png`), so they are not affected.
-- The prototype query URL redirect runs in the browser; move it to Vercel `redirects` when the site deploys there.
 - Search is lexical: prefix matching, TF-IDF keywords and a short synonym list.
   A question phrased with none of a story's words ("What makes Singapore wealthy?" works, "Why is Singapore loaded?" does not) is reported as unanswered; revisit with embeddings or pipeline-generated paraphrases once the question bank grows.
 - Same-country next questions carry no `reason` in content, so the story shows only "Deeper in <country>" for them; the pipeline could write one.
