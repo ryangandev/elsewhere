@@ -17,5 +17,5 @@ const index = source.features.map(feature => {
     region: properties.SUBREGION, lat: +lat.toFixed(6), lng: +lng.toFixed(6),
     area: +geoArea(mainland).toFixed(8), rank: properties.LABELRANK ?? 6 };
 }).sort((a, b) => a.name.localeCompare(b.name));
-writeFileSync(new URL('../app/country-index.json', import.meta.url), JSON.stringify(index, null, 2) + '\n');
+writeFileSync(new URL('../src/content/legacy/country-index.json', import.meta.url), JSON.stringify(index, null, 2) + '\n');
 console.log(`Indexed ${index.length} Natural Earth countries and territories.`);
