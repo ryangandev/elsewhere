@@ -28,3 +28,6 @@ npm-debug.log*
 /outputs/
 /work/
 /.map-sources/
+
+# Agent worktrees
+/.claude/worktrees/
