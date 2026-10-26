@@ -42,7 +42,7 @@ tests/                     unit tests; e2e/ for Playwright
 
 ## Platform
 
-Next.js App Router with static generation, deployed as a static site.
+Next.js App Router with static generation, deployed as a static site on Vercel.
 
 Why:
 

@@ -8,20 +8,25 @@ Delete items when they are resolved; history lives in git.
 The code is the prototype "second edition": ten hand-edited countries, thirty questions, three trails, a bilingual interface, and a 4K globe with progressive labels.
 It still runs on the ChatGPT Sites template (vinext on a Cloudflare Worker).
 Product direction and target architecture were settled on 2026-10-26; see [product.md](product.md) and [architecture.md](architecture.md).
-The codebase has not started the migration yet.
+Migration is in progress.
+Steps 1 to 4 run as parallel workstreams (platform, content schema, globe controller) and are integrated afterwards.
 
 `README.md` and `QA.md` describe the prototype.
-They will be reduced to a short README during migration step 1, with lasting rationale moved into `architecture.md`.
+They are reduced to a short README during migration step 1, with lasting rationale moved into `architecture.md`.
 
-## Open decisions
+## Confirmed decisions (2026-10-26)
 
-- **Hosting for Stage 1.** Proposed: Vercel static deployment. Needs Ryan's confirmation.
-- **Live answers in Stage 1.** Proposed: not in Stage 1; the question bank must be large enough first. Revisit after the pilot batch.
-- **Pilot batch scope.** Proposed: about 20 countries with an overview and 4 to 6 questions each, to tune prompts and the review bar.
+- Next.js replaces vinext; Stage 1 deploys as a static site on Vercel.
+- No live answers in Stage 1; the reviewed question bank comes first.
+- The pilot batch is about 20 countries, each with an overview and 4 to 6 questions, to tune prompts and the review bar.
+
+## Waiting on Ryan
+
+- An Anthropic API key for the content pipeline, needed before the pilot batch can be generated.
 
 ## Next steps
 
-Follow [Migration plan](architecture.md#migration-plan), starting with step 1.
+Follow [Migration plan](architecture.md#migration-plan).
 
 ## Known UI issues in the prototype
 
