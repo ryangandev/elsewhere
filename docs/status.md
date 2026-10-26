@@ -8,7 +8,9 @@ Delete items when they are resolved; history lives in git.
 The code is the prototype "second edition": ten hand-edited countries, thirty questions, three trails, and a 4K globe with progressive labels.
 The platform workstream (migration steps 1 and 2) moved it to Next.js with path routes, a persistent globe in the root layout, an English-only message catalog, Prettier, Vitest, and CI.
 The globe workstream (step 4) replaced the prototype globe with the `MapScene`-driven controller in `src/globe/`.
-Until the content workstream is integrated, the prototype data lives in `src/content/legacy/`, and `src/domain/legacy-scene.ts` builds globe scenes from it.
+The content workstream (step 3) added the schema, the English edition in `content/en/`, and the gazetteer.
+The content wiring removed the prototype data: pages read only `content/en/` through server-only loaders, hand the shell serializable view models, and the browser loads two build-time indexes instead of content modules.
+URLs use readable slugs; prototype query URLs and interim ID paths redirect in the browser.
 Product direction and target architecture were settled on 2026-10-26; see [product.md](product.md) and [architecture.md](architecture.md).
 Migration is in progress.
 Steps 1 to 4 run as parallel workstreams (platform, content schema, globe controller) and are integrated afterwards.
@@ -27,10 +29,11 @@ Steps 1 to 4 run as parallel workstreams (platform, content schema, globe contro
 
 Follow [Migration plan](architecture.md#migration-plan).
 
-## Known UI issues in the prototype
+## Known issues
 
 Fix these where the migration touches them, or explicitly drop them with the code they belong to.
 
 - The home view shows only two or three country names; large countries such as Russia and Kazakhstan get none.
-- Edited profiles repeat the generic "Where is X?" learning guide.
-- Singapore's illustrative route visibly crosses land.
+- The home picks are a fixed list of four country IDs in `src/domain/page-views.ts` until the question-first home (step 6) replaces them.
+- In development, the browser's automatic `/favicon.ico` request matches `app/[country]` and logs a 500, because `output: 'export'` forbids unknown params; the static build serves a plain 404.
+- Redirects from old URLs run in the browser; move them to Vercel `redirects` when the site deploys there.
