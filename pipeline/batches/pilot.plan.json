@@ -1,0 +1,653 @@
+{
+  "batch": "pilot",
+  "generatedBy": "claude-opus-5-5",
+  "generatedAt": "2026-10-26",
+  "promptVersion": "v2",
+  "countries": [
+    {
+      "countryId": "EGY",
+      "stories": [
+        {
+          "id": "nile",
+          "question": "Why do almost all Egyptians live along the Nile?",
+          "angle": "common"
+        },
+        {
+          "id": "oldest-state",
+          "question": "How did the Nile give rise to one of the world's oldest states?",
+          "angle": "common"
+        },
+        {
+          "id": "suez",
+          "question": "Why does so much world trade pass through the Suez Canal?",
+          "angle": "common"
+        },
+        {
+          "id": "nile-source",
+          "question": "Where does the Nile's water actually come from?",
+          "angle": "unexpected"
+        },
+        {
+          "id": "wheat",
+          "question": "Why does Egypt import so much wheat?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "NGA",
+      "stories": [
+        {
+          "id": "population",
+          "question": "Why does Nigeria have so many people?",
+          "angle": "common"
+        },
+        {
+          "id": "north-south",
+          "question": "Why are northern and southern Nigeria so different?",
+          "angle": "common"
+        },
+        {
+          "id": "oil",
+          "question": "Why hasn't oil wealth reached most Nigerians?",
+          "angle": "common"
+        },
+        {
+          "id": "abuja",
+          "question": "Why did Nigeria build a new capital in the middle of the country?",
+          "angle": "common"
+        },
+        {
+          "id": "pop-culture",
+          "question": "How did Nigerian films and music win fans around the world?",
+          "angle": "common"
+        },
+        {
+          "id": "niger-river",
+          "question": "Why does the Niger River flow toward the Sahara before reaching the sea?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "KEN",
+      "stories": [
+        {
+          "id": "rift-valley",
+          "question": "Is Africa really splitting apart along the Rift Valley?",
+          "angle": "common"
+        },
+        {
+          "id": "runners",
+          "question": "Why do so many of the world's best distance runners come from Kenya?",
+          "angle": "common"
+        },
+        {
+          "id": "mobile-money",
+          "question": "How did Kenya become a world leader in mobile money?",
+          "angle": "common"
+        },
+        {
+          "id": "swahili",
+          "question": "How did Swahili become East Africa's shared language?",
+          "angle": "common"
+        },
+        {
+          "id": "nairobi",
+          "question": "How did a railway camp become Kenya's capital?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "ZAF",
+      "stories": [
+        {
+          "id": "capitals",
+          "question": "Why does South Africa have three capitals?",
+          "angle": "common"
+        },
+        {
+          "id": "languages",
+          "question": "Why does South Africa have so many official languages?",
+          "angle": "common"
+        },
+        {
+          "id": "apartheid",
+          "question": "How did apartheid redraw the map of South Africa?",
+          "angle": "common"
+        },
+        {
+          "id": "cape",
+          "question": "Why did the Dutch first settle in South Africa?",
+          "angle": "common"
+        },
+        {
+          "id": "lesotho",
+          "question": "Why is there a whole country inside South Africa?",
+          "angle": "common"
+        },
+        {
+          "id": "gold",
+          "question": "Why did Johannesburg grow so big without a river, lake or coast?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "GBR",
+      "stories": [
+        {
+          "id": "names",
+          "question": "What is the difference between the UK, Great Britain and England?",
+          "angle": "common"
+        },
+        {
+          "id": "empire",
+          "question": "How did an island nation build the largest empire in history?",
+          "angle": "common"
+        },
+        {
+          "id": "industry",
+          "question": "Why did the Industrial Revolution start in Britain?",
+          "angle": "common"
+        },
+        {
+          "id": "english",
+          "question": "Why is English spoken almost everywhere?",
+          "angle": "common"
+        },
+        {
+          "id": "common-law",
+          "question": "Why do so many countries still use English-style law?",
+          "angle": "unexpected"
+        },
+        {
+          "id": "climate",
+          "question": "Why is Britain so mild for a place so far north?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "DEU",
+      "stories": [
+        {
+          "id": "unification",
+          "question": "Why did Germany become one country so late?",
+          "angle": "common"
+        },
+        {
+          "id": "berlin",
+          "question": "Why was Berlin divided when it lay deep inside East Germany?",
+          "angle": "common"
+        },
+        {
+          "id": "rhine",
+          "question": "Why is the Rhine Europe's busiest river?",
+          "angle": "common"
+        },
+        {
+          "id": "economy",
+          "question": "How did Germany become Europe's largest economy?",
+          "angle": "common"
+        },
+        {
+          "id": "russian-gas",
+          "question": "Why did Germany come to rely on Russian gas?",
+          "angle": "common"
+        },
+        {
+          "id": "cities",
+          "question": "Why does Germany have no giant city like London or Paris?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "RUS",
+      "stories": [
+        {
+          "id": "size",
+          "question": "How did Russia become the largest country on Earth?",
+          "angle": "common"
+        },
+        {
+          "id": "siberia",
+          "question": "Why do so few Russians live in Siberia?",
+          "angle": "common"
+        },
+        {
+          "id": "warm-water",
+          "question": "Why has Russia spent centuries seeking warm-water ports?",
+          "angle": "common"
+        },
+        {
+          "id": "pipelines",
+          "question": "Why do so many pipelines lead out of Russia?",
+          "angle": "common"
+        },
+        {
+          "id": "arctic",
+          "question": "Why does the Arctic matter so much to Russia?",
+          "angle": "common"
+        },
+        {
+          "id": "wheat",
+          "question": "How did Russia become the world's biggest wheat exporter?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "NLD",
+      "stories": [
+        {
+          "id": "polders",
+          "question": "How did the Dutch make land out of the sea?",
+          "angle": "common"
+        },
+        {
+          "id": "rotterdam",
+          "question": "Why is Rotterdam Europe's biggest port?",
+          "angle": "common"
+        },
+        {
+          "id": "golden-age",
+          "question": "How did the small Dutch Republic build a worldwide trading empire?",
+          "angle": "common"
+        },
+        {
+          "id": "cycling",
+          "question": "Why do the Dutch cycle so much?",
+          "angle": "common"
+        },
+        {
+          "id": "food-exports",
+          "question": "How did the small, crowded Netherlands become a giant food exporter?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "KOR",
+      "stories": [
+        {
+          "id": "division",
+          "question": "Why is Korea split into two countries?",
+          "angle": "common"
+        },
+        {
+          "id": "growth",
+          "question": "How did South Korea get rich so fast?",
+          "angle": "common"
+        },
+        {
+          "id": "hallyu",
+          "question": "How did K-pop and Korean dramas go global?",
+          "angle": "common"
+        },
+        {
+          "id": "seoul",
+          "question": "Why is Seoul so close to the North Korean border?",
+          "angle": "common"
+        },
+        {
+          "id": "island",
+          "question": "Why is South Korea effectively an island?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "SAU",
+      "stories": [
+        {
+          "id": "oil",
+          "question": "Why is there so much oil under Saudi Arabia?",
+          "angle": "common"
+        },
+        {
+          "id": "kingdom",
+          "question": "Why is Saudi Arabia named after a family?",
+          "angle": "common"
+        },
+        {
+          "id": "mecca",
+          "question": "Why do millions of pilgrims travel to Mecca?",
+          "angle": "common"
+        },
+        {
+          "id": "water",
+          "question": "How does Saudi Arabia get water without any rivers?",
+          "angle": "common"
+        },
+        {
+          "id": "pipeline",
+          "question": "Why does Saudi Arabia pipe oil across the desert to the Red Sea?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "KAZ",
+      "stories": [
+        {
+          "id": "landlocked",
+          "question": "How does the world's largest landlocked country reach world markets?",
+          "angle": "common"
+        },
+        {
+          "id": "baikonur",
+          "question": "Why does Russia launch rockets from Kazakhstan?",
+          "angle": "common"
+        },
+        {
+          "id": "aral-sea",
+          "question": "What happened to the Aral Sea?",
+          "angle": "common"
+        },
+        {
+          "id": "astana",
+          "question": "Why did Kazakhstan move its capital to the cold northern steppe?",
+          "angle": "common"
+        },
+        {
+          "id": "apples",
+          "question": "Did the world's apples come from Kazakhstan?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "VNM",
+      "stories": [
+        {
+          "id": "shape",
+          "question": "Why is Vietnam so long and narrow?",
+          "angle": "common"
+        },
+        {
+          "id": "war",
+          "question": "Why did the United States go to war in Vietnam?",
+          "angle": "common"
+        },
+        {
+          "id": "factories",
+          "question": "Why are so many factories moving to Vietnam?",
+          "angle": "common"
+        },
+        {
+          "id": "mekong",
+          "question": "Why is the Mekong Delta sinking?",
+          "angle": "common"
+        },
+        {
+          "id": "south-china-sea",
+          "question": "Why do so many countries claim the South China Sea?",
+          "angle": "common"
+        },
+        {
+          "id": "coffee",
+          "question": "How did Vietnam become the world's second-biggest coffee producer?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "CAN",
+      "stories": [
+        {
+          "id": "population",
+          "question": "Why do most Canadians live close to the US border?",
+          "angle": "common"
+        },
+        {
+          "id": "quebec",
+          "question": "Why is Quebec French-speaking?",
+          "angle": "common"
+        },
+        {
+          "id": "lakes",
+          "question": "Why does Canada have so many lakes?",
+          "angle": "common"
+        },
+        {
+          "id": "northwest-passage",
+          "question": "Why is the Northwest Passage so hard to sail?",
+          "angle": "common"
+        },
+        {
+          "id": "beavers",
+          "question": "How did beavers shape the map of Canada?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "MEX",
+      "stories": [
+        {
+          "id": "border",
+          "question": "Why is the US-Mexico border where it is?",
+          "angle": "common"
+        },
+        {
+          "id": "border-factories",
+          "question": "Why are so many factories clustered along Mexico's northern border?",
+          "angle": "common"
+        },
+        {
+          "id": "sinking",
+          "question": "Why is Mexico City sinking?",
+          "angle": "common"
+        },
+        {
+          "id": "food",
+          "question": "How did Mexico's crops change what the world eats?",
+          "angle": "common"
+        },
+        {
+          "id": "cenotes",
+          "question": "Why does the Yucatán have thousands of sinkholes but hardly any rivers?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "CHL",
+      "stories": [
+        {
+          "id": "shape",
+          "question": "Why is Chile so long and thin?",
+          "angle": "common"
+        },
+        {
+          "id": "atacama",
+          "question": "Why is the Atacama Desert so dry?",
+          "angle": "common"
+        },
+        {
+          "id": "copper",
+          "question": "Why does Chile have so much copper?",
+          "angle": "common"
+        },
+        {
+          "id": "earthquakes",
+          "question": "Why does Chile have so many powerful earthquakes?",
+          "angle": "common"
+        },
+        {
+          "id": "rapa-nui",
+          "question": "Why is a Polynesian island part of Chile?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "PAN",
+      "stories": [
+        {
+          "id": "canal",
+          "question": "Why was the canal between the Atlantic and the Pacific built in Panama?",
+          "angle": "common"
+        },
+        {
+          "id": "colombia",
+          "question": "Why did Panama break away from Colombia?",
+          "angle": "common"
+        },
+        {
+          "id": "darien",
+          "question": "Why is there no road through the Darién Gap?",
+          "angle": "common"
+        },
+        {
+          "id": "canal-water",
+          "question": "Why does the Panama Canal depend on rain?",
+          "angle": "unexpected"
+        },
+        {
+          "id": "land-bridge",
+          "question": "How did a narrow strip of land reshape the world's oceans and wildlife?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "ARG",
+      "stories": [
+        {
+          "id": "pampas",
+          "question": "How did the pampas make Argentina rich?",
+          "angle": "common"
+        },
+        {
+          "id": "buenos-aires",
+          "question": "Why do a third of Argentines live around Buenos Aires?",
+          "angle": "common"
+        },
+        {
+          "id": "italian-roots",
+          "question": "Why do so many Argentines have Italian roots?",
+          "angle": "common"
+        },
+        {
+          "id": "falklands",
+          "question": "Why do Argentina and Britain both claim the Falklands, or Malvinas?",
+          "angle": "common"
+        },
+        {
+          "id": "rain-shadow",
+          "question": "Why does the dry side of the Andes switch from Chile to Argentina?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "AUS",
+      "stories": [
+        {
+          "id": "coast",
+          "question": "Why do most Australians live near the coast?",
+          "angle": "common"
+        },
+        {
+          "id": "first-peoples",
+          "question": "How did people reach Australia more than 50,000 years ago?",
+          "angle": "common"
+        },
+        {
+          "id": "convicts",
+          "question": "Why did Britain send convicts to Australia?",
+          "angle": "common"
+        },
+        {
+          "id": "iron-ore",
+          "question": "Why does so much Australian iron ore go to China?",
+          "angle": "common"
+        },
+        {
+          "id": "reef",
+          "question": "Why is the Great Barrier Reef so vulnerable to warming seas?",
+          "angle": "common"
+        },
+        {
+          "id": "drift",
+          "question": "Why is Australia drifting north so fast?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "NZL",
+      "stories": [
+        {
+          "id": "voyagers",
+          "question": "How did Polynesian voyagers find New Zealand?",
+          "angle": "common"
+        },
+        {
+          "id": "earthquakes",
+          "question": "Why does New Zealand have so many earthquakes and volcanoes?",
+          "angle": "common"
+        },
+        {
+          "id": "birds",
+          "question": "Why does New Zealand have so many flightless birds?",
+          "angle": "common"
+        },
+        {
+          "id": "waitangi",
+          "question": "Why does the Treaty of Waitangi still matter?",
+          "angle": "common"
+        },
+        {
+          "id": "zealandia",
+          "question": "Is New Zealand the tip of a sunken continent?",
+          "angle": "unexpected"
+        },
+        {
+          "id": "refrigeration",
+          "question": "How did refrigerated ships turn New Zealand into Britain's farm?",
+          "angle": "unexpected"
+        }
+      ]
+    },
+    {
+      "countryId": "GRL",
+      "stories": [
+        {
+          "id": "map-size",
+          "question": "Why does Greenland look so huge on maps?",
+          "angle": "common"
+        },
+        {
+          "id": "ice-sheet",
+          "question": "How much would the seas rise if Greenland's ice melted?",
+          "angle": "common"
+        },
+        {
+          "id": "denmark",
+          "question": "Why is Greenland part of the Kingdom of Denmark?",
+          "angle": "common"
+        },
+        {
+          "id": "vikings",
+          "question": "What happened to the Vikings who settled Greenland?",
+          "angle": "common"
+        },
+        {
+          "id": "defence",
+          "question": "Why is Greenland so important to the defence of North America?",
+          "angle": "common"
+        },
+        {
+          "id": "west-coast",
+          "question": "Why do most Greenlanders live on the west coast?",
+          "angle": "unexpected"
+        }
+      ]
+    }
+  ]
+}
