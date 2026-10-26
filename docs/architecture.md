@@ -113,33 +113,85 @@ What can go wrong:
 
 ## Globe
 
-A framework-free controller in `src/globe/` with a thin React wrapper.
+A framework-free controller in `src/globe/`, driven by a declarative `MapScene`, with a thin React wrapper.
 
-```text
-const globe = createAtlasGlobe(container, { geometry, labels })
-globe.setScene(scene)     // camera, focus, highlights, places, routes
-globe.on('select', id)    // country clicked
-globe.zoom('in' | 'out' | 'reset')
-globe.dispose()
+```ts
+const globe = createAtlasGlobe(container, { labels, assets, occluders, homeView });
+globe.setScene(scene); // MapScene: camera?, focusCountryId?, highlights, places, routes, focusPlaceId?
+globe.zoom('in' | 'out' | 'reset');
+const off = globe.on('select', (countryId) => {}); // also 'focusPlace' (place id) and 'status'
+globe.status; // 'loading' | 'ready' | 'error'
+globe.dispose();
 ```
+
+```tsx
+<GlobeView ref={handle} scene={scene} labels={labels} occluders={findPanels}
+  onSelect={...} onFocusPlace={...} onStatus={...} />
+handle.current?.zoom('in');
+```
+
+`MapScene` (`src/globe/scene.ts`) carries resolved coordinates: the content layer looks places up in the gazetteer before it builds a scene.
+An empty scene is the world view.
+Options carry everything the controller needs, so it never imports app or content modules:
+
+- `labels`: country id, name, anchor, area, and label rank, read once at creation.
+- `assets`: the basemap image and both geometry URLs; `DEFAULT_GLOBE_ASSETS` points at `public/maps`.
+- `occluders`: a callback returning elements, such as panels, that labels must not cover; they are measured at each layout.
+- `homeView`: the camera for a scene with no camera and no focus country.
+
+How a scene is applied:
+
+- Scenes are diffed (`scene-diff.ts`); a structurally equal scene does nothing, and each changed layer updates on its own.
+- The camera moves only when the scene's target view changes.
+  The target is the focused place, else the explicit `camera`, else a view framed from the focus country's area (`camera.ts`), else home.
+  Reset returns to the scene's view without the focused place.
+- Country names are created once and updated in place.
+  Place labels and routes are keyed by id, so navigation only creates, moves, or removes the ones that changed.
+- A place with a country's id or name replaces that country's name, and the focus country is never repeated as a place.
+- Highlights light up as one merged fill and outline per role (`related`, `contrast`), and highlighted names win label collisions.
+
+Modules:
+
+| Module | Responsibility |
+| --- | --- |
+| `controller.ts` | Public API, events, lifecycle; loads the engine on demand |
+| `engine.ts` | globe.gl setup, render settings, resize, visibility, context loss; composes the parts below |
+| `camera.ts`, `scene-diff.ts` | Pure framing and change detection |
+| `geography.ts` | Country geometry, borders, fills, picking, detail refinement |
+| `borders.ts`, `fills.ts`, `country-lookup.ts`, `projection.ts` | Merged line buffers, lazy merged caps, bounds-filtered lookup, sphere unprojection |
+| `label-layer.ts`, `cartography.ts` | Country and place labels, screen-space fit, collision and occluder avoidance |
+| `interactions.ts` | Pointer hover, tooltip, click selection |
+| `route-layer.ts` | Route paths styled by kind |
+| `materials.ts` | Image basemap material and camera-relative lights |
+| `GlobeView.tsx`, `globe.css` | React wrapper, failure fallback, globe-owned styles |
 
 Why:
 
 - The prototype kept all globe logic inside one large React effect and passed functions between effects through refs.
-  A plain class with explicit methods is easier to read, test, and reuse.
+  A controller with explicit methods is easier to read, test, and reuse.
 - React state describes *what* to show (`MapScene`); the controller decides *how* to animate and render it.
-- Labels are created once and updated in place, instead of being rebuilt on every navigation.
+- globe.gl and Three.js load through a dynamic import inside the controller, so the wrapper is safe to server-render and the engine stays out of the initial bundle.
 
 Kept from the prototype, because each was measured or verified:
 
 - The 4K image basemap with merged border buffers, rather than vector land meshes.
-- Progressive country labels with screen-space fit and collision checks.
-- Sphere-intersection picking with bounds filtering, instead of scene raycasts.
-- Lazy, merged fill caps for hovered and selected countries, with a bounded cache.
-- Base geometry first, detailed geometry when zoomed in.
+- Progressive country labels with screen-space fit, horizon fading, and collision checks, laid out at most every 48 ms.
+- Sphere-intersection picking with bounds filtering, instead of scene raycasts; globe.gl pointer interaction stays off.
+- Lazy, merged fill caps for hovered and selected countries, with a bounded sixteen-country cache.
+- Base geometry first, detailed geometry once the camera is closer than altitude 1.1.
+- Hover paused while the camera moves, and drags never select, on the globe or on labels.
+- Reduced motion skips camera tweens and route animation.
+- Pixel ratio capped at 2, rendering paused while the tab is hidden, and WebGL failure or context loss shown as a fallback that keeps the stories usable.
+  Retry mounts a fresh controller instead of reloading the page.
 
-Removed: the vector terrain mode, relief textures, and the FPS diagnostic panel.
+Removed: the vector terrain mode, relief textures, the label toggle, and the FPS diagnostic panel.
 They were investigation tools, not product features, and they remain in git history.
+
+What can go wrong:
+
+- Labels re-layout on camera, scene, and container size changes, not when an occluder resizes on its own.
+- globe.gl recreates every label element when its `htmlElement` accessor changes, so it is set exactly once.
+- Long names can fail the fit test at world zoom and stay hidden until the camera is closer.
 
 ## Discovery and navigation
 
