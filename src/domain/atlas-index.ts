@@ -41,6 +41,8 @@ export type AtlasIndex = {
   countries: IndexCountry[];
   stories: IndexStory[];
   trails: TrailView[];
+  /** The home screen's starting questions, offered when search has nothing better. */
+  suggestions: { countryId: string; storyId: string }[];
 };
 
 /** Fast lookups over an index, built once per loaded index. */

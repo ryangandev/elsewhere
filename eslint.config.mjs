@@ -11,7 +11,7 @@ const clientCode = [
   'src/ui/**/*.{ts,tsx}',
   'src/globe/**/*.{ts,tsx}',
   'src/i18n/**/*.ts',
-  'src/domain/{atlas-index,destination,library,search,use-library,view-models}.ts',
+  'src/domain/{ask,atlas-index,destination,library,live-answers,search,use-library,view-models}.ts',
 ];
 
 const eslintConfig = defineConfig([
