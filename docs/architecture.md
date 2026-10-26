@@ -480,6 +480,18 @@ Reading:
   They store destinations by ID and resolve titles and links through the atlas index; entries whose question no longer exists are hidden.
 - Old URLs redirect in the browser; see [Platform](#platform).
 
+## Styling
+
+- Tailwind v4 serves the shadcn primitives in `src/ui/primitives/`.
+  Everything else is plain CSS, one stylesheet beside the components it styles, imported by those components: `src/ui/shell/shell.css`, `src/ui/panel/panel.css`, `reading.css`, `map-overlays.css` and `story-link.css`, `src/ui/dialogs/dialogs.css`, `src/ui/home/home.css`, `src/ui/search/search.css`, and `src/globe/globe.css`.
+- `app/globals.css` keeps only the design tokens, base element styles, and the shell's grid.
+  `.world-app` sets `--gutter`, `--header`, `--footer`, `--inset` and `--panel-width` for each screen size, and `.globe-area` is placed from them, so everything that reads those variables follows.
+- Each class is styled in one place.
+  A breakpoint adjusts a rule inside that rule's own stylesheet, instead of overriding it later in another one, so a rule's final value can be read where it is written.
+- The breakpoints are 1500px, 1100px, 800px (phones, where every control is at least 44px) and 380px, plus short screens (800px high) for the globe and the home column.
+- Our rules are unlayered, so they beat Tailwind's layered utilities on the shared primitives without `!important`.
+  Use `!important` only to beat a more specific rule.
+
 ## Internationalization
 
 English only in Stage 1.
