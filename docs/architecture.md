@@ -30,6 +30,7 @@ app/                       Next.js routes; the root layout owns the persistent g
   [country]/[story]/page.tsx  one answered question
   atlas/labels.json/       build-time client index: country labels for the globe
   atlas/index.json/        build-time client index: countries, questions, trails
+  robots.ts, sitemap.ts    robots.txt and sitemap.xml, generated at build time
 src/
   content/                 schema (zod), typed loaders, validation; server-only
   domain/                  view models, routing, client indexes, search and ask, library
@@ -73,7 +74,14 @@ How it is built:
 - The globe is loaded with `next/dynamic` and `ssr: false`, because it needs `window` and WebGL.
 - Trail context stays a search parameter (`/singapore/shipping?trail=water-connects`).
   Pages are prerendered without it and the panel shows trail progress once the page hydrates, which keeps the page itself static.
-- Each page sets its own title and description with `generateMetadata`.
+- Each page sets its own title, description, canonical path and Open Graph preview with `generateMetadata`, through `pageMetadata` in `src/domain/site.ts`.
+  Next.js replaces `openGraph` as a whole instead of merging it with the layout's, so the helper always sets all of it.
+  The not-found page has no canonical link.
+- Absolute URLs (canonical links, `og:url`, robots.txt, the sitemap) are built on `siteOrigin()`: the production domain Vercel sets in `VERCEL_PROJECT_PRODUCTION_URL` for every deployment, or `http://localhost:3000` elsewhere.
+  Previews therefore point search engines at production, and Vercel also marks previews `noindex`.
+  The value changes when a custom domain is added, on the next deployment, so nothing needs configuring.
+- `app/robots.ts` allows all crawling and names the sitemap; `app/sitemap.ts` lists the home page and every published country and question, dated by their review.
+  Map-only country pages are left out, because they hold Natural Earth basics rather than edited content.
 - The tab icon is a file convention: `app/icon.svg`, plus `app/favicon.ico` for the browser's automatic `/favicon.ico` request, which would otherwise reach `app/[country]`.
   `app/apple-icon.png` is the full-bleed home screen icon for iOS, which rounds the corners itself.
 
@@ -515,7 +523,7 @@ Adding Chinese later means adding a catalog and a `content/zh/` tree, with no co
 - Unit tests (Vitest) for pure logic: schema rules, navigation, search, cartography, picking.
 - Content validation runs in CI on every change to `content/`.
 - Pipeline tests in `tests/pipeline/` run plan, draft, verify, review and redraft end to end on replayed model responses.
-- Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, back and forward, trails, saving a story to your atlas, share, and the About sheet.
+- Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, robots.txt, the sitemap and canonical links, back and forward, trails, saving a story to your atlas, share, and the About sheet.
   A phone project runs the core loop (home, ask, story, follow), the reading panel collapsing to a strip and giving the globe its room, and share through a stubbed system share sheet at 390 by 844 with touch.
   The specs find things by role and visible text, read expected questions and sources from `content/en/`, and never depend on globe pixels or on WebGL (one spec runs with WebGL disabled).
   Run `npm run build` first, then `npm run test:e2e`; CI runs it as its own `e2e` job and keeps the Playwright report when it fails.

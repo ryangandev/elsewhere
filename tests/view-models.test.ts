@@ -10,6 +10,7 @@ import {
   nearbyEditedCountries,
   storySceneSpec,
 } from '@/domain/page-views';
+import { destinationPath } from '@/domain/paths';
 
 /** View models cross the server and client boundary, so they must survive JSON unchanged. */
 const roundTrip = <T>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -94,7 +95,11 @@ describe('story page', () => {
   it('builds for every question and describes it', () => {
     for (const story of listStories()) {
       const page = buildStoryPage(story.countryId, story.id);
-      expect(describePage(page)).toEqual({ title: story.question, description: story.summary });
+      expect(describePage(page)).toEqual({
+        title: story.question,
+        description: story.summary,
+        path: destinationPath({ countryId: story.countryId, storyId: story.id }),
+      });
     }
   });
 });
@@ -134,6 +139,7 @@ describe('country page', () => {
     expect(view.population?.value).toBeGreaterThan(30_000_000);
     expect(view.nearby[0].href).toBe('/united-states');
     expect(describePage(view).description.length).toBeGreaterThan(20);
+    expect(describePage(view).path).toBe('/canada');
   });
 
   it('finds the closest edited countries', () => {
