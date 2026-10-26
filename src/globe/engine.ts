@@ -1,8 +1,8 @@
 import Globe from 'globe.gl';
-import { TextureLoader, type Texture } from 'three';
+import { TextureLoader, type PerspectiveCamera, type Texture } from 'three';
 import { fetchCountries, type AtlasGlobeAssets } from './assets';
 import { sameView, sceneTarget, sceneView, zoomView } from './camera';
-import type { CountryFeature } from './cartography';
+import { LABEL_ALTITUDE, labelScale, type CountryFeature, type LabelScale } from './cartography';
 import type { HighlightRoles } from './fills';
 import { createGeography } from './geography';
 import { createPointerInteractions } from './interactions';
@@ -16,7 +16,6 @@ import type { SceneChanges } from './scene-diff';
 // The renderer-bound half of the controller. It is loaded on demand so that globe.gl and
 // Three.js stay out of server rendering and out of the initial bundle.
 
-const LABEL_ALTITUDE = 0.006;
 // Label layout is the main per-frame cost while the camera moves, so it runs at most ~20 times a second.
 const LAYOUT_INTERVAL_MS = 48;
 const SETTLE_DELAY_MS = 180;
@@ -95,20 +94,30 @@ export function createGlobeEngine(options: EngineOptions) {
   let lastLayout = 0;
   const layout = (now: number) => {
     if (disposed) return;
-    if (now - lastLayout < LAYOUT_INTERVAL_MS) {
+    // globe.gl applies a new size to the camera in a debounced update, so a layout right
+    // after a resize would project with the old aspect. It waits for the camera to catch up.
+    const camera = globe.camera() as PerspectiveCamera;
+    const stale =
+      globe.height() > 0 && Math.abs(camera.aspect - globe.width() / globe.height()) > 1e-3;
+    if (stale || now - lastLayout < LAYOUT_INTERVAL_MS) {
       frame = requestAnimationFrame(layout);
       return;
     }
     frame = 0;
     lastLayout = now;
-    globe.camera().updateMatrixWorld();
-    labels.layout({
+    camera.updateMatrixWorld();
+    const occluders = [...options.occluders()];
+    observeOccluders(occluders);
+    const moved = labels.layout({
       globe,
+      container,
       features: geography.features,
       unproject: surfacePoint,
       bounds: container.getBoundingClientRect(),
-      occluders: options.occluders(),
+      occluders,
     });
+    // Same datums, new coordinates: globe.gl repositions the moved names in place.
+    if (moved) globe.htmlElementsData(labels.data);
   };
   const scheduleLayout = () => {
     if (!frame && !disposed) frame = requestAnimationFrame(layout);
@@ -155,8 +164,20 @@ export function createGlobeEngine(options: EngineOptions) {
     onSelect: options.onSelect,
   });
 
+  // Country names step their type size with zoom; globe.css maps each step to a size.
+  let scale: LabelScale | undefined;
+  const updateLabelScale = () => {
+    const next = labelScale(globe.pointOfView().altitude);
+    if (next === scale) return;
+    scale = next;
+    container.dataset.labelScale = next;
+    labels.invalidateSizes();
+  };
+  updateLabelScale();
+
   let detailTimer: ReturnType<typeof setTimeout> | undefined;
   globe.onZoom(() => {
+    updateLabelScale();
     interactions.cameraMoved();
     basemap.followCamera(globe.camera());
     scheduleLayout();
@@ -170,6 +191,19 @@ export function createGlobeEngine(options: EngineOptions) {
     scheduleLayout();
   });
   observer.observe(container);
+
+  // Panels over the globe can resize on their own, such as a reading panel collapsing on
+  // mobile, so the current occluders are observed too. The set is refreshed at each layout.
+  const occluderObserver = new ResizeObserver(scheduleLayout);
+  let observedOccluders = new Set<Element>();
+  const observeOccluders = (elements: readonly Element[]) => {
+    const next = new Set(elements);
+    for (const element of observedOccluders)
+      if (!next.has(element)) occluderObserver.unobserve(element);
+    for (const element of next)
+      if (!observedOccluders.has(element)) occluderObserver.observe(element);
+    observedOccluders = next;
+  };
 
   // Rendering pauses while the tab is hidden and resumes with a fresh label layout.
   const visibility = () => {
@@ -229,6 +263,7 @@ export function createGlobeEngine(options: EngineOptions) {
       cancelAnimationFrame(frame);
       clearTimeout(detailTimer);
       observer.disconnect();
+      occluderObserver.disconnect();
       document.removeEventListener('visibilitychange', visibility);
       canvas.removeEventListener('webglcontextlost', contextLost);
       interactions.dispose();
