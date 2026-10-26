@@ -71,6 +71,39 @@ function duplicates<T>(values: T[]): T[] {
   return values.filter((value, index) => values.indexOf(value) !== index);
 }
 
+export type PendingReference = {
+  /** The draft story that holds the reference. */
+  from: { countryId: string; storyId: string };
+  to: { countryId: string; storyId: string };
+  reason?: string;
+};
+
+/**
+ * Next questions that point at a story in a country with no content file yet.
+ * validateContent allows them in drafts so a batch can link countries before all are drafted;
+ * they resolve when the target country is drafted with that story ID. Reviewed stories may not
+ * hold them, and the review workflow refuses to approve a story that still does.
+ */
+export function findPendingReferences(files: CountryFile[]): PendingReference[] {
+  const stories = new Set(
+    files.flatMap(({ stories }) => stories.map((story) => `${story.countryId}/${story.id}`)),
+  );
+  const countries = new Set(files.map(({ country }) => country.id));
+  return files.flatMap(({ stories: list }) =>
+    list.flatMap((story) =>
+      story.next
+        .filter(
+          (ref) => !countries.has(ref.countryId) && !stories.has(`${ref.countryId}/${ref.storyId}`),
+        )
+        .map((ref) => ({
+          from: { countryId: story.countryId, storyId: story.id },
+          to: { countryId: ref.countryId, storyId: ref.storyId },
+          ...(ref.reason ? { reason: ref.reason } : {}),
+        })),
+    ),
+  );
+}
+
 export function validateContent(input: ContentInput): ContentIssue[] {
   const issues: ContentIssue[] = [];
   const report = (file: string, path: string, message: string) =>
@@ -278,8 +311,13 @@ export function validateContent(input: ContentInput): ContentIssue[] {
         const refPath = `${path}.next[${index}]`;
         if (ref.countryId === country.id && ref.storyId === story.id) {
           report(file, refPath, 'A story cannot lead to itself');
+        } else if (!mapCountries.has(ref.countryId)) {
+          report(file, `${refPath}.countryId`, `Unknown map country "${ref.countryId}"`);
         } else if (!storyExists(ref.countryId, ref.storyId)) {
-          report(file, refPath, `Unknown story "${ref.countryId}/${ref.storyId}"`);
+          // A draft may point at a country that has no file yet; see findPendingReferences.
+          const pending =
+            !storiesByCountry.has(ref.countryId) && story.provenance.status === 'draft';
+          if (!pending) report(file, refPath, `Unknown story "${ref.countryId}/${ref.storyId}"`);
         }
         if (ref.countryId !== country.id && !ref.reason) {
           report(file, `${refPath}.reason`, 'A next question in another country needs a reason');
