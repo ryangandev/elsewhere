@@ -1,5 +1,6 @@
 import { geoArea } from 'd3-geo';
 import type { MultiPolygon, Polygon, Position } from 'geojson';
+import { ringContains } from './country-lookup';
 
 // Where a country's name may sit. The Natural Earth label point comes first, followed by a
 // few well-spread interior points with the most room around them. Layout picks the first
@@ -33,16 +34,12 @@ const HORIZONTAL_WEIGHT = 0.5;
 const MIN_PART_SHARE = 0.2;
 const MAX_PARTS = 3;
 const MIN_ROOM_SHARE = 0.5;
-
-function ringContains(ring: Position[], lng: number, lat: number) {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i];
-    const [xj, yj] = ring[j];
-    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
+// Grid cells across the shorter side of each part, so narrow parts are sampled finely enough.
+const NARROW_GRID = 4;
+// Stretches along a part's longer side that each get a point, and the least room such a point
+// may have, as a share of the most open point's room.
+const STRETCHES = 3;
+const MIN_STRETCH_ROOM_SHARE = 0.25;
 
 const partContains = (part: Part, lng: number, lat: number) =>
   ringContains(part.rings[0], lng, lat) &&
@@ -93,15 +90,19 @@ function clearance(part: Part, lng: number, lat: number, xScale: number) {
 const cosineOf = (part: Part) =>
   Math.max(0.2, Math.cos((((part.south + part.north) / 2) * Math.PI) / 180));
 
-function interiorPoints(part: Part, quota: number, taken: LabelCandidate[]) {
+type GridPoint = { lng: number; lat: number; room: number };
+
+// Points on a grid over the part, with the squared room around each, most open first.
+function gridPoints(part: Part) {
   const cosLat = cosineOf(part);
   const width = (part.east - part.west) * cosLat;
   const height = part.north - part.south;
-  const step = Math.max(width, height) / GRID;
-  if (!step) return [];
+  // A long, narrow part gets a finer grid, so its narrow stretches still have points.
+  const step = Math.min(Math.max(width, height) / GRID, Math.min(width, height) / NARROW_GRID);
+  const points: GridPoint[] = [];
+  if (!step) return { points, cosLat, width, height };
   const lngStep = step / cosLat;
   const xScale = cosLat * HORIZONTAL_WEIGHT;
-  const points: { lng: number; lat: number; room: number }[] = [];
   for (let lat = part.south + step / 2; lat < part.north; lat += step) {
     for (let lng = part.west + lngStep / 2; lng < part.east; lng += lngStep) {
       if (partContains(part, lng, lat))
@@ -109,18 +110,53 @@ function interiorPoints(part: Part, quota: number, taken: LabelCandidate[]) {
     }
   }
   points.sort((a, b) => b.room - a.room);
+  return { points, cosLat, width, height };
+}
+
+const candidate = (point: GridPoint, part: Part): LabelCandidate => ({
+  lat: point.lat,
+  lng: point.lng,
+  area: part.area,
+  room: Math.sqrt(point.room),
+});
+
+function interiorPoints(part: Part, quota: number, taken: LabelCandidate[]) {
+  const { points, cosLat, width, height } = gridPoints(part);
+  const picked: LabelCandidate[] = [];
+  if (!points.length) return picked;
   // Spread the picks out, so the alternatives cover different sides of the country.
   const separation = (0.3 * Math.max(width, height)) ** 2;
   const distance = (a: { lng: number; lat: number }, b: { lng: number; lat: number }) =>
     ((a.lng - b.lng) * cosLat) ** 2 + (a.lat - b.lat) ** 2;
-  const picked: LabelCandidate[] = [];
-  // Thin tails and peninsulas never hold a name, so only open interiors qualify:
-  // at least half the room of the most open point (room is a squared distance).
-  const minRoom = (points[0]?.room ?? 0) * MIN_ROOM_SHARE ** 2;
+  const isTaken = (point: GridPoint, apart = separation) =>
+    [...taken, ...picked].some((other) => distance(point, other) < apart);
+  // Open interiors come first: at least half the room of the most open point
+  // (room is a squared distance).
+  const minRoom = points[0].room * MIN_ROOM_SHARE ** 2;
   for (const point of points) {
     if (picked.length >= quota || point.room < minRoom) break;
-    if ([...taken, ...picked].some((other) => distance(point, other) < separation)) continue;
-    picked.push({ lat: point.lat, lng: point.lng, area: part.area, room: Math.sqrt(point.room) });
+    if (!isTaken(point)) picked.push(candidate(point, part));
+  }
+  // Then the most open point of each stretch along the part's length that has none yet, so a
+  // long country such as Chile, Vietnam or Norway can be named along its length, where a name
+  // may reach over the water beside it. Thin tails still never qualify.
+  const vertical = height >= width;
+  const along = (point: { lng: number; lat: number }) =>
+    vertical
+      ? (point.lat - part.south) / height
+      : (point.lng - part.west) / (part.east - part.west);
+  const stretchOf = (point: { lng: number; lat: number }) =>
+    Math.min(STRETCHES - 1, Math.floor(along(point) * STRETCHES));
+  const minStretchRoom = points[0].room * MIN_STRETCH_ROOM_SHARE ** 2;
+  // Neighbouring stretches may hold points closer together than open interiors do.
+  const stretchSeparation = ((0.5 * Math.max(width, height)) / STRETCHES) ** 2;
+  for (let stretch = 0; stretch < STRETCHES && picked.length < quota; stretch++) {
+    const inStretch = (point: { lng: number; lat: number }) =>
+      partContains(part, point.lng, point.lat) && stretchOf(point) === stretch;
+    if ([...taken, ...picked].some(inStretch)) continue;
+    const best = points.find((point) => stretchOf(point) === stretch);
+    if (best && best.room >= minStretchRoom && !isTaken(best, stretchSeparation))
+      picked.push(candidate(best, part));
   }
   return picked;
 }

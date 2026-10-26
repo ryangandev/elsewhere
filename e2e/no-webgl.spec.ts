@@ -23,6 +23,18 @@ test.describe('without WebGL', () => {
     await expect(page.getByText('THE STORIES ARE STILL HERE.')).toBeVisible();
   });
 
+  test('map places are listed but cannot be found on the missing globe', async ({ page }) => {
+    const story = getStory('SGP', 'shipping');
+    await openAtlas(page, storyPath(story));
+    await expect(globeRegion(page).getByText('The globe couldn’t load.')).toBeVisible();
+
+    const connection = page.getByRole('region', { name: 'Explore the geography' });
+    const places = connection.locator('.place-chips').getByRole('button');
+    await expect(places).toHaveCount(story.scene.placeIds.length);
+    for (const place of await places.all()) await expect(place).toBeDisabled();
+    await expect(connection.getByText('Tap a place to find it on the globe.')).toHaveCount(0);
+  });
+
   test('asking, reading and following a question still work', async ({ page }) => {
     const story = getStory('SGP', 'wealth');
     const [next] = nextStories(story);

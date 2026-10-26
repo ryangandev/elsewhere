@@ -37,6 +37,14 @@ export const en = {
   map: {
     loading: 'Bringing the world closer',
   },
+  globe: {
+    region: 'Interactive 3D world globe',
+    errorTitle: 'The globe couldn’t load.',
+    errorDetail: 'All stories, search, and your saved places are still available.',
+    retry: 'Try again',
+    exploreCountry: 'Explore {name}',
+    locatePlace: 'Locate {name}',
+  },
   breadcrumb: {
     label: 'Current place',
     world: 'World',

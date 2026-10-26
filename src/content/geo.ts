@@ -1,8 +1,12 @@
 // Geographic data behind the content: the gazetteer of named places, the table of map
 // identities, and the route geometry built from them. Coordinates only ever come from here.
+import { readFileSync } from 'node:fs';
+import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson';
+import { labelCandidates } from '@/globe/label-candidates';
 import countriesJson from '../../data/geo/countries.json';
 import gazetteerJson from '../../data/geo/gazetteer.json';
 import {
+  distanceKm,
   expandRouteStops,
   findSeaRouteLandCrossings,
   routePolyline,
@@ -18,9 +22,18 @@ export * from './geometry';
 
 /** Spacing of points on rendered route polylines. */
 const ROUTE_STEP_KM = 50;
+/** The globe's base country geometry, relative to the repository root. */
+const COUNTRY_GEOMETRY = 'public/maps/countries.geojson';
+/**
+ * A country place moves off its anchor only to a label point this much closer to the scene's
+ * center, so it keeps its usual place unless another part of the country is clearly nearer.
+ */
+const NEARER_PART_RATIO = 0.5;
 
 let gazetteerIndex: Map<string, GazetteerPlace> | undefined;
 let mapCountryIndex: { byId: Map<string, MapCountry>; bySlug: Map<string, MapCountry> } | undefined;
+let countryShapes: Map<string, Polygon | MultiPolygon> | undefined;
+const countryPoints = new Map<string, LatLng[]>();
 
 function gazetteer(): Map<string, GazetteerPlace> {
   gazetteerIndex ??= new Map(
@@ -70,6 +83,55 @@ export function getMapCountry(idOrSlug: string): MapCountry | undefined {
 
 export function listMapCountries(): MapCountry[] {
   return [...mapCountries().byId.values()];
+}
+
+function countryShape(countryId: string): Polygon | MultiPolygon | undefined {
+  if (!countryShapes) {
+    const geometry = JSON.parse(readFileSync(COUNTRY_GEOMETRY, 'utf8')) as FeatureCollection<
+      Polygon | MultiPolygon,
+      { ADM0_A3: string }
+    >;
+    countryShapes = new Map(
+      geometry.features.map((feature) => [feature.properties.ADM0_A3, feature.geometry]),
+    );
+  }
+  return countryShapes.get(countryId);
+}
+
+/**
+ * Points a country's name may sit on, as [lat, lng]: its gazetteer label point first, then the
+ * interior points the globe also labels from (see src/globe/label-candidates.ts).
+ */
+export function countryLabelPoints(place: GazetteerPlace): LatLng[] {
+  const id = place.countryId ?? place.id;
+  let points = countryPoints.get(id);
+  if (!points) {
+    const shape = countryShape(id);
+    points = shape
+      ? labelCandidates(shape, place).map((point): LatLng => [round(point.lat), round(point.lng)])
+      : [[place.lat, place.lng]];
+    countryPoints.set(id, points);
+  }
+  return points;
+}
+
+/**
+ * Where a country place sits in a scene centered on `center`: its label point, unless one of
+ * its other interior label points is much closer, as Peninsular Malaysia is to the Strait of
+ * Malacca while Malaysia's label point is on Borneo.
+ */
+export function countryPlacePoint(place: GazetteerPlace, center: LatLng): LatLng {
+  const [anchor, ...others] = countryLabelPoints(place);
+  let best = anchor;
+  let bestDistance = distanceKm(anchor, center) * NEARER_PART_RATIO;
+  for (const point of others) {
+    const distance = distanceKm(point, center);
+    if (distance < bestDistance) {
+      best = point;
+      bestDistance = distance;
+    }
+  }
+  return best;
 }
 
 /** The stops of a route, with passage paths for straits and channels. */

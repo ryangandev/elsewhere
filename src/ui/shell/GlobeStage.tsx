@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import GlobeView, { type GlobeViewHandle } from '@/globe/GlobeView';
+import GlobeView, { type GlobeMessages, type GlobeViewHandle } from '@/globe/GlobeView';
 import { EMPTY_SCENE, type MapScene } from '@/globe/scene';
-import { messages } from '@/i18n';
+import { format, messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 import { useCountryLabels } from '../atlas/use-indexes';
 
@@ -11,6 +11,16 @@ import { useCountryLabels } from '../atlas/use-indexes';
 const OCCLUDERS =
   '.country-panel, .topbar, .map-controls, .map-caption, .map-breadcrumb, .home > *, .question-results';
 const occluders = () => document.querySelectorAll(OCCLUDERS);
+
+const text = messages.globe;
+const GLOBE_MESSAGES: GlobeMessages = {
+  region: text.region,
+  errorTitle: text.errorTitle,
+  errorDetail: text.errorDetail,
+  retry: text.retry,
+  exploreCountry: (name) => format(text.exploreCountry, { name }),
+  locatePlace: (name) => format(text.locatePlace, { name }),
+};
 
 /**
  * Lives in the root layout, so the globe controller is created once per visit.
@@ -53,6 +63,7 @@ export function GlobeStage() {
           ref={globe}
           scene={scene}
           labels={labels.data ?? []}
+          messages={GLOBE_MESSAGES}
           occluders={occluders}
           onSelect={select}
           onFocusPlace={focusPlace}

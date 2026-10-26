@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { geoContains } from 'd3-geo';
+import type { MultiPolygon, Polygon } from 'geojson';
+import { readFileSync } from 'node:fs';
 import {
+  countryLabelPoints,
+  countryPlacePoint,
   distanceKm,
   findRouteLandCrossings,
   findSeaRouteLandCrossings,
@@ -24,6 +29,37 @@ function allRoutes(): { where: string; route: SceneRouteSpec }[] {
     ];
   });
 }
+
+describe('country places', () => {
+  const shapes = JSON.parse(readFileSync('public/maps/countries.geojson', 'utf8')).features as {
+    properties: { ADM0_A3: string };
+    geometry: Polygon | MultiPolygon;
+  }[];
+  const shape = (id: string) => shapes.find((feature) => feature.properties.ADM0_A3 === id)!;
+  const malaysia = getPlace('malaysia')!;
+
+  it('offers the label point first, then interior points of the country', () => {
+    const [anchor, ...others] = countryLabelPoints(malaysia);
+    expect(anchor).toEqual([malaysia.lat, malaysia.lng]);
+    expect(others.length).toBeGreaterThan(0);
+    for (const [lat, lng] of others) expect(geoContains(shape('MYS').geometry, [lng, lat])).toBe(true);
+  });
+
+  it('moves to the part of the country nearest the scene', () => {
+    // Malaysia's label point is on Borneo; a scene on the Strait of Malacca marks the peninsula.
+    const [lat, lng] = countryPlacePoint(malaysia, [1.35, 103.82]);
+    expect(lng).toBeLessThan(105);
+    expect(distanceKm([lat, lng], [1.35, 103.82])).toBeLessThan(400);
+    // Seen from Borneo, the label point is already the nearest.
+    expect(countryPlacePoint(malaysia, [4, 114])).toEqual([malaysia.lat, malaysia.lng]);
+  });
+
+  it('keeps the label point unless another part is much closer', () => {
+    // Bavaria is a little closer to France than central Germany, which is not enough to move.
+    const germany = getPlace('germany')!;
+    expect(countryPlacePoint(germany, [46.6, 2.5])).toEqual([germany.lat, germany.lng]);
+  });
+});
 
 describe('gazetteer', () => {
   it('resolves places by ID', () => {

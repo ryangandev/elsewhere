@@ -57,6 +57,17 @@ describe('resolveScene', () => {
     expect(route.points[0]).toEqual([getPlace('andaman-sea')!.lat, getPlace('andaman-sea')!.lng]);
   });
 
+  it('marks a country place at the part of the country the scene looks at', () => {
+    // Malaysia's label point is on Borneo, far from the Strait of Malacca.
+    const scene = content.resolveScene(content.getStory('SGP', 'shipping')!.scene);
+    const malaysia = scene.places.find((place) => place.id === 'malaysia')!;
+    expect(malaysia.lng).toBeLessThan(105);
+    expect(malaysia.lng).not.toBe(getPlace('malaysia')!.lng);
+    // Indonesia's label point, on Sumatra, already faces the strait.
+    const indonesia = scene.places.find((place) => place.id === 'indonesia')!;
+    expect(indonesia).toMatchObject({ lat: getPlace('indonesia')!.lat, lng: getPlace('indonesia')!.lng });
+  });
+
   it('keeps the camera of a country scene', () => {
     const country = content.getCountry('JPN')!;
     expect(content.resolveScene(country.scene).camera).toEqual(country.scene.camera);
