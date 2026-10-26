@@ -61,6 +61,22 @@ function sources(list: Source[], statuses: Map<string, UrlStatus>): string[] {
   });
 }
 
+/**
+ * The phrasings search also matches. They make no claims and their edits do not reset review,
+ * but the reviewer reads them: a phrasing that asks something else sends readers to this story.
+ */
+function paraphrases(story: Story): string[] {
+  const entry = story.paraphrases;
+  if (!entry) {
+    return [`  Search phrasings: none yet (npm run content:paraphrase -- ${story.countryId})`];
+  }
+  const stale = entry.question === story.question ? '' : `, STALE: written for "${entry.question}"`;
+  return [
+    `  Search phrasings (${entry.generatedBy} on ${entry.generatedAt}${stale})`,
+    ...entry.phrasings.map((phrasing) => `  - ${phrasing}`),
+  ];
+}
+
 export function storySummary(story: Story, context: ReviewContext): string {
   const lines = [
     `### ${story.question}`,
@@ -77,6 +93,8 @@ export function storySummary(story: Story, context: ReviewContext): string {
     '',
     '  Map scene',
     ...scene(story.scene, context.files),
+    '',
+    ...paraphrases(story),
     '',
   );
   lines.push('  Next questions');

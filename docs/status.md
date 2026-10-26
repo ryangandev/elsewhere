@@ -30,7 +30,7 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
   2. Check the country list and reasons in `pipeline/batches/pilot.json`.
   3. Run `npm run content:generate -- --batch pilot --plan-only`, then read and edit `pipeline/batches/pilot.plan.json` (about $1).
   4. Run `npm run content:generate -- --batch pilot` (about $20 to $60; add `--mode batch` for roughly half the token cost and a slower run).
-  5. Run `npm run content:verify`, then review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back.
+  5. Run `npm run content:verify` and `npm run content:paraphrase -- --all` (a few cents per country), then review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back.
 
 - Deployment: the repository is ready for Vercel; only the project itself is missing.
   The site needs no environment variables: content is generated offline and committed, so the API key never goes to Vercel or CI.

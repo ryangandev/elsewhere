@@ -79,9 +79,24 @@ function tools(
   ];
 }
 
+/**
+ * A country file as drafting prompts show it: without paraphrases, which the paraphrase step
+ * writes later and a draft never carries. The JSON is formatted as content files are, so a
+ * file without paraphrases reads exactly as it is on disk.
+ */
+export function withoutParaphrases<T>(value: T): T {
+  return JSON.parse(
+    JSON.stringify(value, (key, item) => (key === 'paraphrases' ? undefined : item)),
+  );
+}
+
 /** The system prompt every drafting request shares: instructions, the reference example, and the shared gazetteer. */
 export function sharedSystem(context: RunContext): BetaTextBlockParam[] {
-  const reference = readFileSync(REFERENCE_COUNTRY_FILE, 'utf8');
+  const reference = `${JSON.stringify(
+    withoutParaphrases(JSON.parse(readFileSync(REFERENCE_COUNTRY_FILE, 'utf8'))),
+    null,
+    2,
+  )}\n`;
   const text = [
     render(context.prompts.system, {}),
     '# Reference example',
@@ -251,7 +266,7 @@ export function storySession(
     today: context.date,
     notes: story.provenance.revision.notes,
     story: JSON.stringify(
-      { ...story, provenance: { ...story.provenance, revision: undefined } },
+      withoutParaphrases({ ...story, provenance: { ...story.provenance, revision: undefined } }),
       null,
       2,
     ),

@@ -192,7 +192,11 @@ async function main(): Promise<number> {
       );
     }
   }
-  if (count('written')) console.log('Next: npm run content:verify, then npm run content:review.');
+  if (count('written')) {
+    console.log(
+      'Next: npm run content:verify, npm run content:paraphrase -- --all for search phrasings, then npm run content:review.',
+    );
+  }
   return count('failed') ? 1 : 0;
 }
 

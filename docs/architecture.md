@@ -205,11 +205,13 @@ Nobody writes content JSON by hand.
 pipeline/
   config.ts        paths, default model and effort, per-request limits
   content-tree.ts  reads and writes one locale's tree on disk (content/en, or a temporary copy in tests)
-  prompts/v<n>/    versioned prompt files; the version is recorded in provenance
+  prompts/v<n>/    versioned drafting prompt files; the version is recorded in provenance
+  prompts/paraphrase/v<n>/  versioned prompts of the paraphrase step, recorded in paraphrases
   batches/         batch definitions (pilot.json) and the question plans generated for them
   generate/        plan, draft and redraft (npm run content:generate)
   validate/        every content:check rule plus source URL reachability (npm run content:verify)
   review/          list, read, approve and send back drafts (npm run content:review)
+  paraphrase/      search phrasings for each story's question (npm run content:paraphrase)
 ```
 
 ```sh
@@ -217,6 +219,7 @@ npm run content:generate -- --batch pilot      # plan, then draft every country 
 npm run content:generate -- --country CHL      # draft one country (repeat --country for more)
 npm run content:generate -- --revisions        # redraft everything review sent back
 npm run content:verify                         # content rules and source URLs
+npm run content:paraphrase -- --all            # search phrasings where missing or stale
 npm run content:review -- list                 # then show, approve, revise
 ```
 
@@ -244,15 +247,25 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    An entry never excuses a 404, 410 or dead host, never covers a whole site, and lapses after 180 days, when the page is a warning again until someone reopens it.
    It tries HEAD then GET, retries twice with backoff, limits requests per host, and caches results in `pipeline/.cache/url-status.json` (ok for 30 days, others for a day).
    `--offline` skips the network and reports cached results.
-4. **Review.**
-   `content:review -- show <country> [story]` prints the questions, sections with their sources, the map scene by place name, next questions, and validation warnings; `--check-urls` checks the file's URLs first.
+4. **Paraphrase.**
+   `content:paraphrase -- <country>...` (or `--all`) writes [paraphrases](#content-model) for every story that has none or whose question changed since they were written; `--regenerate` replaces current ones too, and `--dry-run` lists the stories without calling the API.
+   Each country is one small structured-output request (Claude Opus 5.5 at `low` effort by default, `--model` and `--effort` to change), a few countries at a time.
+   The task gives each story's question, category and summary, and lists the country's other questions so phrasings stay apart from them; the response schema allows only the IDs asked for.
+   The response must cover every story asked for, in English, and pass every content rule for paraphrases; problems go back to the model, up to two repairs, and a country that still fails is left as it was.
+   The step writes only `paraphrases` (with the model, date and `paraphrase/v<n>` prompt version), never a story's text, sources or provenance.
+   Paraphrase edits do not reset review: they restate a reviewed question and make no claims, so there is nothing new to source-check, and review shows them so a misleading phrasing can still be caught.
+   Drafts never carry paraphrases: drafting prompts show the reference example and a story under revision without them, so they stay byte-identical to what a drafting run in progress already sent, and a redrafted story loses its old ones, so run this step after generating.
+   Its prompts are versioned apart from the drafting prompts (`CURRENT_PARAPHRASE_PROMPT_VERSION`), so changing them never touches `CURRENT_PROMPT_VERSION` or a resumable drafting run.
+   Expect a few cents per country.
+5. **Review.**
+   `content:review -- show <country> [story]` prints the questions, sections with their sources, the map scene by place name, next questions, search phrasings, and validation warnings; `--check-urls` checks the file's URLs first.
    `approve <country> [story]` sets `status: 'reviewed'`, `reviewedBy` (`--by`, default the git user name) and `reviewedAt`.
    Without a story it approves the overview; `--all` approves the overview and every story.
    It refuses while the content has a validation issue, a pending reference, a revision request or a broken source URL.
    `revise <country> [story] --notes "..."` records `provenance.revision`, and `content:generate -- --revisions` redrafts it: a story keeps its ID and the rest of the file, with the notes and the old story in the prompt.
    A whole country can be sent back only while nothing in it is reviewed.
    Changes go through notes and regeneration rather than JSON edits, so every text stays sourced.
-5. **Commit.**
+6. **Commit.**
    Reviewed JSON is committed like code; git history is the content history.
    A new country file needs nothing else: the loaders discover it.
 
@@ -546,7 +559,7 @@ Adding Chinese later means adding a catalog and a `content/zh/` tree, with no co
 
 - Unit tests (Vitest) for pure logic: schema rules, navigation, search, cartography, picking.
 - Content validation runs in CI on every change to `content/`.
-- Pipeline tests in `tests/pipeline/` run plan, draft, verify, review and redraft end to end on replayed model responses.
+- Pipeline tests in `tests/pipeline/` run plan, draft, verify, review, redraft and the paraphrase step on replayed model responses.
 - Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, robots.txt, the sitemap and canonical links, back and forward, trails, saving a story to your atlas, share, and the About sheet.
   A phone project runs the core loop (home, ask, story, follow), the reading panel collapsing to a strip and giving the globe its room, and share through a stubbed system share sheet at 390 by 844 with touch.
   Every page loads with the production response headers from `vercel.json`, and a Content Security Policy violation fails the test, like an uncaught error does.

@@ -31,6 +31,29 @@ export function loadPrompts(version: string = CURRENT_PROMPT_VERSION): PromptSet
   return prompts;
 }
 
+/**
+ * The paraphrase step (npm run content:paraphrase) has its own prompts and versions in
+ * pipeline/prompts/paraphrase/, so they change without touching the drafting prompts or a
+ * drafting run in progress. The version is recorded in each story's paraphrases.promptVersion.
+ */
+export const CURRENT_PARAPHRASE_PROMPT_VERSION = 'paraphrase/v1';
+
+const PARAPHRASE_NAMES = ['system', 'task', 'repair'] as const;
+export type ParaphrasePromptSet = { version: string } & Record<
+  (typeof PARAPHRASE_NAMES)[number],
+  string
+>;
+
+export function loadParaphrasePrompts(
+  version: string = CURRENT_PARAPHRASE_PROMPT_VERSION,
+): ParaphrasePromptSet {
+  const prompts = { version } as ParaphrasePromptSet;
+  for (const name of PARAPHRASE_NAMES) {
+    prompts[name] = readFileSync(join(PROMPTS_DIR, version, `${name}.md`), 'utf8');
+  }
+  return prompts;
+}
+
 /** Fill `{{name}}` placeholders. A missing or unused value is an error, so templates and code agree. */
 export function render(template: string, values: Record<string, string | number>): string {
   const used = new Set<string>();
