@@ -120,6 +120,10 @@ Home        suggestedQuestions[{countryId, storyId}] (3 to 4, distinct, shown in
 
 Content stores a `SceneSpec`, which only names places.
 `resolveScene(spec)` turns it into the globe's `MapScene`: coordinates from the gazetteer, notes from `places.json`, and route polylines along great circles.
+A country place marks the part of the country the scene looks at.
+Its gazetteer point is Natural Earth's label point, which for a country in several parts can sit far from the story: Malaysia's is on Borneo, while the Singapore stories are about the peninsula.
+`countryPlacePoint` in `src/content/geo.ts` takes the label point unless one of the country's interior label candidates (the same points the globe names it at, from `label-candidates.ts` over `public/maps/countries.geojson`) is less than half as far from the scene's center, which is the scene's camera or else the focus country's label point.
+The point is still derived from map data, never written by hand.
 Place notes are locale text, so they live in content rather than in the generated gazetteer.
 
 Rules:
@@ -287,7 +291,7 @@ What can go wrong:
 A framework-free controller in `src/globe/`, driven by a declarative `MapScene`, with a thin React wrapper.
 
 ```ts
-const globe = createAtlasGlobe(container, { labels, assets, occluders, homeView });
+const globe = createAtlasGlobe(container, { labels, messages, assets, occluders, homeView });
 globe.setScene(scene); // MapScene: camera?, focusCountryId?, highlights, places, routes, focusPlaceId?
 globe.zoom('in' | 'out' | 'reset');
 const off = globe.on('select', (countryId) => {}); // also 'focusPlace' (place id) and 'status'
@@ -296,8 +300,8 @@ globe.dispose();
 ```
 
 ```tsx
-<GlobeView ref={handle} scene={scene} labels={labels} occluders={findPanels}
-  onSelect={...} onFocusPlace={...} onStatus={...} />
+<GlobeView ref={handle} scene={scene} labels={labels} messages={messages}
+  occluders={findPanels} onSelect={...} onFocusPlace={...} onStatus={...} />
 handle.current?.zoom('in');
 ```
 
@@ -306,6 +310,7 @@ An empty scene is the world view.
 Options carry everything the controller needs, so it never imports app or content modules:
 
 - `labels`: country id, name, anchor, area, and label rank, read once at creation.
+- `messages`: the interface strings the globe shows, such as the accessible names of labels ("Explore {name}") and the failure fallback; `GlobeStage` builds them from the `globe` area of the message catalog, so the globe never imports `src/i18n/`.
 - `assets`: the basemap image and both geometry URLs; `DEFAULT_GLOBE_ASSETS` points at `public/maps`.
 - `occluders`: a callback returning elements, such as panels, that labels must not cover; they are measured at each layout and observed, so a panel resizing on its own re-runs layout.
 - `homeView`: the camera for a scene with no camera and no focus country.
@@ -325,15 +330,26 @@ How labels are laid out:
 
 - Country names and place labels share one collision space with a fixed priority: the selected country, then the scene's places (focused, then water, then the rest), then other countries by emphasis, label rank, and on-screen size.
   An earlier label always wins, and each layout starts from an empty space, so no position survives a scene change.
-- The selected name first steps around the scene's places, shifting above or below its point, and only claims their space when nothing else fits.
+- The scene's places are placed first and the selected name steps around them, shifting above or below its point; only when nothing else fits does the selected name go first, preferring space clear of the places' points, and the places step around it.
 - Each country has up to six candidate points (`label-candidates.ts`): the Natural Earth label point, then well-spread interior points of its largest parts, ranked by open room around them and skipping thin tails.
+  A long country also gets the most open point of each third of its length, so Vietnam, Chile, Norway and Italy can be named from whichever stretch is in view.
   They are computed once per country from the geometry loaded at the time, so layout itself never scans polygons.
-- Layout keeps a visible name at its current point while that point faces the camera, and otherwise tries the points by room foreshortened by the view, so a country near the horizon is named from its visible side.
-- A name must fit: land of that country under the center and four corners of its ink box, inside the map frame, and clear of occluders and earlier labels.
-  A near miss may shift a small step away from the failing corners, and a multi-word name may break onto two lines.
+- Points are tried in order of the open land they show: their room, foreshortened by the view and weighted by the label's horizon fade, so a country near the horizon is named from its visible side.
+  A visible name keeps its current point while that point faces the camera and shows at least three quarters of the best point's score, so names hold still while the camera moves but move on once it settles elsewhere.
+- Names are placed in two passes.
+  In the first, a name must fit inside: land of that country under the center and four corners of its ink box, inside the map frame, and clear of occluders and earlier labels.
+  A near miss may shift a small step away from the failing corners, a name whose spot is taken may step a little to either side or up or down, and a multi-word name may break onto two lines.
+- The names left over then try an overflow fit, as an atlas letters a narrow or island country across the water beside it: the center must be on the country's own land, and the points halfway from the center to each end on that land or at sea.
+  Only the ends may reach over a neighbour's edge, never its interior, and since this pass runs after every name that fits inside, an overflowing name never displaces one.
+- A water place sits on water: of the small shifts around its point that are clear of earlier labels, it takes the one with the least land under it, and its center is never on land.
+  A strait or a small bay may reach over a shore (at most three of nine sample points on land); when every shift covers more, the label is left out at that zoom unless the reader focused it.
+- Rotated names along a country's axis were considered and not built: the collision space is axis-aligned rectangles, and rotation would need oriented boxes and a per-frame angle for every name.
+  The stretch candidates and the overflow fit name the long countries without it.
 - Names use short atlas forms: `scripts/build-countries.mjs` writes Natural Earth's short `NAME` ("Russia", "Dem. Rep. Congo") as `shortName` in `data/geo/countries.json` when it is shorter than the full name, the label index carries it, and the full name stays the accessible name.
 - Type steps with zoom (11px at world zoom, 13px at regional zoom, the base size closer in); sizes are measured once per step, in a hidden host for names globe.gl has not attached yet.
 - Visible names get slightly less padding and a small priority bonus, so names do not flicker as the camera moves.
+- Every point-in-country test, for picking and for layout, is a planar even-odd test on the Natural Earth rings (`country-lookup.ts`), which are drawn in longitude and latitude and cut at the antimeridian.
+  Each part keeps its bounds and the lookup buckets countries by ten-degree cells, so a test costs microseconds rather than the 100 or so of a spherical one, and a full layout stays near 1 to 3 ms (median) against the 48 ms budget.
 
 Modules:
 
@@ -343,9 +359,9 @@ Modules:
 | `engine.ts` | globe.gl setup, render settings, resize, visibility, context loss; composes the parts below |
 | `camera.ts`, `scene-diff.ts` | Pure framing and change detection |
 | `geography.ts` | Country geometry, borders, fills, picking, detail refinement |
-| `borders.ts`, `fills.ts`, `country-lookup.ts`, `projection.ts` | Merged line buffers, lazy merged caps, bounds-filtered lookup, sphere unprojection |
+| `borders.ts`, `fills.ts`, `country-lookup.ts`, `projection.ts` | Merged line buffers, lazy merged caps, planar point-in-country tests and lookup, sphere unprojection |
 | `label-layer.ts` | Label elements, scene updates, measurement, occluder rectangles |
-| `cartography.ts` | Pure label layout: candidate order, priority, screen-space fit, nudges, collisions, two-line breaks |
+| `cartography.ts` | Pure label layout: candidate order, priority, inside and overflow fits, water placement, nudges, collisions, two-line breaks |
 | `label-candidates.ts` | Interior label points per country |
 | `interactions.ts` | Pointer hover, tooltip, click selection |
 | `route-layer.ts` | Route paths styled by kind |
@@ -370,6 +386,7 @@ Kept from the prototype, because each was measured or verified:
 - Reduced motion skips camera tweens and route animation.
 - Pixel ratio capped at 2, rendering paused while the tab is hidden, and WebGL failure or context loss shown as a fallback that keeps the stories usable.
   Retry mounts a fresh controller instead of reloading the page.
+  While the fallback shows, the panel still lists a story's map places, but the chips are disabled and the hint to tap them is hidden, since there is nothing to find them on.
 
 Removed: the vector terrain mode, relief textures, the label toggle, and the FPS diagnostic panel.
 They were investigation tools, not product features, and they remain in git history.
@@ -379,7 +396,7 @@ What can go wrong:
 - globe.gl recreates every label element when its `htmlElement` accessor changes, so it is set exactly once.
 - globe.gl applies a new size to its camera in a debounced update, so layout waits until the camera's aspect matches the size; projecting earlier puts names in the wrong place.
 - globe.gl writes every label's `transform` each frame, so a CSS transition on `transform` makes labels trail the globe and cross each other; the interface button rule in `app/globals.css` leaves out everything inside `.globe-host`, and label styles transition colors only.
-- Some medium countries, such as Pakistan and the United Kingdom, still have no name at world zoom where their neighbors take the space or the name does not fit.
+- A country whose name fits neither inside nor across its own coast, such as a small landlocked country between larger names, stays unnamed until the camera comes closer.
 
 ## Server and client boundary
 
