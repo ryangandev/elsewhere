@@ -34,6 +34,9 @@ Follow [Migration plan](architecture.md#migration-plan).
 Fix these where the migration touches them, or explicitly drop them with the code they belong to.
 
 - The home view shows only two or three country names; large countries such as Russia and Kazakhstan get none.
-- The home picks are a fixed list of four country IDs in `src/domain/page-views.ts` until the question-first home (step 6) replaces them.
 - In development, an unknown path such as `/atlantis` answers 500 instead of 404, because `output: 'export'` forbids unknown params; the static build serves a plain 404.
 - The prototype query URL redirect runs in the browser; move it to Vercel `redirects` when the site deploys there.
+- Search is lexical: prefix matching, TF-IDF keywords and a short synonym list.
+  A question phrased with none of a story's words ("What makes Singapore wealthy?" works, "Why is Singapore loaded?" does not) is reported as unanswered; revisit with embeddings or pipeline-generated paraphrases once the question bank grows.
+- Same-country next questions carry no `reason` in content, so the story shows only "Deeper in <country>" for them; the pipeline could write one.
+- The header search shows the Mac shortcut (⌘K) on every platform; Ctrl K works but is not labelled.

@@ -25,18 +25,19 @@ The globe never knows where content came from; it only renders a `MapScene`.
 ```text
 app/                       Next.js routes; the root layout owns the persistent globe
   layout.tsx
-  page.tsx                 home: question input, starter questions
+  page.tsx                 home: question input, suggested starting questions
   [country]/page.tsx       country overview
   [country]/[story]/page.tsx  one answered question
   atlas/labels.json/       build-time client index: country labels for the globe
   atlas/index.json/        build-time client index: countries, questions, trails
 src/
   content/                 schema (zod), typed loaders, validation; server-only
-  domain/                  view models, routing, client indexes, search, library
+  domain/                  view models, routing, client indexes, search and ask, library
   globe/                   framework-free globe controller and its parts
-  ui/                      React components: atlas (shell state), shell, panel, dialogs, primitives
+  ui/                      React components: atlas (shell state), shell, home, search, panel,
+                           dialogs, primitives
   i18n/                    message catalog (English only for now)
-content/en/                generated and reviewed content, one file per country
+content/en/                generated and reviewed content, one file per country, plus home.json
 data/geo/                  Natural Earth derived map identities and gazetteer
 pipeline/                  content generation (step 5)
 scripts/                   geo data builds and content:check
@@ -93,6 +94,7 @@ The loaders parse every file on first use, so a file that fails validation fails
 content/en/countries/<slug>.json   { country: Country, stories: Story[] } for one country
 content/en/trails.json             Trail[]
 content/en/places.json             { [placeId]: note }, editorial notes shown on map places
+content/en/home.json               { suggestedQuestions: StoryRef[] (3 to 4) }, the home screen's picks
 ```
 
 Core shapes:
@@ -112,6 +114,7 @@ Source      id, title, publisher, url (https), accessedAt?
 Provenance  generatedBy ("human" or a model ID), generatedAt, reviewedBy?, reviewedAt?,
             status: draft | reviewed
 Trail       id, title, label, description, stops[{countryId, storyId, connection}]
+Home        suggestedQuestions[{countryId, storyId}] (3 to 4, distinct, shown in this order)
 ```
 
 Content stores a `SceneSpec`, which only names places.
@@ -137,7 +140,7 @@ Rules:
 - Locale is a directory, so a Chinese edition is a parallel `content/zh/` tree with the same IDs.
 
 Loaders in `src/content/index.ts` are synchronous, free of Node APIs, and server-only (see [Server and client boundary](#server-and-client-boundary)):
-`getCountry(id or slug)`, `listCountries`, `getStory`, `getStoryBySlug`, `listStories`, `listTrails`, `getPlaceNote`, `getMapCountry` (all 258 map identities, edited or not) and `resolveScene`.
+`getCountry(id or slug)`, `listCountries`, `getStory`, `getStoryBySlug`, `listStories`, `listTrails`, `getHome`, `getPlaceNote`, `getMapCountry` (all 258 map identities, edited or not) and `resolveScene`.
 Files reach the loaders through static imports in `src/content/registry.ts`; `content:check` fails when a file is not registered.
 
 A story scene without a `camera` borrows its country scene's camera when both focus the same country.
@@ -290,7 +293,7 @@ How it is enforced:
   Type-only imports of content types are allowed.
 - Domain modules are split by side.
   `page-views.ts`, `client-indexes.ts`, `slugs.ts` and `paths.ts` are server-only.
-  `view-models.ts`, `destination.ts`, `atlas-index.ts`, `search.ts` and `library.ts` are client-safe and import no content.
+  `view-models.ts`, `destination.ts`, `atlas-index.ts`, `search.ts`, `ask.ts`, `live-answers.ts` and `library.ts` are client-safe and import no content.
 
 How a page reaches the shell:
 
@@ -308,19 +311,41 @@ Client indexes are static route handlers (`dynamic = 'force-static'`), written t
 | Index | Built by | Used by | Size (raw / gzip) |
 | --- | --- | --- | --- |
 | `/atlas/labels.json` | `buildCountryLabels` | globe labels; the globe mounts once it loads | 29 KB / 9 KB |
-| `/atlas/index.json` | `buildAtlasIndex` | search, library, recent history, trail drawer, resume, old-URL redirect | 45 KB / 11 KB |
+| `/atlas/index.json` | `buildAtlasIndex` | question input and search, library, recent history, trail drawer, resume, old-URL redirect | 45 KB / 11 KB |
 
-The atlas index holds every country, every question with its path, category, summary and build-time keywords (TF-IDF over the story text), and every trail with its stop paths.
+The atlas index holds every country, every question with its path, category, summary and build-time keywords (TF-IDF over the story text), every trail with its stop paths, and the home screen's suggested questions (offered when a query is not answered).
 It grows with the question bank, so it can be split by country if it gets too large to load whole.
 
 ## Discovery and navigation
 
 - Paths are the source of truth for the current destination: `/`, `/<country>`, `/<country>/<story>`.
-- Starter questions and next questions come from content (`starterStoryIds`, `next`), not from hardcoded maps in code.
-- Search runs on a build-time index of countries and questions, loaded when the search dialog first opens.
-  It scores country names (including native names) and question text, category, summary and keywords, with a small synonym list so "Why is Singapore so rich?" finds the wealth question.
-- A story offers at most three next questions with their reasons, and leaves out the one the current trail already points to.
-- A country offers its starter questions, any further questions behind a disclosure, and up to three connections elsewhere, taken from its stories' `next` references.
+- Starter questions, next questions and the home screen's suggested questions come from content (`starterStoryIds`, `next`, `content/en/home.json`), not from hardcoded lists in code.
+
+The question input:
+
+- The home page leads with one question input ("What are you curious about?") over the globe, a few suggested starting questions below it, and a quieter "continue" line and trail link under those.
+  The header search (Cmd/Ctrl K) opens the same component, `QuestionSearch` in `src/ui/search/`, so both rank, group and render results identically.
+- Results appear as the reader types, from the atlas index, which loads when the input first gets focus.
+  Arrow keys move through them, and Enter opens the highlighted result, which starts at the top result for each query.
+- `src/domain/search.ts` scores countries (names and native names), map identities, and questions (text, category, summary, keywords).
+  Words match by prefix, so a partly typed word already finds results; a small synonym list matches whole words only, so "Why is Singapore so rich?" finds the wealth question without "port" matching "Portuguese".
+- `src/domain/ask.ts` turns those results into what the input shows.
+  A query that reads like a question (a question mark or an opening question word) lists questions first; a place name, or the start of one, lists countries first.
+  A question counts as answered only when one question covers its terms (both terms of a short query, all but one of a longer one), and, if the query names edited countries, only their questions qualify.
+  Questions that answer the query lead the list, so Enter never opens a near miss.
+- An unanswered question says so plainly: the atlas has not answered it yet, because every answer is sourced and reviewed.
+  It then offers the closest questions (those about a country the query names first), the countries the query names, and, when nothing is close, the suggested starting questions.
+  There is no generated answer in Stage 1.
+- `src/domain/live-answers.ts` defines the seam for Stage 2: a `LiveAnswerProvider` that takes the question and returns a story view model, or nothing.
+  The unanswered outcome is where it would be called; nothing implements it yet.
+- Before anything is typed, the dialog offers the other questions about the place being read and the suggested starting questions; the home input shows nothing until the reader types.
+
+Reading:
+
+- A country overview stays brief: the short story, its starter questions right after it, any further questions behind a disclosure, quick facts, the map connections, and then "why it matters" and sources behind disclosures.
+- A story ends with its sources, the current trail's next stop when on a trail, and at most three next questions.
+  Each next question says whether it goes deeper into the same place or elsewhere (with the other country's flag and the reason from content); same-place questions come first, and the one the trail already points to is left out.
+- The panel footer always offers a new question by opening the search dialog.
 - A map-only country shows its basics and the nearest edited countries, measured between label anchors.
 - Bookmarks and recent history stay in localStorage, behind a small `library` interface so Stage 2 can add sync.
   They store destinations by ID and resolve titles and links through the atlas index; entries whose question no longer exists are hidden.
