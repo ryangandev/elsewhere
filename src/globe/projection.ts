@@ -9,9 +9,12 @@ export function createGlobeUnprojector(camera: Camera, radius: number) {
   const hit = new Vector3();
   return (x: number, y: number, width: number, height: number) => {
     if (width <= 0 || height <= 0) return null;
-    pointer.set(x / width * 2 - 1, 1 - y / height * 2);
+    pointer.set((x / width) * 2 - 1, 1 - (y / height) * 2);
     raycaster.setFromCamera(pointer, camera);
     if (!raycaster.ray.intersectSphere(surface, hit)) return null;
-    return { lat: Math.atan2(hit.y, Math.hypot(hit.x, hit.z)) * 180 / Math.PI, lng: Math.atan2(hit.x, hit.z) * 180 / Math.PI };
+    return {
+      lat: (Math.atan2(hit.y, Math.hypot(hit.x, hit.z)) * 180) / Math.PI,
+      lng: (Math.atan2(hit.x, hit.z) * 180) / Math.PI,
+    };
   };
 }

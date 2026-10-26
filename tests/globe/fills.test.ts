@@ -29,17 +29,40 @@ describe('country fills', () => {
       const positions = mesh.geometry.getAttribute('position');
       expect(positions.count).toBeGreaterThan(100);
       for (let index = 0; index < positions.count; index++) {
-        const radius = Math.hypot(positions.getX(index), positions.getY(index), positions.getZ(index));
+        const radius = Math.hypot(
+          positions.getX(index),
+          positions.getY(index),
+          positions.getZ(index),
+        );
         expect(Math.abs(radius - 100.15)).toBeLessThan(0.001);
       }
     }
     fills.highlight('SGP', 'SGP');
     const visible = meshes.filter((mesh) => mesh.visible);
     expect(visible, 'hover does not double-fill the selected country').toHaveLength(1);
-    expect(visible[0].geometry.getAttribute('position').count, 'tiny islands remain fillable')
-      .toBeGreaterThan(0);
+    expect(
+      visible[0].geometry.getAttribute('position').count,
+      'tiny islands remain fillable',
+    ).toBeGreaterThan(0);
     fills.highlight();
     expect(meshes.filter((mesh) => mesh.visible)).toHaveLength(0);
+    fills.dispose();
+  });
+
+  it('draws each highlight role as one merged mesh and rebuilds it on refinement', () => {
+    const fills = createCountryFills(100.15);
+    fills.setFeatures(features);
+    fills.setRoles({ related: ['MYS', 'IDN', 'PHL'], contrast: ['JPN'] });
+    const visible = () => (fills.group.children as Mesh[]).filter((mesh) => mesh.visible);
+    expect(visible()).toHaveLength(2);
+    for (const mesh of visible()) expect(mesh.geometry.groups).toHaveLength(0);
+    const related = visible()[0];
+    const before = related.geometry;
+    fills.setFeatures(features);
+    expect(related.geometry).not.toBe(before);
+    expect(related.visible).toBe(true);
+    fills.setRoles({ related: [], contrast: ['UNKNOWN'] });
+    expect(visible()).toHaveLength(0);
     fills.dispose();
   });
 
