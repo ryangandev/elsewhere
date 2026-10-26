@@ -19,7 +19,10 @@
     "maps:basics": "node scripts/build-country-basics.mjs",
     "maps:countries": "node scripts/build-countries.mjs",
     "maps:gazetteer": "node --import tsx scripts/build-gazetteer.mjs",
-    "content:check": "node --import tsx scripts/validate-content.ts"
+    "content:check": "node --import tsx scripts/validate-content.ts",
+    "content:generate": "node --import tsx pipeline/generate/cli.ts",
+    "content:verify": "node --import tsx pipeline/validate/cli.ts",
+    "content:review": "node --import tsx pipeline/review/cli.ts"
   },
   "dependencies": {
     "class-variance-authority": "0.7.1",
@@ -37,6 +40,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "@tailwindcss/postcss": "4.2.1",
     "@types/d3-geo": "^3.1.0",
     "@types/geojson": "^7946.0.16",
