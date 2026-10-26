@@ -1,6 +1,9 @@
-// Content loaders for the English edition. Synchronous and free of Node APIs, so they work in
-// Next.js server components at build time and in the browser bundle.
+// Content loaders for the English edition, for server components at build time.
+// Server-only: importing this from a client component fails the build, because content, the
+// gazetteer and zod must never enter the browser bundle. The browser reads view models and the
+// generated indexes instead (docs/architecture.md#server-and-client-boundary).
 // Production builds return reviewed content only; development also shows drafts.
+import 'server-only';
 import { englishContent } from './registry';
 import { createContentStore } from './store';
 

@@ -1,5 +1,5 @@
 // Every content file of the English edition, imported statically so the loaders work the same
-// in Next.js server components, the browser bundle, scripts and tests.
+// in Next.js server components, scripts and tests.
 // Keep this list in sync with content/en/countries; `npm run content:check` fails when it is not.
 import brazil from '../../content/en/countries/brazil.json';
 import china from '../../content/en/countries/china.json';
