@@ -21,7 +21,7 @@ export function CountryView({ view }: { view: CountryPageView }) {
     <>
       <div className="country-region">
         {view.country.region}
-        <span>· {text.overview}</span>
+        <span>{text.overview}</span>
       </div>
       <h2 ref={heading} tabIndex={-1} className="country-title">
         <span>{view.flag}</span>

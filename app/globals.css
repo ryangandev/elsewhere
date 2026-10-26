@@ -54,6 +54,15 @@ body {
   margin: 0;
   font-family: Arial, Helvetica, sans-serif;
 }
+/* Headings wrap into even lines, and paragraphs avoid a lone last word. */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+p {
+  text-wrap: pretty;
+}
 button,
 a,
 input {
@@ -61,6 +70,10 @@ input {
 }
 button {
   cursor: pointer;
+}
+::selection {
+  background: #d3e2c0;
+  color: #1f3324;
 }
 button:focus-visible,
 a:focus-visible,
@@ -518,7 +531,7 @@ button:disabled {
   border-left: 1px solid #dce2d5;
 }
 .quick-facts span {
-  font-size: 8px;
+  font-size: 9px;
   letter-spacing: 1.1px;
   text-transform: uppercase;
   color: #8b9686;
@@ -588,17 +601,25 @@ button:disabled {
   color: #88977c;
 }
 .small-details {
-  margin-top: 26px;
-  font-size: 10px;
-  color: #879080;
+  margin-top: 18px;
+  font-size: 12px;
+  color: #6f7f66;
+}
+.small-details + .small-details {
+  margin-top: 0;
 }
 .small-details summary {
+  padding: 8px 0;
   cursor: pointer;
+}
+.small-details summary:hover {
+  color: #3f5739;
 }
 .small-details p {
   line-height: 1.65;
-  font-size: 11px;
-  margin: 14px 0;
+  font-size: 12px;
+  margin: 6px 0 12px;
+  color: #74806d;
 }
 .small-details a {
   display: flex;
@@ -694,7 +715,7 @@ button:disabled {
   color: #728365;
 }
 .topic-meta span {
-  font-size: 8px;
+  font-size: 9px;
   letter-spacing: 0.7px;
   margin-left: 7px;
   color: #99a08f;
@@ -763,7 +784,7 @@ button:disabled {
 }
 .topic-sections p.section-sources {
   margin-top: 8px;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.6;
   color: #879080;
 }
@@ -778,7 +799,7 @@ button:disabled {
 }
 .provenance-note {
   margin: 12px 0 0;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.2px;
   color: #879080;
 }
@@ -1352,7 +1373,7 @@ blockquote {
   align-items: center;
   gap: 8px;
   color: #7a8c70;
-  font-size: 8px;
+  font-size: 9px;
   letter-spacing: 1.45px;
   line-height: 1.5;
 }
@@ -1484,7 +1505,7 @@ blockquote {
 }
 .story-link small {
   color: #7e8b73;
-  font-size: 9px;
+  font-size: 11px;
   display: block;
   line-height: 1.6;
 }
@@ -1845,17 +1866,30 @@ blockquote {
 }
 .library-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  border-bottom: 1px solid #dfe5d8;
 }
 .library-row .story-link {
   flex: 1;
+  border-bottom: 0;
 }
 .remove-saved {
-  padding: 6px;
-  color: #93a386;
-  background: none;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  /* Centers the button on the row's first line, level with the link arrow. */
+  margin: 10px 0 0 8px;
+  padding: 0;
   border: 0;
-  margin-left: 8px;
+  border-radius: 6px;
+  background: none;
+  color: #93a386;
+}
+.remove-saved:hover {
+  background: #e6ecde;
+  color: #3f5739;
 }
 .library-empty {
   padding: 40px 10px;
@@ -1892,24 +1926,56 @@ blockquote {
   color: #48613d !important;
   background: #f7f9f1 !important;
 }
+.share-dialog > svg {
+  color: #81976e;
+}
+.share-dialog [data-slot='dialog-title'] {
+  font:
+    25px/1.2 Georgia,
+    serif;
+  letter-spacing: -0.4px;
+  color: #354d2d;
+}
+.share-dialog [data-slot='dialog-description'] {
+  color: #66775c;
+}
+.share-dialog [data-slot='dialog-close'] {
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  color: #5f7456;
+  opacity: 1;
+}
+.share-dialog [data-slot='dialog-close']:hover {
+  background: #e6ecde;
+}
 .share-dialog input {
-  font-size: 12px;
+  font-size: 13px;
   padding: 13px;
   background: #eef2e8;
   border: 1px solid #d8e1ce;
-  border-radius: 5px;
+  border-radius: 6px;
   width: 100%;
+  color: #2f4630;
+}
+.share-dialog input:focus-visible {
+  outline: 2px solid #9fb489;
+  outline-offset: 2px;
 }
 .share-dialog > button:not([data-slot='dialog-close']) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
   border: 0;
   background: #dfebd5;
-  border-radius: 5px;
-  padding: 10px;
-  font-size: 12px;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 13px;
+  color: #3f5b32;
+}
+.share-dialog > button:not([data-slot='dialog-close']):hover {
+  background: #d4e3c8;
 }
 @media (min-width: 801px) {
   .panel-compact .panel-scroll,
@@ -2108,12 +2174,6 @@ blockquote {
   .panel-scroll {
     padding: 18px;
   }
-  .route-key {
-    font-size: 8px;
-  }
-  .section-label {
-    font-size: 7px;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .globe-loading > span {
@@ -2131,12 +2191,22 @@ blockquote {
   }
 }
 .atlas-drawer > button:last-child {
-  right: 18px;
-  top: 18px;
-  width: 28px;
-  height: 28px;
+  right: 14px;
+  top: 14px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
+  border-radius: 8px;
+  color: #5f7456;
+  opacity: 1;
+}
+.atlas-drawer > button:last-child:hover {
+  background: #e6ecde;
+}
+.atlas-drawer > button:last-child svg {
+  width: 18px;
+  height: 18px;
 }
 /* Geographic text stays legible over ice, desert, and ocean alike. */
 .map-caption {
@@ -2235,10 +2305,18 @@ blockquote {
   display: grid;
   gap: 7px;
 }
+.quick-facts:has(+ .reference-population) {
+  margin-bottom: 0;
+}
+.quick-facts + .reference-population {
+  margin-top: 0;
+  border-top: 0;
+}
 .reference-population > span {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: #687469;
+  font-size: 9px;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: #8b9686;
 }
 .reference-population > strong {
   font-size: 25px;

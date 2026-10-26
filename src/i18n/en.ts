@@ -216,6 +216,7 @@ export const en = {
     sourcesNote:
       'The map contains 258 country and territory identities, not 258 sovereign states. Names and boundaries are for exploration and do not endorse territorial claims. Population retains its source year. These are static references and guides, without live updates or AI answers.',
     nearby: 'STORIES NEAR HERE',
+    sourceLink: 'Natural Earth · Admin 0',
   },
   sources: {
     questionSummary: 'Sources & further reading',
