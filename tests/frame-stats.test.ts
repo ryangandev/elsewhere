@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { summarizeFrames } from '../app/globe/frame-stats';
 
 test('FPS uses elapsed frame time and does not assume a 60 Hz screen', () => {

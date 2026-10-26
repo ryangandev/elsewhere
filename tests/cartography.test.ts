@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { geoArea, geoContains } from 'd3-geo';
 import { fitsCountry, overlaps, type CountryFeature } from '../app/globe/cartography';
-import index from '../app/country-index.json';
+import index from '../src/content/legacy/country-index.json';
 const geometry = (name: string) => JSON.parse(readFileSync(new URL(`../public/maps/${name}.geojson`, import.meta.url), 'utf8')).features as CountryFeature[];
 const base = geometry('countries');
 const detail = geometry('countries-detail');

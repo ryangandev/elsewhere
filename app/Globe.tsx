@@ -1,13 +1,10 @@
 'use client';
-import { useText } from './ui-text';
 
 import { useEffect, useRef, useState } from 'react';
 import type { GlobeInstance } from 'globe.gl';
-import type { Country, Place, Topic } from './data';
-import { directory, type MapCountry } from './exploration';
-import { placeName } from './localized-content';
-import { useLocale, countryName } from './locale';
-import mapIndex from './country-index.json';
+import type { Country, Place, Topic } from '@/content/legacy/data';
+import { directory, type MapCountry } from '@/domain/catalog';
+import mapIndex from '@/content/legacy/country-index.json';
 import PerformanceMonitor from './PerformanceMonitor';
 import type { BasemapMode } from './globe/materials';
 import { createCountryLookup } from './globe/country-lookup';
@@ -27,10 +24,6 @@ type Props = {
   performanceEnabled: boolean; onClosePerformance: () => void;
 };
 export default function GlobeView({ country, profile, topic, focus, action, onSelect, onFocus, onStatus, performanceEnabled, onClosePerformance }: Props) {
-  const t = useText();
-  const { locale } = useLocale();
-  const language = useRef(locale);
-  useEffect(() => { language.current = locale; }, [locale]);
   const host = useRef<HTMLDivElement>(null);
   const globe = useRef<GlobeInstance | null>(null);
   const sceneView = useRef(homeView);
@@ -39,7 +32,6 @@ export default function GlobeView({ country, profile, topic, focus, action, onSe
   const features = useRef(new Map<string, CountryFeature>());
   const scheduleLayout = useRef<() => void>(() => {});
   const repaint = useRef<() => void>(() => {});
-  const refreshLanguage = useRef<() => void>(() => {});
   const highlight = useRef<(id?: string) => void>(() => {});
   const current = useRef({ onSelect, onFocus, onStatus, country, focus });
   const [loaded, setLoaded] = useState(0);
@@ -130,7 +122,7 @@ export default function GlobeView({ country, profile, topic, focus, action, onSe
             const feature = item as CountryFeature;
             const label = document.createElement('div');
             label.className = 'map-tooltip';
-            label.textContent = countryName(feature.properties.ADM0_A3, directory.find(c => c.id === feature.properties.ADM0_A3)?.name ?? feature.properties.ADMIN, language.current);
+            label.textContent = directory.find(c => c.id === feature.properties.ADM0_A3)?.name ?? feature.properties.ADMIN;
             return label;
           })
           .onPolygonHover(item => highlight.current(item ? (item as CountryFeature).properties.ADM0_A3 : undefined))
@@ -222,12 +214,11 @@ export default function GlobeView({ country, profile, topic, focus, action, onSe
           tooltip.hidden = !feature;
           if (feature) {
             const bounds = element.getBoundingClientRect();
-            tooltip.textContent = countryName(feature.properties.ADM0_A3, directory.find(c => c.id === feature.properties.ADM0_A3)?.name ?? feature.properties.ADMIN, language.current);
+            tooltip.textContent = directory.find(c => c.id === feature.properties.ADM0_A3)?.name ?? feature.properties.ADMIN;
             tooltip.style.left = `${Math.max(8, Math.min(pointer.x - bounds.left + 12, bounds.width - tooltip.offsetWidth - 8))}px`;
             tooltip.style.top = `${Math.max(8, Math.min(pointer.y - bounds.top + 12, bounds.height - tooltip.offsetHeight - 8))}px`;
           }
         };
-        refreshLanguage.current = () => { tooltip.hidden = true; showHover(); };
         const move = (event: PointerEvent) => {
           pointer = { x: event.clientX, y: event.clientY };
           if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 5) press.moved = true;
@@ -302,7 +293,6 @@ export default function GlobeView({ country, profile, topic, focus, action, onSe
       scheduleLayout.current = () => {};
       repaint.current = () => {};
       highlight.current = () => {};
-      refreshLanguage.current = () => {};
       changeBasemap.current = () => {};
       releaseInteractions();
       labels.current = [];
@@ -315,16 +305,6 @@ export default function GlobeView({ country, profile, topic, focus, action, onSe
       releaseMaterials();
     };
   }, []);
-
-  useEffect(() => {
-    refreshLanguage.current();
-    for (const label of labels.current) {
-      label.element.replaceChildren(document.createTextNode(countryName(label.id, label.name, locale)));
-      label.element.setAttribute('aria-label', locale === 'zh' ? `探索${countryName(label.id, label.name, locale)}` : `Explore ${label.name}`);
-    }
-    for (const element of contextElements.current) if (element.dataset.place) { element.replaceChildren(document.createTextNode(placeName(element.dataset.place, locale))); element.setAttribute('aria-label', locale === 'zh' ? `探索${placeName(element.dataset.place, locale)}` : `Locate ${element.dataset.place}`); }
-    scheduleLayout.current();
-  }, [locale, loaded, country, topic, focus]);
 
   useEffect(() => {
     const instance = globe.current;
@@ -344,12 +324,12 @@ export default function GlobeView({ country, profile, topic, focus, action, onSe
       const place = item as MapLabel;
       const button = document.createElement('button');
       button.type = 'button';
-      button.setAttribute('aria-label', language.current === 'zh' ? `探索${place.id ? countryName(place.id, place.name, language.current) : placeName(place.name, language.current)}` : `${place.id ? 'Explore' : 'Locate'} ${place.name}`);
+      button.setAttribute('aria-label', `${place.id ? 'Explore' : 'Locate'} ${place.name}`);
       if (place.id) {
         button.className = 'atlas-country-name';
         button.classList.toggle('is-callout', place.id === country?.id && (place.area ?? 0) < .0003);
         button.dataset.country = place.id;
-        button.textContent = place.id ? countryName(place.id, place.name, language.current) : placeName(place.name, language.current);
+        button.textContent = place.name;
         button.tabIndex = -1;
         button.setAttribute('aria-hidden', 'true');
         labels.current.push({ id: place.id, name: place.name, lat: place.lat, lng: place.lng, area: place.area ?? 0, rank: place.rank ?? 6, element: button, visible: false });
@@ -358,7 +338,7 @@ export default function GlobeView({ country, profile, topic, focus, action, onSe
       } else {
         button.dataset.place = place.name;
         button.className = `globe-pin context-label ${place.kind === 'water' ? 'water-label' : ''} ${place.name === focus?.name ? 'active' : ''}`;
-        button.textContent = place.id ? countryName(place.id, place.name, language.current) : placeName(place.name, language.current);
+        button.textContent = place.name;
         contextElements.current.push(button);
       }
       let labelPress: { x: number; y: number } | null = null;
@@ -391,7 +371,7 @@ export default function GlobeView({ country, profile, topic, focus, action, onSe
     if (action.type === 'reset') instance.pointOfView(sceneView.current, duration(850));
   }, [action]);
 
-  return <><div className="globe-render" data-basemap={basemap} ref={host} aria-label={t("Interactive 3D world globe")}>
-    {error && <div className="globe-error" role="status"><strong>{t("The globe couldn’t load.")}</strong><p>{t("All stories, search, and your saved places are still available.")}</p><button onClick={() => location.reload()}>{t("Try again")}</button></div>}
+  return <><div className="globe-render" data-basemap={basemap} ref={host} aria-label="Interactive 3D world globe">
+    {error && <div className="globe-error" role="status"><strong>The globe couldn’t load.</strong><p>All stories, search, and your saved places are still available.</p><button onClick={() => location.reload()}>Try again</button></div>}
   </div>{performanceEnabled && loaded > 0 && !error && <PerformanceMonitor globeRef={globe} readyKey={loaded} basemap={basemap} onBasemapChange={setBasemap} showLabels={showLabels} onLabelsChange={setShowLabels} onClose={onClosePerformance} />}</>;
 }

@@ -1,6 +1,4 @@
 'use client';
-import { useLocale } from './locale';
-import { useText } from './ui-text';
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
@@ -20,8 +18,6 @@ export default function PerformanceMonitor({ globeRef, readyKey, basemap, onBase
   globeRef: RefObject<GlobeInstance | null>; readyKey: number; basemap: BasemapMode; onBasemapChange: (mode: BasemapMode) => void;
   showLabels: boolean; onLabelsChange: (enabled: boolean) => void; onClose: () => void;
 }) {
-  const t = useText();
-  const { locale } = useLocale();
   const [reading, setReading] = useState(empty);
   const commands = useRef<{ start: (motion: 'rotate' | 'manual') => void; stop: () => void; reset: () => void }>({ start: () => {}, stop: () => {}, reset: () => {} });
   useEffect(() => {
@@ -109,23 +105,22 @@ export default function PerformanceMonitor({ globeRef, readyKey, basemap, onBase
   const stats = reading.phase === 'live' ? reading.live : reading.result;
   const headline = reading.paused ? 'Paused while tab is hidden' : reading.phase === 'running' ? `${reading.motion === 'rotate' ? 'Rotating' : 'Drag / zoom now'} · ${reading.remaining}s left`
     : reading.phase === 'complete' ? `${reading.motion === 'rotate' ? 'Rotation' : 'Interaction'} test complete` : reading.phase === 'stopped' ? 'Test stopped' : reading.phase === 'hidden' ? 'Test interrupted · tab hidden' : 'Live · recent 2 seconds';
-  const localizedHeadline = locale === 'zh' ? reading.paused ? '标签页隐藏，已暂停' : reading.phase === 'running' ? `${reading.motion === 'rotate' ? '旋转测试' : '现在拖动或缩放'} · 剩余${reading.remaining}秒` : reading.phase === 'complete' ? '测试完成' : reading.phase === 'stopped' ? '测试已停止' : reading.phase === 'hidden' ? '标签页隐藏，测试中断' : '实时 · 最近2秒' : headline;
   const ms = (value?: number) => value === undefined ? '…' : `${value.toFixed(1)} ms`;
-  return createPortal(<aside className="performance-monitor" aria-label={t("Globe frame rate checker")}>
-    <div className="performance-heading"><strong>{t("Frame check")}</strong><button onClick={onClose} aria-label={t("Close frame rate checker")}><X size={14} /></button></div>
-    <p className="performance-phase">{localizedHeadline}</p>
-    <div className={`performance-fps ${stats && stats.fps < 30 ? 'is-slow' : ''}`}><strong data-testid="measured-fps">{stats ? stats.fps.toFixed(1) : '…'}</strong><span>FPS</span><small>{stats ? `${stats.frames} ${locale === 'zh' ? '帧' : 'frames'} / ${(stats.durationMs / 1000).toFixed(1)}s` : t('Waiting for rendered frames')}</small></div>
+  return createPortal(<aside className="performance-monitor" aria-label="Globe frame rate checker">
+    <div className="performance-heading"><strong>{"Frame check"}</strong><button onClick={onClose} aria-label="Close frame rate checker"><X size={14} /></button></div>
+    <p className="performance-phase">{headline}</p>
+    <div className={`performance-fps ${stats && stats.fps < 30 ? 'is-slow' : ''}`}><strong data-testid="measured-fps">{stats ? stats.fps.toFixed(1) : '…'}</strong><span>FPS</span><small>{stats ? `${stats.frames} frames / ${(stats.durationMs / 1000).toFixed(1)}s` : 'Waiting for rendered frames'}</small></div>
     <dl className="performance-metrics">
-      <div><dt>{t("Average frame")}</dt><dd>{ms(stats?.meanMs)}</dd></div>
-      <div><dt>{t("P95 frame")}</dt><dd>{ms(stats?.p95Ms)}</dd></div>
-      <div><dt>{t("Worst frame")}</dt><dd>{ms(stats?.worstMs)}</dd></div>
-      <div><dt>{t("Slow >33.3 ms")}</dt><dd>{stats ? `${stats.slowFrames} (${stats.slowPercent.toFixed(1)}%)` : '…'}</dd></div>
+      <div><dt>{"Average frame"}</dt><dd>{ms(stats?.meanMs)}</dd></div>
+      <div><dt>{"P95 frame"}</dt><dd>{ms(stats?.p95Ms)}</dd></div>
+      <div><dt>{"Worst frame"}</dt><dd>{ms(stats?.worstMs)}</dd></div>
+      <div><dt>{"Slow >33.3 ms"}</dt><dd>{stats ? `${stats.slowFrames} (${stats.slowPercent.toFixed(1)}%)` : '…'}</dd></div>
     </dl>
-    <p className="performance-budget">{t("60 FPS ≈ 16.7 ms per frame.")}<br />{t("P95: 95% of frames are at or below this time.")}</p>
-    <div className="performance-actions"><button disabled={reading.paused} onClick={() => reading.phase === 'running' ? commands.current.stop() : commands.current.start('rotate')}>{reading.phase === 'running' ? t('Stop test') : t('Rotate for 10s')}</button><button onClick={() => commands.current.reset()} aria-label={t("Reset frame measurements")} title={t("Return to live measurements")}><RotateCcw size={13} /></button></div>
-    <button className="performance-manual" disabled={reading.paused || reading.phase === 'running'} onClick={() => commands.current.start('manual')}>{t("Record drag / zoom for 10s")}</button>
-    <details className="performance-comparison"><summary>{t("Compare globe rendering")}</summary><label>{t("Globe rendering")}<select aria-label={t("Globe rendering")} value={basemap} disabled={reading.phase === 'running'} onChange={event => { commands.current.reset(); onBasemapChange(event.target.value as BasemapMode); }}><option value="texture">{t("4K blue globe")}</option><option value="vector">{t("Vector terrain")}</option></select></label><label className="performance-label-toggle"><input type="checkbox" checked={showLabels} disabled={reading.phase === 'running'} onChange={event => { commands.current.reset(); onLabelsChange(event.target.checked); }} />{t("Country labels")}</label><p>{t("Same starting view and render resolution. Let the map settle before testing. Closing restores the 4K globe and labels.")}</p></details>
-    <p className="performance-detail">{basemap === 'texture' ? t("4K blue globe") : t("Vector terrain")} {t("· labels")} {showLabels ? t('on') : t('off')}<br />{reading.calls.toLocaleString()} {t("draw calls ·")}{(reading.triangles / 1000).toFixed(0)}{t("k triangles")}<br />{reading.width} × {reading.height} {t("buffer · DPR")}{reading.dpr.toFixed(1)}{reading.phase !== 'live' && reading.live && <><br />{t("Live now:")}{reading.live.fps.toFixed(1)} FPS</>}</p>
-    <p className="performance-method">{t("Test start:")}{reading.view}<br />{t("WebGL render intervals, not GPU execution time. Test results stay here until reset or closed.")}</p>
+    <p className="performance-budget">{"60 FPS ≈ 16.7 ms per frame."}<br />{"P95: 95% of frames are at or below this time."}</p>
+    <div className="performance-actions"><button disabled={reading.paused} onClick={() => reading.phase === 'running' ? commands.current.stop() : commands.current.start('rotate')}>{reading.phase === 'running' ? 'Stop test' : 'Rotate for 10s'}</button><button onClick={() => commands.current.reset()} aria-label="Reset frame measurements" title="Return to live measurements"><RotateCcw size={13} /></button></div>
+    <button className="performance-manual" disabled={reading.paused || reading.phase === 'running'} onClick={() => commands.current.start('manual')}>{"Record drag / zoom for 10s"}</button>
+    <details className="performance-comparison"><summary>{"Compare globe rendering"}</summary><label>{"Globe rendering"}<select aria-label="Globe rendering" value={basemap} disabled={reading.phase === 'running'} onChange={event => { commands.current.reset(); onBasemapChange(event.target.value as BasemapMode); }}><option value="texture">{"4K blue globe"}</option><option value="vector">{"Vector terrain"}</option></select></label><label className="performance-label-toggle"><input type="checkbox" checked={showLabels} disabled={reading.phase === 'running'} onChange={event => { commands.current.reset(); onLabelsChange(event.target.checked); }} />{"Country labels"}</label><p>{"Same starting view and render resolution. Let the map settle before testing. Closing restores the 4K globe and labels."}</p></details>
+    <p className="performance-detail">{basemap === 'texture' ? '4K blue globe' : 'Vector terrain'} {"· labels"} {showLabels ? 'on' : 'off'}<br />{reading.calls.toLocaleString()} {"draw calls ·"}{(reading.triangles / 1000).toFixed(0)}{"k triangles"}<br />{reading.width} × {reading.height} {"buffer · DPR"}{reading.dpr.toFixed(1)}{reading.phase !== 'live' && reading.live && <><br />{"Live now:"}{reading.live.fps.toFixed(1)} FPS</>}</p>
+    <p className="performance-method">{"Test start:"}{reading.view}<br />{"WebGL render intervals, not GPU execution time. Test results stay here until reset or closed."}</p>
   </aside>, document.body);
 }

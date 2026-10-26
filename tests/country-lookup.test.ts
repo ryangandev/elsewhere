@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createCountryLookup } from '../app/globe/country-lookup';
 import type { CountryFeature } from '../app/globe/cartography';
-import index from '../app/country-index.json';
+import index from '../src/content/legacy/country-index.json';
 
 const features = JSON.parse(readFileSync(new URL('../public/maps/countries-detail.geojson', import.meta.url), 'utf8')).features as CountryFeature[];
 const lookup = createCountryLookup(features);
