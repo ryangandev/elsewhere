@@ -103,7 +103,8 @@ button:disabled {
  * Page geometry. Chrome lines up on one gutter: the header, footer, home column, breadcrumb,
  * caption and reading panel all share --gutter, and the stage between the header and footer
  * lines is inset by --inset. The same variables are re-set per screen size below, so every
- * element that reads them follows.
+ * element that reads them follows. On phones --panel-strip is the height of the reading panel
+ * when it is collapsed.
  */
 .world-app {
   --gutter: 46px;
@@ -200,6 +201,7 @@ button:disabled {
     --header: 70px;
     --footer: 49px;
     --inset: 14px;
+    --panel-strip: 158px;
     min-height: 520px;
     height: 100dvh;
     /* The globe sits in the top half on phones, so the light falls there. */
@@ -216,6 +218,10 @@ button:disabled {
     top: 65px;
     height: 39%;
     width: 108%;
+  }
+  /* A collapsed reading panel is a strip along the bottom, and the globe takes the rest. */
+  .world-app:has(#country-reading .panel-compact) .globe-area {
+    height: calc(100% - 65px - var(--panel-strip));
   }
 }
 @media (prefers-reduced-motion: reduce) {

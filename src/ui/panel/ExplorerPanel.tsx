@@ -1,9 +1,9 @@
 'use client';
 
+import { useId, useState } from 'react';
 import { destinationKey, type Destination } from '@/domain/destination';
 import type { PageView, TrailView } from '@/domain/view-models';
 import { format, messages } from '@/i18n';
-import { useAtlas } from '../atlas/AtlasProvider';
 import { BasicCountryView } from './BasicCountryView';
 import { CountryView } from './CountryView';
 import { PanelFooter } from './PanelFooter';
@@ -23,19 +23,32 @@ type Props = {
 /**
  * The reading panel. It picks the view that matches the page: an answered question, an edited
  * country overview, or map basics for any other place.
+ * On a phone it can collapse to a strip that gives the globe the room (see panel.css). That
+ * belongs to one destination, so every destination starts with the panel open.
  */
-export function ExplorerPanel({ view, destination, trail }: Props) {
-  const { compact } = useAtlas();
+export function ExplorerPanel(props: Props) {
+  return <Panel key={destinationKey(props.destination)} {...props} />;
+}
+
+function Panel({ view, destination, trail }: Props) {
+  const [compact, setCompact] = useState(false);
+  const bodyId = useId();
   const key = destinationKey(destination);
 
   return (
     <div id="country-reading">
       <aside
-        className={`country-panel ${compact ? 'panel-compact' : ''}`}
+        className={compact ? 'country-panel panel-compact' : 'country-panel'}
         aria-label={format(messages.panel.label, { name: view.country.name })}
       >
-        <PanelHeader view={view} destination={destination} />
-        <div className="panel-scroll" key={key}>
+        <PanelHeader
+          view={view}
+          destination={destination}
+          compact={compact}
+          bodyId={bodyId}
+          onToggleCompact={() => setCompact((current) => !current)}
+        />
+        <div className="panel-scroll" id={bodyId} key={key}>
           {trail && (
             <TrailProgress trail={trail} currentKey={key} leaveHref={view.shell.destination.href} />
           )}

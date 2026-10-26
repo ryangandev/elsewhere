@@ -369,6 +369,10 @@
     right: 15px;
     top: 22%;
   }
+  /* The globe is taller while the reading panel is collapsed, so the controls move to its middle. */
+  .world-app:has(#country-reading .panel-compact) .map-controls {
+    top: 40%;
+  }
   .map-controls button {
     width: 44px;
     height: 44px;

@@ -486,6 +486,7 @@ Reading:
   Everything else is plain CSS, one stylesheet beside the components it styles, imported by those components: `src/ui/shell/shell.css`, `src/ui/panel/panel.css`, `reading.css`, `map-overlays.css`, `map-connections.css` and `story-link.css`, `src/ui/dialogs/dialogs.css`, `src/ui/home/home.css`, `src/ui/search/search.css`, and `src/globe/globe.css`.
 - `app/globals.css` keeps only the design tokens, base element styles, and the shell's grid.
   `.world-app` sets `--gutter`, `--header`, `--footer`, `--inset` and `--panel-width` for each screen size, and `.globe-area` is placed from them, so everything that reads those variables follows.
+  On phones it also sets `--panel-strip`, the height of the reading panel collapsed to a strip; the panel's collapsed state lives in the panel itself and the grid reads it with `:has(#country-reading .panel-compact)`.
 - Each class is styled in one place.
   A breakpoint adjusts a rule inside that rule's own stylesheet, instead of overriding it later in another one, so a rule's final value can be read where it is written.
 - The breakpoints are 1500px, 1100px, 800px (phones, where every control is at least 44px) and 380px, plus short screens (800px high) for the globe and the home column.
@@ -504,7 +505,7 @@ Adding Chinese later means adding a catalog and a `content/zh/` tree, with no co
 - Content validation runs in CI on every change to `content/`.
 - Pipeline tests in `tests/pipeline/` run plan, draft, verify, review and redraft end to end on replayed model responses.
 - Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, back and forward, trails, saving a story to your atlas, share, and the About sheet.
-  A phone project runs the core loop (home, ask, story, follow) and share through a stubbed system share sheet at 390 by 844 with touch.
+  A phone project runs the core loop (home, ask, story, follow), the reading panel collapsing to a strip and giving the globe its room, and share through a stubbed system share sheet at 390 by 844 with touch.
   The specs find things by role and visible text, read expected questions and sources from `content/en/`, and never depend on globe pixels or on WebGL (one spec runs with WebGL disabled).
   Run `npm run build` first, then `npm run test:e2e`; CI runs it as its own `e2e` job and keeps the Playwright report when it fails.
 
