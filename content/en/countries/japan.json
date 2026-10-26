@@ -118,6 +118,19 @@
       "countryId": "JPN",
       "slug": "coasts",
       "question": "Why do so many people live along one coast?",
+      "paraphrases": {
+        "question": "Why do so many people live along one coast?",
+        "phrasings": [
+          "Why is Japan's population packed onto the Pacific coast?",
+          "Why do most Japanese live between Tokyo, Nagoya and Osaka?",
+          "why is everyone in japan crammed on the coast",
+          "How do mountains shape where people live in Japan?",
+          "japan population coastal plains"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Geography",
       "summary": "Mountains and the sea leave a surprisingly narrow stage for everyday life.",
       "sections": [
@@ -187,6 +200,19 @@
       "countryId": "JPN",
       "slug": "industry",
       "question": "How did Japan become a manufacturing powerhouse?",
+      "paraphrases": {
+        "question": "How did Japan become a manufacturing powerhouse?",
+        "phrasings": [
+          "How did Japan get so good at making things?",
+          "How did Japanese industry rebuild after World War II?",
+          "why is japan so big in manufacturing",
+          "What made Japan an industrial giant?",
+          "japan manufacturing history"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Industry",
       "summary": "The story is about learning, rebuilding, and improving systems.",
       "sections": [
@@ -274,6 +300,19 @@
       "countryId": "JPN",
       "slug": "aging",
       "question": "What changes when a country grows older?",
+      "paraphrases": {
+        "question": "What changes when a country grows older?",
+        "phrasings": [
+          "Why does Japan have so many old people, and what does it mean?",
+          "How is an aging population changing Japan?",
+          "what happens to japan as everyone gets older",
+          "How does Japan cope with low birth rates and long lives?",
+          "japan aging population effects"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "People & society",
       "summary": "Japan offers an early view of a challenge many societies will face.",
       "sections": [

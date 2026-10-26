@@ -127,6 +127,19 @@
       "countryId": "MYS",
       "slug": "two-shores",
       "question": "Why is Malaysia in two separate parts?",
+      "paraphrases": {
+        "question": "Why is Malaysia in two separate parts?",
+        "phrasings": [
+          "Why is Malaysia split between the peninsula and Borneo?",
+          "why are sabah and sarawak separated from the rest of malaysia by sea",
+          "How did Malaysia end up divided by the South China Sea?",
+          "malaysia two halves peninsula borneo",
+          "Why does part of Malaysia sit on Borneo and part on the Malay Peninsula?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Geography & history",
       "summary": "A national border can tell a story that a coastline cannot.",
       "sections": [
@@ -209,6 +222,19 @@
       "countryId": "MYS",
       "slug": "electronics",
       "question": "How did Malaysia get inside your electronics?",
+      "paraphrases": {
+        "question": "How did Malaysia get inside your electronics?",
+        "phrasings": [
+          "Why are so many chips made in Malaysia?",
+          "How did Malaysia become a big electronics manufacturer?",
+          "malaysia semiconductor industry",
+          "is my phone's chip actually from malaysia?",
+          "What role does Malaysia play in chip assembly, packaging and testing?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Industry",
       "summary": "A product’s brand tells you surprisingly little about where it was made.",
       "sections": [
@@ -275,6 +301,19 @@
       "countryId": "MYS",
       "slug": "federation",
       "question": "What holds a diverse federation together?",
+      "paraphrases": {
+        "question": "What holds a diverse federation together?",
+        "phrasings": [
+          "How does Malaysia stay united with so many different communities?",
+          "What keeps Malay, Chinese, Indian and Indigenous Malaysians in one country?",
+          "malaysia diversity federal unity",
+          "how do sabah and sarawak fit into malaysian identity?",
+          "Is there one typical Malaysian experience or does it vary by region?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "People & identity",
       "summary": "A common national name does not mean a single regional experience.",
       "sections": [

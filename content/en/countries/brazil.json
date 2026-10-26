@@ -124,6 +124,19 @@
       "countryId": "BRA",
       "slug": "amazon",
       "question": "Why does the Amazon matter beyond Brazil?",
+      "paraphrases": {
+        "question": "Why does the Amazon matter beyond Brazil?",
+        "phrasings": [
+          "Why is the Amazon rainforest important to the rest of the world?",
+          "how does the Amazon affect rainfall in South America?",
+          "Why should people outside Brazil care about the Amazon?",
+          "amazon rainforest global importance",
+          "What happens to other countries if the Amazon forest is lost?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Nature & climate",
       "summary": "A forest is also part of the atmosphere’s plumbing.",
       "sections": [
@@ -201,6 +214,19 @@
       "countryId": "BRA",
       "slug": "language",
       "question": "Why does Brazil speak Portuguese?",
+      "paraphrases": {
+        "question": "Why does Brazil speak Portuguese?",
+        "phrasings": [
+          "Why do Brazilians speak Portuguese and not Spanish?",
+          "how come Brazil is the Portuguese speaking one in South America?",
+          "What made Portuguese the official language of Brazil?",
+          "brazil portuguese language history",
+          "Did Portugal colonizing Brazil decide its language?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "History & identity",
       "summary": "A colonial past left a different linguistic map from most of South America.",
       "sections": [
@@ -287,6 +313,19 @@
       "countryId": "BRA",
       "slug": "agriculture",
       "question": "How did Brazil become an agricultural giant?",
+      "paraphrases": {
+        "question": "How did Brazil become an agricultural giant?",
+        "phrasings": [
+          "Why is Brazil such a huge farming country?",
+          "How did Brazil turn into a major food exporter?",
+          "what made brazilian agriculture grow so big?",
+          "brazil farming boom cerrado",
+          "How did Brazil expand farm production in the Cerrado savanna?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Land & economy",
       "summary": "This is not just a story about abundant land.",
       "sections": [

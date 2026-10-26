@@ -133,6 +133,19 @@
       "countryId": "TUR",
       "slug": "straits",
       "question": "Why is one narrow strait so important?",
+      "paraphrases": {
+        "question": "Why is one narrow strait so important?",
+        "phrasings": [
+          "Why does the Bosphorus matter so much to world shipping?",
+          "How do Black Sea ships reach the Mediterranean through Turkey?",
+          "Why are the Turkish straits so strategically important?",
+          "what's the big deal about the Dardanelles?",
+          "bosphorus dardanelles montreux convention"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Geography & power",
       "summary": "For a Black Sea ship heading to the Mediterranean, geography offers a very particular path.",
       "sections": [
@@ -212,6 +225,19 @@
       "countryId": "TUR",
       "slug": "republic",
       "question": "How did an empire become a republic?",
+      "paraphrases": {
+        "question": "How did an empire become a republic?",
+        "phrasings": [
+          "How did the Ottoman Empire turn into modern Turkey?",
+          "What happened when Atatürk founded the Republic of Turkey in 1923?",
+          "Why did Turkey move its capital from Istanbul to Ankara?",
+          "how did the ottomans end and turkey begin?",
+          "ottoman empire to turkish republic"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "History",
       "summary": "The modern state emerged after war and the collapse of an imperial order.",
       "sections": [
@@ -296,6 +322,19 @@
       "countryId": "TUR",
       "slug": "identity",
       "question": "Is Turkey European or Asian?",
+      "paraphrases": {
+        "question": "Is Turkey European or Asian?",
+        "phrasings": [
+          "Does Turkey count as part of Europe or Asia?",
+          "Which continent is Turkey in?",
+          "Is Turkey a European country or a Middle Eastern one?",
+          "so is turkey europe or asia, or both?",
+          "turkey continent europe asia"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Identity",
       "summary": "The map answers one question. People’s lives answer many more.",
       "sections": [

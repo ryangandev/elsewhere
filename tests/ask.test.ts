@@ -41,6 +41,35 @@ test('a question opens its answer first', () => {
   assert.equal(top('dollar')?.href, '/united-states/dollar');
 });
 
+test('a question in the reader’s own words finds its story through the paraphrases', () => {
+  const answers: [string, string][] = [
+    ['Why is Singapore loaded?', '/singapore/wealth'],
+    ['why is japan full of old people', '/japan/aging'],
+    ['why is everyone in china on the east side', '/china/population'],
+    ['Why is the Bosphorus important?', '/turkey/straits'],
+    ['how did india get good at IT', '/india/technology'],
+    ['Why is the dollar the world currency?', '/united-states/dollar'],
+  ];
+  for (const [query, href] of answers) {
+    assert.equal(ask(query).kind, 'results', query);
+    assert.equal(top(query)?.href, href, query);
+  }
+});
+
+test('a near miss stays unanswered, so Enter opens nothing', () => {
+  for (const query of [
+    // The country has stories, but none about this.
+    'Why is Singapore so hot?',
+    'Why is Brazil so good at football?',
+    // "Loaded" asks about Singapore's wealth, not Japan's.
+    'Why is Japan loaded?',
+  ]) {
+    const outcome = ask(query);
+    assert.equal(outcome.kind, 'unanswered', query);
+    assert.equal(topResult(outcome), undefined, query);
+  }
+});
+
 test('an unanswered question says so and offers what is closest', () => {
   const chile = ask('Why does Chile look like that?');
   assert.equal(chile.kind, 'unanswered');
