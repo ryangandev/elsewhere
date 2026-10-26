@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import type { GlobeInstance } from 'globe.gl';
 import { RotateCcw, X } from 'lucide-react';
 import { summarizeFrames, type FrameStats } from './globe/frame-stats';
-import type { BasemapMode } from './globe/materials';
+import type { BasemapMode } from '../src/globe/materials';
 
 type Phase = 'live' | 'running' | 'complete' | 'stopped' | 'hidden';
 type Reading = {

@@ -9,9 +9,9 @@ import { placeName } from './localized-content';
 import { useLocale, countryName } from './locale';
 import mapIndex from './country-index.json';
 import PerformanceMonitor from './PerformanceMonitor';
-import type { BasemapMode } from './globe/materials';
-import { createCountryLookup } from './globe/country-lookup';
-import { arrangeContextLabels, arrangeLabels, type CountryFeature, type CountryLabel } from './globe/cartography';
+import type { BasemapMode } from '../src/globe/materials';
+import { createCountryLookup } from '../src/globe/country-lookup';
+import { arrangeContextLabels, arrangeLabels, type CountryFeature, type CountryLabel } from '../src/globe/cartography';
 
 export type GlobeAction = { type: 'in' | 'out' | 'reset'; seq: number };
 export type GlobeStatus = 'loading' | 'ready' | 'error';
@@ -80,7 +80,7 @@ export default function GlobeView({ country, profile, topic, focus, action, onSe
     const init = async () => {
       try {
         const [{ default: Globe }, { createAtlasMaterials, TextureLoader, SRGBColorSpace }, { createGlobeUnprojector }, { createCountryBorders }, { createCountryFills }, geometry] = await Promise.all([
-          import('globe.gl'), import('./globe/materials'), import('./globe/projection'), import('./globe/borders'), import('./globe/fills'), readGeometry('/maps/countries.geojson'),
+          import('globe.gl'), import('../src/globe/materials'), import('../src/globe/projection'), import('../src/globe/borders'), import('../src/globe/fills'), readGeometry('/maps/countries.geojson'),
         ]);
         if (disposed || !host.current) return;
         const element = host.current;
