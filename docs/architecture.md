@@ -137,9 +137,11 @@ Country     id, slug, name, nativeName?, region, kicker, overview, quickFacts[],
             starterStoryIds[] (3 to 5), scene: SceneSpec, sources[], provenance
 Overview    summary, geography, sourceIds[], whyItMatters[{title, text, sourceIds[]}]
 QuickFact   label, value, asOf?, sourceIds[]
-Story       id, countryId, slug, question, category, summary,
+Story       id, countryId, slug, question, paraphrases?, category, summary,
             sections[{title, text, sourceIds[]}], takeaway, scene: SceneSpec,
             next: StoryRef[] (max 3), sources[], provenance
+Paraphrases question (the wording they restate), phrasings[] (3 to 8, 120 characters each),
+            generatedBy, generatedAt, promptVersion?
 StoryRef    countryId, storyId, reason? (required when the story is in another country)
 SceneSpec   camera?, focusCountryId, highlights[{countryId, role}], placeIds[], routes[], mapNote?
 Route       id, kind: sea | land | river | flow, via: placeId[] (2 or more)
@@ -173,6 +175,10 @@ Rules:
 - Each story leads to at least one next question in the same country and one elsewhere.
   A draft may lead to a planned story in a country that has no file yet (see [pending references](#content-pipeline)); reviewed stories may not.
 - Generated content records when each source was read (`accessedAt`); content converted by hand (`generatedBy: "human"`) may omit it.
+- `paraphrases` are other ways a reader might type a story's question, used only by search and never shown.
+  They restate the question and make no claims, so they cite no sources.
+  They record the question they were written for; once the story's question changes they fail validation as stale until `npm run content:paraphrase` replaces them.
+  No phrasing may repeat the question, another phrasing, or another question in the same file.
 - Only `reviewed` content is built into production.
   In production the loaders drop drafts and every starter question, next question and trail stop that points at one; development shows drafts.
 - Locale is a directory, so a Chinese edition is a parallel `content/zh/` tree with the same IDs.
@@ -473,7 +479,7 @@ Client indexes are static route handlers (`dynamic = 'force-static'`), written t
 | `/atlas/labels.json` | `buildCountryLabels` | globe labels; the globe mounts once it loads | 29 KB / 9 KB |
 | `/atlas/index.json` | `buildAtlasIndex` | question input and search, library, recent history, trail drawer, resume | 45 KB / 11 KB |
 
-The atlas index holds every country, every question with its path, category, summary and build-time keywords (TF-IDF over the story text), every trail with its stop paths, and the home screen's suggested questions (offered when a query is not answered).
+The atlas index holds every country, every question with its path, category, summary, build-time keywords (TF-IDF over the story text) and paraphrase words (the words of its paraphrases that the question lacks, each once, without stop words), every trail with its stop paths, and the home screen's suggested questions (offered when a query is not answered).
 It grows with the question bank, so it can be split by country if it gets too large to load whole.
 
 ## Discovery and navigation
@@ -488,7 +494,9 @@ The question input:
   Its shortcut label reads ⌘ K on Apple platforms and Ctrl K elsewhere; pages are prerendered without knowing the platform, so `useApplePlatform` decides after hydration and both labels share one cell, keeping the button's width stable.
 - Results appear as the reader types, from the atlas index, which loads when the input first gets focus.
   Arrow keys move through them, and Enter opens the highlighted result, which starts at the top result for each query.
-- `src/domain/search.ts` scores countries (names and native names), map identities, and questions (text, category, summary, keywords).
+- `src/domain/search.ts` scores countries (names and native names), map identities, and questions (text, paraphrase words, category, summary, keywords).
+  A matched term scores 3 anywhere in a question's words and 1 more when it is in the question or its paraphrase words, so a reader's own wording counts like the question's.
+  Paraphrases let a question phrased with none of a story's words still find it ("Why is Singapore loaded?" finds the wealth story), while the coverage rule below keeps near misses unanswered.
   Words match by prefix, so a partly typed word already finds results; a small synonym list matches whole words only, so "Why is Singapore so rich?" finds the wealth question without "port" matching "Portuguese".
 - `src/domain/ask.ts` turns those results into what the input shows.
   A query that reads like a question (a question mark or an opening question word) lists questions first; a place name, or the start of one, lists countries first.

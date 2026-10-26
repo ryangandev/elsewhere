@@ -35,6 +35,11 @@ export type IndexStory = {
   summary: string;
   /** Distinctive words from the answer, space-separated, for search. */
   keywords: string;
+  /**
+   * Words readers use to ask this question that the question itself does not, from its
+   * paraphrases in content: space-separated, without stop words. Empty when it has none.
+   */
+  phrasings: string;
 };
 
 export type AtlasIndex = {

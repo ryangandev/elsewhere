@@ -87,16 +87,19 @@ const countryWords = new WeakMap<IndexCountry, WordSet>();
 function wordsOfStory(story: IndexStory): WordSet {
   let cached = storyWords.get(story);
   if (!cached) {
-    cached = words(`${story.question} ${story.category} ${story.summary} ${story.keywords}`);
+    cached = words(
+      `${story.question} ${story.phrasings} ${story.category} ${story.summary} ${story.keywords}`,
+    );
     storyWords.set(story, cached);
   }
   return cached;
 }
 
+/** The question and the words of its paraphrases: the ways readers ask it. */
 function wordsOfQuestion(story: IndexStory): WordSet {
   let cached = questionWords.get(story);
   if (!cached) {
-    cached = words(story.question);
+    cached = words(`${story.question} ${story.phrasings}`);
     questionWords.set(story, cached);
   }
   return cached;
@@ -144,7 +147,8 @@ const count = (flags: boolean[]) => flags.filter(Boolean).length;
 /**
  * Ranks countries and questions against a free-text query.
  * A country name weighs most, so "Canada" lists Canada first; questions score on their
- * wording and keywords and inherit a little from a matching country name.
+ * wording, their paraphrases (other ways readers ask them, written by the content pipeline)
+ * and keywords, and inherit a little from a matching country name.
  * `currentCountryId` boosts questions about the country the reader is already looking at.
  */
 export function searchAtlas(
@@ -190,7 +194,7 @@ export function searchAtlas(
     const countryScore = countryScores.get(story.countryId) ?? 0;
     const storyScore = count(matchedTerms(terms, wordsOfStory(story)));
     if (!storyScore && !countryScore) continue;
-    // Words in the question itself say more than words in its summary or keywords.
+    // Words in the question or its paraphrases say more than words in its summary or keywords.
     const questionScore = count(matchedTerms(terms, wordsOfQuestion(story)));
     const country = countries.get(story.countryId);
     const covered = matchedTerms(

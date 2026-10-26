@@ -136,12 +136,38 @@ export const StoryRef = z.strictObject({
 });
 export type StoryRef = z.infer<typeof StoryRef>;
 
+/** How many alternative phrasings a story keeps, and how long each may be. */
+export const PARAPHRASES = { min: 3, max: 8, maxLength: 120 };
+
+/**
+ * Other ways a reader might type a story's question, for search only; they are never shown to
+ * readers. They restate the question and make no claims, so they cite no sources, and changing
+ * them does not reset the story's review. `question` is the question they were written for:
+ * when the story's question changes they are stale, and validation asks for new ones
+ * (npm run content:paraphrase). The pipeline writes them; see docs/architecture.md#content-model.
+ */
+export const Paraphrases = z.strictObject({
+  question: Text,
+  phrasings: z
+    .array(Text.max(PARAPHRASES.maxLength))
+    .min(PARAPHRASES.min)
+    .max(PARAPHRASES.max),
+  /** The model that wrote them, or "human". */
+  generatedBy: Text,
+  generatedAt: IsoDate,
+  /** Version of the paraphrase prompt, e.g. "paraphrase/v1" for pipeline/prompts/paraphrase/v1/. */
+  promptVersion: Text.optional(),
+});
+export type Paraphrases = z.infer<typeof Paraphrases>;
+
 export const Story = z.strictObject({
   id: StoryId,
   countryId: CountryId,
   /** Readable URL segment, unique within the country. Can change; the ID cannot. */
   slug: Slug,
   question: Text,
+  /** Alternative phrasings of the question for search. Optional: search works without them. */
+  paraphrases: Paraphrases.optional(),
   category: Text,
   /** Short answer shown before the sections. */
   summary: Text,
