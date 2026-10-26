@@ -10,6 +10,8 @@ import { PanelFooter } from './PanelFooter';
 import { PanelHeader } from './PanelHeader';
 import { StoryView } from './StoryView';
 import { TrailProgress } from './TrailProgress';
+import './panel.css';
+import './reading.css';
 
 type Props = {
   view: PageView;

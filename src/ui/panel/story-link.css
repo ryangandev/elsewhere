@@ -1,0 +1,59 @@
+/* A card that leads to a country overview or one of its questions: in the panel and in your atlas. */
+.story-link {
+  text-decoration: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #dfe5d8;
+  padding: 16px 0;
+  color: #3f5739;
+  text-align: left;
+  background: none;
+}
+.story-link:hover {
+  background: #eaf0e466;
+}
+.story-flag {
+  font-size: 21px;
+  line-height: 1.3;
+  filter: saturate(0.65);
+}
+.story-link > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.story-link small {
+  color: #66775c;
+  font-size: 11px;
+  display: block;
+  line-height: 1.6;
+}
+.story-link strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+.story-link p {
+  color: #66775c;
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 6px 0 0;
+}
+.story-link > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: #8d9b80;
+}
+
+@media (max-width: 800px) {
+  .story-link small {
+    font-size: 12px;
+  }
+  .story-link p {
+    font-size: 13px;
+  }
+}

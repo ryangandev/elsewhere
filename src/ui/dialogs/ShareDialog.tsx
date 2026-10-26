@@ -4,6 +4,7 @@ import { Link2 } from 'lucide-react';
 import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../primitives/dialog';
+import './dialogs.css';
 
 /** Fallback for browsers that refuse clipboard access: show the link to copy by hand. */
 export function ShareDialog() {

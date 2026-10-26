@@ -5,6 +5,7 @@ import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 import { useAtlasIndex } from '../atlas/use-indexes';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '../primitives/sheet';
+import './dialogs.css';
 
 export function TrailDrawer() {
   const { dialog, openDialog, go } = useAtlas();
