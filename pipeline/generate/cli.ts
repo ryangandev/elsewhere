@@ -39,7 +39,8 @@ Options:
   --plan-only           with --batch: write the question plan and stop, for review
   --replan              with --batch: plan again even if a plan file exists
   --mode sync|batch     one request at a time (default), or rounds through the Batches API at half price
-  --resume              continue an interrupted batch-mode run
+  --resume              continue an interrupted batch-mode run; with --mode sync, collect the
+                        round in flight, then finish one request at a time
   --regenerate          replace existing drafts
   --force               replace files that contain reviewed content
   --model <id>          default ${DEFAULT_MODEL}
@@ -87,7 +88,7 @@ async function main(): Promise<number> {
       revisions: { type: 'boolean', default: false },
       'plan-only': { type: 'boolean', default: false },
       replan: { type: 'boolean', default: false },
-      mode: { type: 'string', default: 'sync' },
+      mode: { type: 'string' },
       resume: { type: 'boolean', default: false },
       regenerate: { type: 'boolean', default: false },
       force: { type: 'boolean', default: false },
@@ -105,9 +106,9 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return values.help ? 0 : 1;
   }
-  if (values.mode !== 'sync' && values.mode !== 'batch') throw new Error('--mode is sync or batch');
-  // Only batch-mode runs can be resumed.
-  const mode = values.resume ? 'batch' : values.mode;
+  // A resumed run continues in batch mode unless --mode sync is given.
+  const mode = values.mode ?? (values.resume ? 'batch' : 'sync');
+  if (mode !== 'sync' && mode !== 'batch') throw new Error('--mode is sync or batch');
   if (!EFFORTS.has(values.effort)) throw new Error(`Unknown effort "${values.effort}"`);
 
   loadLocalEnv();
@@ -159,7 +160,8 @@ async function main(): Promise<number> {
     model,
     effort,
     limits: DEFAULT_LIMITS,
-    cacheTtl: mode === 'batch' ? '1h' : '5m',
+    // A resumed batch run keeps the hour-long cache its conversations were written with.
+    cacheTtl: mode === 'batch' || values.resume ? '1h' : '5m',
     date,
     plan,
     linkTargets: renderLinkTargets(contentDir, plan),

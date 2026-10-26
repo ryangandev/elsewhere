@@ -1,10 +1,11 @@
 // Run drafting jobs, either one request at a time or in rounds through the Message Batches API,
-// and write accepted drafts into the content tree.
+// and write accepted drafts into the content tree. A batch run can resume in sync mode: it
+// collects the round in flight, then finishes each conversation one request at a time.
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import type { CountryFile } from '../../src/content/schema';
-import { CACHE_DIR } from '../config';
+import { CACHE_DIR, type Effort } from '../config';
 import {
   readCountryFile,
   readJson,
@@ -35,12 +36,13 @@ export type GenerateOptions = {
   client: ModelClient;
   context: RunContext;
   jobs: Job[];
+  /** How requests are sent; with resume, how the saved batch run continues. */
   mode: 'sync' | 'batch';
   /** Replace existing drafts that have no revision request. */
   regenerate: boolean;
   /** Replace files that contain reviewed content. */
   force: boolean;
-  /** Continue an interrupted batch run instead of refusing to start. */
+  /** Continue an interrupted batch run (in either mode) instead of refusing to start. */
   resume: boolean;
   log: (line: string) => void;
   /** Run state and failed drafts go here (default pipeline/.cache). */
@@ -55,6 +57,8 @@ type BatchRunState = {
   startedAt: string;
   model: string;
   promptVersion: string;
+  /** Missing in runs saved before it was recorded. */
+  effort?: Effort;
   date: string;
   jobs: Job[];
   round: number;
@@ -142,24 +146,34 @@ function report(result: JobResult, options: GenerateOptions): void {
   }
 }
 
+/** Send a session's requests one at a time until it finishes. */
+async function drive(
+  session: DraftSession,
+  options: GenerateOptions,
+  afterRequest: () => void = () => {},
+): Promise<void> {
+  while (session.running) {
+    try {
+      const message = await options.client.create({
+        tag: session.tag,
+        request: session.request(),
+      });
+      session.handle(message, false);
+    } catch (error) {
+      if (isFatal(error)) throw error;
+      session.fail(describeError(error));
+    }
+    afterRequest();
+  }
+}
+
 async function runSync(jobs: Job[], options: GenerateOptions): Promise<JobResult[]> {
   const results: JobResult[] = [];
   for (const job of jobs) {
     // Sessions are created just before they run, so each sees the drafts written before it.
     const session = new DraftSession(setupFor(job, options.context));
     options.log(`${session.tag}: drafting with ${options.client.description}`);
-    while (session.running) {
-      try {
-        const message = await options.client.create({
-          tag: session.tag,
-          request: session.request(),
-        });
-        session.handle(message, false);
-      } catch (error) {
-        if (isFatal(error)) throw error;
-        session.fail(describeError(error));
-      }
-    }
+    await drive(session, options);
     const result = finish(session, job, options);
     report(result, options);
     results.push(result);
@@ -183,18 +197,25 @@ async function runBatch(jobs: Job[], options: GenerateOptions): Promise<JobResul
         `An unfinished batch run from ${saved.startedAt} exists (${runFile}). Pass --resume to continue it, or delete the file to start over.`,
       );
     }
-    if (saved.model !== context.model || saved.promptVersion !== context.prompts.version) {
+    if (
+      saved.model !== context.model ||
+      saved.promptVersion !== context.prompts.version ||
+      (saved.effort && saved.effort !== context.effort)
+    ) {
       throw new Error(
-        `The unfinished run used ${saved.model} with prompts ${saved.promptVersion}; resume with the same settings.`,
+        `The unfinished run used ${saved.model} at ${saved.effort ?? 'an unrecorded'} effort with prompts ${saved.promptVersion}; resume with the same settings.`,
       );
     }
     state = saved;
-    options.log(`Resuming the batch run from ${saved.startedAt}, round ${saved.round}.`);
+    options.log(
+      `Resuming the batch run from ${saved.startedAt}, round ${saved.round}, in ${options.mode} mode.`,
+    );
   } else {
     state = {
       startedAt: new Date().toISOString(),
       model: context.model,
       promptVersion: context.prompts.version,
+      effort: context.effort,
       date: context.date,
       jobs,
       round: 0,
@@ -218,15 +239,28 @@ async function runBatch(jobs: Job[], options: GenerateOptions): Promise<JobResul
   };
   persist();
 
+  const record = (entry: (typeof sessions)[number]) => {
+    if (state.results.some((result) => result.tag === entry.session.tag)) return;
+    const result = finish(entry.session, entry.job, { ...options, context: runContext });
+    report(result, options);
+    state.results.push(result);
+  };
+
   for (;;) {
-    for (const entry of sessions.filter(({ session }) => !session.running)) {
-      if (state.results.some((result) => result.tag === entry.session.tag)) continue;
-      const result = finish(entry.session, entry.job, { ...options, context: runContext });
-      report(result, options);
-      state.results.push(result);
-    }
+    sessions.filter(({ session }) => !session.running).forEach(record);
     const running = sessions.filter(({ session }) => session.running);
     if (!running.length) break;
+
+    if (options.mode === 'sync' && !state.pendingBatchId) {
+      // Resumed in sync mode with no round in flight: finish each conversation directly.
+      for (const entry of running) {
+        options.log(`${entry.session.tag}: continuing with ${options.client.description}`);
+        await drive(entry.session, options, persist);
+        record(entry);
+        persist();
+      }
+      continue;
+    }
 
     state.round += 1;
     options.log(
@@ -261,10 +295,7 @@ export type RunSummary = { results: JobResult[]; usage: Usage };
 export async function generate(options: GenerateOptions): Promise<RunSummary> {
   const runnable: Job[] = [];
   const results: JobResult[] = [];
-  const resuming =
-    options.mode === 'batch' &&
-    options.resume &&
-    existsSync(batchRunFile(options.cacheDir ?? CACHE_DIR));
+  const resuming = options.resume && existsSync(batchRunFile(options.cacheDir ?? CACHE_DIR));
   for (const job of resuming ? [] : options.jobs) {
     const reason = skipReason(job, options);
     if (reason) {
@@ -282,9 +313,9 @@ export async function generate(options: GenerateOptions): Promise<RunSummary> {
   }
   if (runnable.length || resuming) {
     results.push(
-      ...(options.mode === 'sync'
-        ? await runSync(runnable, options)
-        : await runBatch(runnable, options)),
+      ...(options.mode === 'batch' || resuming
+        ? await runBatch(runnable, options)
+        : await runSync(runnable, options)),
     );
   }
   return { results, usage: sumUsage(results.map((result) => result.usage)) };

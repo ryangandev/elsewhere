@@ -226,9 +226,10 @@ Cost controls:
 
 - Prompt caching: the system prompt (instructions, the Singapore file as a reference example, the shared gazetteer) and the list of link targets are identical for every task in a run and end in cache breakpoints, and automatic caching covers the growing conversation.
   History is append-only so later turns keep reading the cache.
-- Limits per job in `pipeline/config.ts`: 12 searches and 16 fetches per request, 3 repairs, 2 reminders to submit, 6 research continuations, 24 requests, 64k output tokens.
+- Limits per job in `pipeline/config.ts`: 12 searches and 16 fetches per request, 3 repairs, 2 reminders to submit, 6 research continuations, 24 requests, and the model's 128k output tokens per request.
 - `--mode batch` sends each round of requests through the Message Batches API at half price with a 1-hour cache lifetime.
   The run state is saved in `pipeline/.cache/batch-run.json`, and `--resume` continues an interrupted run.
+  `--resume --mode sync` collects the round in flight, then finishes each conversation one request at a time, for when batch rounds queue for hours.
   Synchronous runs use server-side fallback models when a request is refused; batch runs cannot.
 - Every job prints its token usage, searches and estimated cost, and the run prints the total.
   Expect roughly $1 to $3 per country in synchronous mode (about 300k input tokens, mostly cache reads, 80k cache writes, 25k output tokens and 15 searches), so $20 to $60 for the pilot; batch mode about halves the token part.
