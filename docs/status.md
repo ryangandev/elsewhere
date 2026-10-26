@@ -33,8 +33,8 @@ Steps 1 to 5 are merged; step 6 (question-first experience) is in progress.
 
 ## Known content pipeline issues
 
-- Two source URLs in reviewed content are gone (HTTP 404): India's `rajbhasha.gov.in` languages page and Singapore's `population2024.pdf`, so `npm run content:verify` fails until they are replaced.
-  IBGE (Brazil) and two UNESCO pages (France, Turkey) refuse automated checks (HTTP 403) and need a manual look.
+- Singapore's "Language" quick fact and its "Move up the value chain" step cite only `singstat-population-2024` (SingStat Population Trends), which states population and ethnic composition but not the official languages, the national language, or inequality.
+  They need a source that states those claims, such as the Constitution of Singapore (Article 153A) for languages.
 
 ## Next steps
 

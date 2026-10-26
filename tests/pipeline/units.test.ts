@@ -16,6 +16,7 @@ import { AnthropicModelClient, MissingApiKeyError } from '../../pipeline/generat
 import { BatchFile, checkPlan, readBatch } from '../../pipeline/generate/plan';
 import { estimateCost, emptyUsage } from '../../pipeline/generate/usage';
 import { render } from '../../pipeline/prompts';
+import { KNOWN_BLOCKED_URLS } from '../../pipeline/config';
 import { checkUrls, cachedUrlStatuses } from '../../pipeline/validate/urls';
 import { REPLAY_DIR, FIXTURE_BATCH, replayFixtures } from './fixtures/build-replay';
 import { tempContentTree, tempDir } from './helpers';
@@ -201,6 +202,38 @@ describe('source URL checks', () => {
     await checkUrls(urls, options);
     expect(vi.mocked(fetch).mock.calls.length).toBe(calls);
     expect(cachedUrlStatuses(urls, { cacheFile }).size).toBe(4);
+  });
+
+  it('counts a refusal from a page opened by hand as ok, until the entry lapses', async () => {
+    const cacheFile = join(tempDir(), 'url-status.json');
+    const fetch = statusFetch({
+      'https://blocked.example/': [403],
+      'https://gone.example/': [404],
+      'https://other.example/': [403],
+    });
+    const knownBlocked = {
+      'https://blocked.example/': { openedOn: '2026-10-01', page: 'A page' },
+      'https://gone.example/': { openedOn: '2026-10-01', page: 'A page that went away' },
+    };
+    const urls = ['https://blocked.example/', 'https://gone.example/', 'https://other.example/'];
+    const at = (day: string) => ({ cacheFile, fetch, knownBlocked, now: () => new Date(day) });
+
+    const statuses = await checkUrls(urls, at('2026-10-26'));
+    expect(urls.map((url) => statuses.get(url)?.state)).toEqual(['ok', 'broken', 'unverified']);
+    expect(statuses.get('https://blocked.example/')?.detail).toContain('2026-10-01');
+
+    // The cache keeps the raw answer; reading it applies the list again.
+    expect(cachedUrlStatuses(urls, at('2026-10-26')).get(urls[0])?.state).toBe('ok');
+    const lapsed = await checkUrls(urls, { ...at('2027-06-01'), refresh: true });
+    expect(lapsed.get('https://blocked.example/')?.state).toBe('unverified');
+  });
+
+  it('lists only exact pages a person opened as known to refuse checks', () => {
+    for (const [url, entry] of Object.entries(KNOWN_BLOCKED_URLS)) {
+      expect(new URL(url).pathname, url).not.toBe('/');
+      expect(entry.openedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(entry.page.length).toBeGreaterThan(0);
+    }
   });
 
   it('treats an unknown host as broken', async () => {

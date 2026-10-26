@@ -4,11 +4,18 @@
 // - broken: the page is gone (404, 410) or its host does not resolve. Fails content:verify.
 // - unverified: the check could not tell (401, 403, 429, 5xx, timeouts). Many sites block
 //   automated requests, so these are reported as warnings for a human to open, never dropped.
+//   Pages a person has opened and listed in KNOWN_BLOCKED_URLS (pipeline/config.ts) count as ok
+//   when they refuse the check, until the entry lapses.
 //
 // Results are cached in pipeline/.cache/url-status.json so repeated runs only re-check stale URLs.
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { CACHE_DIR } from '../config';
+import {
+  CACHE_DIR,
+  KNOWN_BLOCKED_RECHECK_DAYS,
+  KNOWN_BLOCKED_URLS,
+  type KnownBlockedUrl,
+} from '../config';
 import { writeJson } from '../content-tree';
 
 export type UrlState = 'ok' | 'broken' | 'unverified';
@@ -47,6 +54,8 @@ export type UrlCheckOptions = {
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   now?: () => Date;
+  /** Pages known to refuse automated checks; defaults to KNOWN_BLOCKED_URLS. */
+  knownBlocked?: Record<string, KnownBlockedUrl>;
 };
 
 type Cache = Record<string, UrlStatus>;
@@ -60,11 +69,26 @@ function readCache(file: string): Cache {
   }
 }
 
-/** Cached results that are still fresh, without touching the network. */
-export function cachedUrlStatuses(
-  urls: string[],
-  options: UrlCheckOptions = {},
-): Map<string, UrlStatus> {
+/** Answers that mean the server refused an automated request, not that the page is gone. */
+const REFUSALS = new Set([401, 403, 429]);
+
+/**
+ * The status a reader should see: a refusal from a page someone opened by hand recently counts
+ * as ok. The cache keeps the raw answer, so a lapsed entry turns back into a warning.
+ */
+function withKnownBlocked(url: string, status: UrlStatus, options: UrlCheckOptions): UrlStatus {
+  const known = (options.knownBlocked ?? KNOWN_BLOCKED_URLS)[url];
+  if (!known || status.state !== 'unverified' || !REFUSALS.has(status.code ?? 0)) return status;
+  const now = (options.now ?? (() => new Date()))().getTime();
+  if (now - Date.parse(known.openedOn) >= KNOWN_BLOCKED_RECHECK_DAYS * DAY_MS) return status;
+  return {
+    ...status,
+    state: 'ok',
+    detail: `${status.detail}, known to refuse automated checks; opened by hand on ${known.openedOn}`,
+  };
+}
+
+function freshCached(urls: string[], options: UrlCheckOptions): Map<string, UrlStatus> {
   const cache = readCache(options.cacheFile ?? URL_CACHE_FILE);
   const now = (options.now ?? (() => new Date()))().getTime();
   const result = new Map<string, UrlStatus>();
@@ -73,6 +97,17 @@ export function cachedUrlStatuses(
     if (entry && now - Date.parse(entry.checkedAt) < CACHE_TTL_MS[entry.state])
       result.set(url, entry);
   }
+  return result;
+}
+
+/** Cached results that are still fresh, without touching the network. */
+export function cachedUrlStatuses(
+  urls: string[],
+  options: UrlCheckOptions = {},
+): Map<string, UrlStatus> {
+  const result = new Map<string, UrlStatus>();
+  for (const [url, status] of freshCached(urls, options))
+    result.set(url, withKnownBlocked(url, status, options));
   return result;
 }
 
@@ -152,9 +187,7 @@ export async function checkUrls(
   const cacheFile = options.cacheFile ?? URL_CACHE_FILE;
   const now = options.now ?? (() => new Date());
   const unique = [...new Set(urls)];
-  const results = options.refresh
-    ? new Map<string, UrlStatus>()
-    : cachedUrlStatuses(unique, options);
+  const results = options.refresh ? new Map<string, UrlStatus>() : freshCached(unique, options);
   const queue = unique.filter((url) => !results.has(url));
 
   const perHost = options.perHost ?? 2;
@@ -192,5 +225,7 @@ export async function checkUrls(
     cacheFile,
     Object.fromEntries(Object.entries(cache).sort(([a], [b]) => a.localeCompare(b))),
   );
-  return results;
+  return new Map(
+    [...results].map(([url, status]) => [url, withKnownBlocked(url, status, options)]),
+  );
 }

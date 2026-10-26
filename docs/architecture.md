@@ -194,6 +194,8 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
 3. **Verify.**
    `content:verify` runs every `content:check` rule, lists pending references, and checks every source URL.
    A URL is ok (2xx), broken (404, 410 or an unknown host; fails the command) or unverified (401, 403, 429, 5xx or a timeout; a warning to open by hand).
+   Some sites refuse every automated request with a bot challenge; after a person opens such a page and finds it supports the content, its exact URL goes in `KNOWN_BLOCKED_URLS` in `pipeline/config.ts` with the date, and a 401, 403 or 429 from it then counts as ok.
+   An entry never excuses a 404, 410 or dead host, never covers a whole site, and lapses after 180 days, when the page is a warning again until someone reopens it.
    It tries HEAD then GET, retries twice with backoff, limits requests per host, and caches results in `pipeline/.cache/url-status.json` (ok for 30 days, others for a day).
    `--offline` skips the network and reports cached results.
 4. **Review.**
