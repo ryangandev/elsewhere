@@ -36,8 +36,9 @@ src/
   i18n/                    message catalog (English only for now)
   content/legacy/          prototype editorial data, until the content schema replaces it
 content/en/                generated and reviewed content, one file per country
-data/geo/                  Natural Earth derived geometry and gazetteer
-pipeline/                  content generation, validation, geo checks
+data/geo/                  Natural Earth derived map identities and gazetteer
+pipeline/                  content generation (step 5)
+scripts/                   geo data builds and content:check
 tests/                     unit tests; e2e/ for Playwright
 ```
 
@@ -80,28 +81,60 @@ What changed from the prototype:
 
 ## Content model
 
-Content lives in `content/<locale>/countries/<id>.json`, validated against a zod schema in `src/content/schema.ts` at build time.
-A file that fails validation fails the build.
+Content lives in `content/<locale>/`, validated against a zod schema in `src/content/schema.ts`.
+The loaders parse every file on first use, so a file that fails validation fails the build.
+`npm run content:check` and the content tests run the same schema plus the checks a schema cannot express.
+
+```text
+content/en/countries/<slug>.json   { country: Country, stories: Story[] } for one country
+content/en/trails.json             Trail[]
+content/en/places.json             { [placeId]: note }, editorial notes shown on map places
+```
 
 Core shapes:
 
 ```text
-Country   id, names, region, overview, quickFacts[], starterStoryIds[], sources[], provenance
-Story     id, countryId, question, summary, sections[], takeaway, scene: MapScene,
-          next: StoryRef[] (max 3), sources[], provenance
-MapScene  camera?, focusCountryId, highlights[{countryId, role}], places[placeId], routes[]
-Source    id, title, publisher, url, accessedAt
-Provenance  generatedBy (model), generatedAt, reviewedBy?, reviewedAt?, status: draft | reviewed
+Country     id, slug, name, nativeName?, region, kicker, overview, quickFacts[],
+            starterStoryIds[] (3 to 5), scene: SceneSpec, sources[], provenance
+Overview    summary, geography, sourceIds[], whyItMatters[{title, text, sourceIds[]}]
+QuickFact   label, value, asOf?, sourceIds[]
+Story       id, countryId, slug, question, category, summary,
+            sections[{title, text, sourceIds[]}], takeaway, scene: SceneSpec,
+            next: StoryRef[] (max 3), sources[], provenance
+StoryRef    countryId, storyId, reason? (required when the story is in another country)
+SceneSpec   camera?, focusCountryId, highlights[{countryId, role}], placeIds[], routes[], mapNote?
+Route       id, kind: sea | land | river | flow, via: placeId[] (2 or more)
+Source      id, title, publisher, url (https), accessedAt?
+Provenance  generatedBy ("human" or a model ID), generatedAt, reviewedBy?, reviewedAt?,
+            status: draft | reviewed
+Trail       id, title, label, description, stops[{countryId, storyId, connection}]
 ```
+
+Content stores a `SceneSpec`, which only names places.
+`resolveScene(spec)` turns it into the globe's `MapScene`: coordinates from the gazetteer, notes from `places.json`, and route polylines along great circles.
+Place notes are locale text, so they live in content rather than in the generated gazetteer.
 
 Rules:
 
 - Story and country IDs are permanent and never derived from titles or order.
   Every cross-reference uses IDs, never array positions.
-- Every section lists the source IDs that support it.
-- `places` reference gazetteer IDs; coordinates are looked up from `data/geo`, never written by hand or by the model.
+  Country IDs are the ISO 3166 alpha-3 codes of the map identities in `data/geo/countries.json`; story IDs are unique within a country.
+- Slugs are readable URL segments and may change; IDs may not.
+  A country's slug must match its map identity, and its file is named after the slug so content paths match URLs.
+- Every section, overview item and quick fact lists the source IDs that support it, and every declared source is cited.
+- `placeIds` and route `via` lists reference gazetteer IDs; coordinates are looked up from `data/geo`, never written by hand or by the model.
+- `sea` routes must stay at sea (see [Content pipeline](#content-pipeline)).
+  `land` and `river` routes follow their named places.
+  `flow` routes are illustrative arcs for a relationship such as trade or language, and are not checked against land.
+- Each story leads to at least one next question in the same country and one elsewhere.
+- Generated content records when each source was read (`accessedAt`); content converted by hand (`generatedBy: "human"`) may omit it.
 - Only `reviewed` content is built into production.
+  In production the loaders drop drafts and every starter question, next question and trail stop that points at one; development shows drafts.
 - Locale is a directory, so a Chinese edition is a parallel `content/zh/` tree with the same IDs.
+
+Loaders in `src/content/index.ts` are synchronous and free of Node APIs, so they work in server components and in the browser:
+`getCountry(id or slug)`, `listCountries`, `getStory`, `getStoryBySlug`, `listStories`, `listTrails`, `getPlaceNote`, `getMapCountry` (all 258 map identities, edited or not) and `resolveScene`.
+Files reach the loaders through static imports in `src/content/registry.ts`; `content:check` fails when a file is not registered.
 
 Why: the prototype keyed Chinese text by array index and spread translations across five mechanisms.
 One schema, ID-only references, and locale-as-directory remove both problems.
@@ -115,6 +148,7 @@ Offline scripts in `pipeline/` that produce draft content for review.
    Output is constrained to the schema.
 2. **Validate.**
    Schema check, every source URL resolves, every section cites at least one source, every place ID exists in the gazetteer, and every sea route stays at sea.
+   Everything except URL reachability already runs as `npm run content:check` (`scripts/validate-content.ts`, rules in `src/content/validate.ts`); the URL check arrives with the generation step.
 3. **Review.**
    Ryan reads and edits the draft, then marks it `reviewed`.
    Review records who and when in `provenance`.
@@ -123,10 +157,29 @@ Offline scripts in `pipeline/` that produce draft content for review.
 
 Coverage grows in batches: a pilot batch to tune prompts and the review bar, then expansion.
 
+Geo data in `data/geo/` is generated from Natural Earth 10m datasets, which are cached in `.map-sources/` and recorded with URL and SHA-256 in `data/geo/sources.json`:
+
+- `countries.json` (`npm run maps:countries`) holds all 258 map identities: ID, slug, English name, region, population and label anchor.
+- `gazetteer.json` (`npm run maps:gazetteer`) holds about 1,250 named places (37 KB gzipped): every country, named seas and straits, major rivers, physical regions, and major cities and capitals.
+  IDs are slugs of the English name; when two kinds share a name, the lower-priority one gets a suffix, so `singapore` is the country and `singapore-city` the city.
+- `gazetteer-overrides.json` is the only hand-maintained input: a short list of extra Natural Earth features to include, renames to common English names, and the few features Natural Earth lacks.
+  Added features are anchored to Natural Earth geometry, never to typed coordinates, and every entry gives a reason.
+
+Sea routes are checked against `public/maps/countries-detail.geojson`, the detailed geometry the globe draws; the base geometry's coarser coastlines close narrow straits such as the Bosporus.
+
+- Every sea place has a label point that is at sea in that geometry.
+  A water body whose polygon is entirely covered by simplified land is dropped (currently only the Luzon Strait).
+- Straits and channels also get a passage `path` along their long axis.
+  A route through a strait follows the path, because a single label point inside a winding strait forces the line across a shore.
+- A route is sampled along great circles every 2 km.
+  Land within 50 km of a land waypoint (a port) is allowed, and crossings of 15 km or less are ignored, so small islands do not fail a route.
+
 What can go wrong:
 
 - Model-written coordinates and routes are often wrong, for example a "sea route" drawn across a peninsula.
   This is why places come from the gazetteer and routes are checked against land polygons.
+- Ocean label points sit in the middle of the ocean, far from most scenes.
+  Prefer the nearest marginal sea (the Philippine Sea rather than the Pacific) when a story means the water off a coast.
 - A URL that resolves does not prove it supports the claim.
   Review remains necessary; the pipeline only removes mechanical errors.
 

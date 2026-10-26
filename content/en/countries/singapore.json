@@ -1,0 +1,396 @@
+{
+  "country": {
+    "id": "SGP",
+    "slug": "singapore",
+    "name": "Singapore",
+    "nativeName": "Singapura",
+    "region": "Southeast Asia",
+    "kicker": "A small island. An outsized influence.",
+    "overview": {
+      "summary": "A city, an island, and a country, built at the crossroads of Asia. With few natural resources, Singapore turned its location and connections into its greatest assets.",
+      "geography": "Just off the southern tip of Malaysia, across a narrow strait from Indonesia. Its position links the Indian Ocean with the South China Sea.",
+      "sourceIds": [
+        "nlb-singapore-history",
+        "mpa-maritime-singapore"
+      ],
+      "whyItMatters": [
+        {
+          "title": "A meeting point for the world",
+          "text": "Ships, money, and ideas pass through this small island on their way between Asia and the rest of the world.",
+          "sourceIds": [
+            "mpa-maritime-singapore"
+          ]
+        },
+        {
+          "title": "A different nation-building story",
+          "text": "Independent since 1965, it pairs a global economy with public housing, deliberate planning, and a strong state.",
+          "sourceIds": [
+            "nlb-singapore-history"
+          ]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Population",
+        "value": "6.04 million",
+        "asOf": "2024",
+        "sourceIds": [
+          "singstat-population-2024"
+        ]
+      },
+      {
+        "label": "Capital",
+        "value": "Singapore",
+        "sourceIds": [
+          "nlb-singapore-history"
+        ]
+      },
+      {
+        "label": "Language",
+        "value": "English, Malay, Mandarin, Tamil",
+        "sourceIds": [
+          "singstat-population-2024"
+        ]
+      },
+      {
+        "label": "Currency",
+        "value": "Singapore dollar",
+        "sourceIds": [
+          "nlb-singapore-history"
+        ]
+      }
+    ],
+    "starterStoryIds": [
+      "wealth",
+      "shipping",
+      "identity"
+    ],
+    "scene": {
+      "camera": {
+        "lat": 1.35,
+        "lng": 103.82,
+        "altitude": 0.55
+      },
+      "focusCountryId": "SGP",
+      "highlights": [
+        {
+          "countryId": "MYS",
+          "role": "related"
+        },
+        {
+          "countryId": "IDN",
+          "role": "related"
+        }
+      ],
+      "placeIds": [
+        "malaysia",
+        "indonesia",
+        "strait-of-malacca",
+        "south-china-sea"
+      ],
+      "routes": []
+    },
+    "sources": [
+      {
+        "id": "nlb-singapore-history",
+        "title": "Looking back at 700 years of Singapore",
+        "publisher": "National Library Board",
+        "url": "https://biblioasia.nlb.gov.sg/all-sections/vol-14-issue-4-jan-mar-2019-looking-back-at-700-years-singapore/"
+      },
+      {
+        "id": "mpa-maritime-singapore",
+        "title": "What Maritime Singapore offers",
+        "publisher": "Maritime and Port Authority of Singapore",
+        "url": "https://www.mpa.gov.sg/maritime-singapore/what-maritime-singapore-offers"
+      },
+      {
+        "id": "singstat-population-2024",
+        "title": "Population statistics, 2024",
+        "publisher": "Singapore Department of Statistics",
+        "url": "https://www.singstat.gov.sg/-/media/files/publications/population/population2024.pdf"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-09-26",
+      "reviewedBy": "ryan",
+      "reviewedAt": "2026-09-27",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "wealth",
+      "countryId": "SGP",
+      "slug": "wealth",
+      "question": "How did a tiny island become so wealthy?",
+      "category": "Economy",
+      "summary": "Location opened the door. Decades of deliberate choices made it valuable.",
+      "sections": [
+        {
+          "title": "Start with a port",
+          "text": "A British trading post established in 1819 connected Singapore to expanding regional trade. A deep-water harbor near a vital sea passage attracted merchants and migrants.",
+          "sourceIds": [
+            "nlb-singapore-history"
+          ]
+        },
+        {
+          "title": "Build what the world needs",
+          "text": "After independence, Singapore invested in housing, education, infrastructure, and export manufacturing. Foreign investment connected local workers to global production.",
+          "sourceIds": [
+            "nlb-singapore-history"
+          ]
+        },
+        {
+          "title": "Move up the value chain",
+          "text": "Finance, advanced manufacturing, and business services grew around that foundation. Wealth is substantial, but so are pressures around inequality, housing, and reliance on migrant labor.",
+          "sourceIds": [
+            "singstat-population-2024"
+          ]
+        }
+      ],
+      "takeaway": "Singapore did not escape geography. It built institutions and infrastructure that made its geography more valuable.",
+      "scene": {
+        "focusCountryId": "SGP",
+        "highlights": [
+          {
+            "countryId": "MYS",
+            "role": "related"
+          },
+          {
+            "countryId": "IDN",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "malaysia",
+          "indonesia",
+          "strait-of-malacca",
+          "south-china-sea"
+        ],
+        "routes": [
+          {
+            "id": "malacca-passage",
+            "kind": "sea",
+            "via": [
+              "andaman-sea",
+              "strait-of-malacca",
+              "singapore-strait",
+              "south-china-sea"
+            ]
+          }
+        ],
+        "mapNote": "At the meeting point of the Indian and Pacific Ocean trading systems."
+      },
+      "next": [
+        {
+          "countryId": "SGP",
+          "storyId": "shipping"
+        },
+        {
+          "countryId": "MYS",
+          "storyId": "two-shores",
+          "reason": "Meet the federation just across the strait."
+        },
+        {
+          "countryId": "TUR",
+          "storyId": "straits",
+          "reason": "Another narrow passage with an outsized role."
+        }
+      ],
+      "sources": [
+        {
+          "id": "nlb-singapore-history",
+          "title": "Looking back at 700 years of Singapore",
+          "publisher": "National Library Board",
+          "url": "https://biblioasia.nlb.gov.sg/all-sections/vol-14-issue-4-jan-mar-2019-looking-back-at-700-years-singapore/"
+        },
+        {
+          "id": "singstat-population-2024",
+          "title": "Population statistics, 2024",
+          "publisher": "Singapore Department of Statistics",
+          "url": "https://www.singstat.gov.sg/-/media/files/publications/population/population2024.pdf"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "shipping",
+      "countryId": "SGP",
+      "slug": "shipping",
+      "question": "Why is Singapore a shipping crossroads?",
+      "category": "Geography",
+      "summary": "The island sits beside one of the shortest sea routes between East Asia and the Indian Ocean.",
+      "sections": [
+        {
+          "title": "A narrow passage, a global connection",
+          "text": "The Malacca and Singapore straits funnel shipping between the Indian Ocean and the South China Sea. Singapore sits at the eastern end of this passage.",
+          "sourceIds": [
+            "mpa-maritime-singapore"
+          ]
+        },
+        {
+          "title": "More than passing ships",
+          "text": "A transshipment hub transfers containers between ships. Reliable terminals, ship services, and connections to many ports turn a good location into a network advantage.",
+          "sourceIds": [
+            "mpa-maritime-singapore"
+          ]
+        }
+      ],
+      "takeaway": "A port matters because of both where it is and how well it connects to everywhere else.",
+      "scene": {
+        "focusCountryId": "SGP",
+        "highlights": [
+          {
+            "countryId": "MYS",
+            "role": "related"
+          },
+          {
+            "countryId": "IDN",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "malaysia",
+          "indonesia",
+          "strait-of-malacca",
+          "south-china-sea"
+        ],
+        "routes": [
+          {
+            "id": "malacca-passage",
+            "kind": "sea",
+            "via": [
+              "andaman-sea",
+              "strait-of-malacca",
+              "singapore-strait",
+              "south-china-sea"
+            ]
+          }
+        ],
+        "mapNote": "Follow the passage past Malaysia and Sumatra into the South China Sea."
+      },
+      "next": [
+        {
+          "countryId": "SGP",
+          "storyId": "identity"
+        },
+        {
+          "countryId": "MYS",
+          "storyId": "two-shores",
+          "reason": "Across the strait, one federation stretches across two shores."
+        },
+        {
+          "countryId": "TUR",
+          "storyId": "straits",
+          "reason": "Another narrow passage with an outsized role."
+        }
+      ],
+      "sources": [
+        {
+          "id": "mpa-maritime-singapore",
+          "title": "What Maritime Singapore offers",
+          "publisher": "Maritime and Port Authority of Singapore",
+          "url": "https://www.mpa.gov.sg/maritime-singapore/what-maritime-singapore-offers"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "identity",
+      "countryId": "SGP",
+      "slug": "identity",
+      "question": "Why do so many Singaporeans have Chinese roots?",
+      "category": "People & identity",
+      "summary": "Modern Singapore grew through migration, but its identity is distinctly its own.",
+      "sections": [
+        {
+          "title": "A port draws people",
+          "text": "In the nineteenth and early twentieth centuries, migrants from southern China came to work and trade. Malay, Indian, and other communities also shaped the settlement.",
+          "sourceIds": [
+            "nlb-singapore-history"
+          ]
+        },
+        {
+          "title": "One country, multiple inheritances",
+          "text": "Ethnic Chinese people form a majority of the resident population. English, Malay, Mandarin, and Tamil are official languages; Malay is the national language. Ethnicity, citizenship, and language are different parts of identity.",
+          "sourceIds": [
+            "singstat-population-2024"
+          ]
+        }
+      ],
+      "takeaway": "Singapore is a multilingual Southeast Asian nation, not simply a Chinese city abroad.",
+      "scene": {
+        "focusCountryId": "SGP",
+        "highlights": [
+          {
+            "countryId": "MYS",
+            "role": "related"
+          },
+          {
+            "countryId": "IDN",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "malaysia",
+          "indonesia",
+          "strait-of-malacca",
+          "south-china-sea"
+        ],
+        "routes": [],
+        "mapNote": "A maritime region shaped by movement and exchange."
+      },
+      "next": [
+        {
+          "countryId": "SGP",
+          "storyId": "wealth"
+        },
+        {
+          "countryId": "MYS",
+          "storyId": "two-shores",
+          "reason": "Meet the federation just across the strait."
+        },
+        {
+          "countryId": "TUR",
+          "storyId": "straits",
+          "reason": "Another narrow passage with an outsized role."
+        }
+      ],
+      "sources": [
+        {
+          "id": "nlb-singapore-history",
+          "title": "Looking back at 700 years of Singapore",
+          "publisher": "National Library Board",
+          "url": "https://biblioasia.nlb.gov.sg/all-sections/vol-14-issue-4-jan-mar-2019-looking-back-at-700-years-singapore/"
+        },
+        {
+          "id": "singstat-population-2024",
+          "title": "Population statistics, 2024",
+          "publisher": "Singapore Department of Statistics",
+          "url": "https://www.singstat.gov.sg/-/media/files/publications/population/population2024.pdf"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    }
+  ]
+}
