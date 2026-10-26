@@ -1,0 +1,214 @@
+/*
+ * The reading panel's frame: header, scroll area and footer. What it shows is styled in
+ * reading.css; the breadcrumb and caption over the map are in map-overlays.css.
+ */
+.country-panel {
+  position: absolute;
+  right: var(--gutter);
+  top: calc(var(--header) + var(--inset));
+  bottom: calc(var(--footer) + var(--inset));
+  width: var(--panel-width);
+  color: #26392f;
+  background: #f6f7f2;
+  border-radius: 13px;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 14px 70px #0003;
+  overflow: hidden;
+  animation: panel-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Header: mode label (a button that makes room for the map on phones), save, share, close. */
+.panel-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px 12px 24px;
+  min-height: 54px;
+  border-bottom: 1px solid #e4e8de;
+}
+.panel-topline button {
+  background: none;
+  border: none;
+  color: #6f7d73;
+  padding: 3px;
+}
+.panel-topline > .desktop-mode {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 9px;
+  letter-spacing: 1.8px;
+  color: #7b8a77;
+}
+.live-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #76956d;
+}
+/* Only phones have the button; wider screens show the plain label above. */
+.panel-topline .panel-mode {
+  display: none;
+  align-items: center;
+  gap: 7px;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: #788770;
+}
+.mobile-chevron {
+  display: none;
+}
+.panel-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel-tools button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+}
+.panel-tools button:hover {
+  background: #e6ecde;
+  color: #345032;
+}
+.panel-tools button[aria-pressed='true'] {
+  color: #476941;
+}
+
+.panel-scroll {
+  padding: 24px 25px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #ccd5c4 transparent;
+  flex: 1;
+  min-height: 0;
+}
+
+.panel-footer {
+  border-top: 1px solid #e1e6db;
+  background: #eef2e7;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  color: #8c997e;
+  font-size: 10px;
+}
+.curiosity-jump {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: none;
+  background: none;
+  width: 100%;
+  color: #5e7750;
+  font-size: 12px;
+  padding: 0;
+}
+.curiosity-jump:hover {
+  color: #2c502a;
+}
+
+/* The strip a phone's panel collapses to. */
+.compact-story {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .country-panel {
+    top: 44%;
+    bottom: 0;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    border-radius: 15px 15px 0 0;
+    transition: top 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  /* Collapsed: only the header and the strip are left, and the globe takes the room above. */
+  .country-panel.panel-compact {
+    top: calc(100% - var(--panel-strip));
+  }
+  .panel-topline {
+    padding: 4px 4px 4px 16px;
+    min-height: 52px;
+  }
+  .panel-topline > .desktop-mode {
+    display: none;
+  }
+  .panel-topline .panel-mode {
+    display: flex;
+    align-self: stretch;
+    min-height: 44px;
+    cursor: pointer;
+  }
+  .mobile-chevron {
+    display: inline;
+    margin-left: 5px;
+  }
+  .panel-tools {
+    gap: 0;
+  }
+  .panel-tools button {
+    width: 44px;
+    height: 44px;
+  }
+  .panel-scroll {
+    padding: 21px;
+  }
+  .panel-footer {
+    padding: 14px 18px;
+  }
+  .panel-compact .panel-scroll,
+  .panel-compact .panel-footer {
+    display: none;
+  }
+  .compact-story {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    gap: 7px;
+    min-height: 0;
+    text-align: left;
+    border: 0;
+    background: none;
+    color: #3d5537;
+    padding: 0 21px 12px;
+    font:
+      19px/1.3 Georgia,
+      serif;
+  }
+  /* The question takes at most two lines, so the strip keeps its height. */
+  .compact-title {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .compact-hint {
+    font:
+      12px Arial,
+      sans-serif;
+    color: #859475;
+  }
+}
+@media (max-width: 380px) {
+  .panel-scroll {
+    padding: 18px;
+  }
+}

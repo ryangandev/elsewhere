@@ -1,23 +1,20 @@
-import type { Metadata } from "next";
-import "./globals.css";
+import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
+import { AtlasShell } from '@/ui/shell/AtlasShell';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "Elsewhere | A wider world",
-  description: "Follow your curiosity around an interactive 3D globe. Ten country stories, thirty questions, and trails that connect them.",
-  icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-  },
+  title: { default: 'Elsewhere | A wider world', template: '%s | Elsewhere' },
+  description:
+    'Start with a question. See the answer on the map. Follow it somewhere new. A question-first atlas on an interactive 3D globe.',
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="zh-CN">
-      <body className="antialiased">{children}</body>
+    <html lang="en">
+      <body className="antialiased">
+        <AtlasShell>{children}</AtlasShell>
+      </body>
     </html>
   );
 }

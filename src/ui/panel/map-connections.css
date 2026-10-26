@@ -1,0 +1,114 @@
+/* The "Explore the geography" box in the reading panel: a note, place chips, and the focused place. */
+.map-connections {
+  padding: 16px;
+  margin: 25px 0 29px;
+  background: #eaf0e4;
+  border: 1px solid #dfe6d8;
+  border-radius: 7px;
+}
+.map-connections > p {
+  color: #5f7456;
+  font-size: 13px;
+  line-height: 1.75;
+  margin: 10px 0 12px;
+}
+.route-key {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 9px;
+  color: #7e8c73;
+}
+.route-key::before {
+  content: '';
+  display: inline-block;
+  vertical-align: middle;
+  width: 12px;
+  border-top: 1px dashed #8a986c;
+  margin-right: 5px;
+}
+.place-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.place-chips button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #d4decb;
+  border-radius: 20px;
+  font-size: 10px;
+  color: #57704d;
+  background: #f4f7ed;
+  padding: 7px 9px;
+}
+.place-chips button > span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #94a382;
+}
+.place-chips button:not(:disabled):hover,
+.place-chips button[aria-pressed='true'] {
+  background: #365341;
+  border-color: #365341;
+  color: #fffce9;
+}
+.map-instruction {
+  display: block;
+  font-size: 10px;
+  color: #839276;
+  margin-top: 11px;
+}
+.place-detail {
+  border-top: 1px solid #d3dec9;
+  margin-top: 14px;
+  padding-top: 13px;
+}
+.place-detail strong {
+  font:
+    18px Georgia,
+    serif;
+  color: #3f5a39;
+}
+.place-detail p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #65795a;
+  margin: 7px 0 12px;
+}
+.place-detail > div {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.place-detail button {
+  border: none;
+  border-bottom: 1px solid #bac9b0;
+  padding: 0 0 4px;
+  background: none;
+  color: #506b45;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 800px) {
+  .place-chips {
+    gap: 8px;
+  }
+  .place-chips button {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .map-instruction {
+    font-size: 12px;
+  }
+  .place-detail button {
+    min-height: 44px;
+    font-size: 12px;
+  }
+}

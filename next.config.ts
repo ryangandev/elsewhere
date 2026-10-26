@@ -1,7 +1,10 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Every page is prerendered. The site ships as static files (see docs/architecture.md#platform).
+  output: 'export',
+  // AGENTS.md is maintained by hand; stop `next dev` from rewriting it.
+  agentRules: false,
 };
 
 export default nextConfig;

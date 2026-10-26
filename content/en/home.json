@@ -1,0 +1,8 @@
+{
+  "suggestedQuestions": [
+    { "countryId": "SGP", "storyId": "shipping" },
+    { "countryId": "FRA", "storyId": "overseas" },
+    { "countryId": "USA", "storyId": "dollar" },
+    { "countryId": "MYS", "storyId": "electronics" }
+  ]
+}

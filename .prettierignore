@@ -1,0 +1,32 @@
+.next
+out
+node_modules
+package-lock.json
+public
+next-env.d.ts
+
+# Prototype data, replaced by the content schema (migration step 3).
+src/content/legacy
+
+# Map data scripts, owned by the content pipeline (migration step 3 and 5).
+scripts
+
+# Markdown keeps one sentence per line and hand-aligned tables.
+*.md
+
+# Third-party stylesheet, kept as published.
+vendor
+.claude
+
+# Written by the content pipeline as JSON.stringify output; reformatting would churn every regeneration.
+content
+pipeline/batches/*.plan.json
+tests/pipeline/fixtures/replay
+
+# Written by the map data scripts (the gazetteer one place per line for readable diffs), or
+# kept in their JSON formatting next to them.
+data/geo/*.json
+
+# Playwright output.
+playwright-report
+test-results

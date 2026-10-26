@@ -1,0 +1,408 @@
+/*
+ * The persistent frame around the globe: skip link, header, map controls, footer, notice, the
+ * globe's loading state and the small label shared with the panel and the Trails drawer.
+ * The frame's own grid (--gutter, --header, --footer, --inset, --panel-width) and the globe area
+ * are in app/globals.css.
+ */
+.skip-link {
+  position: absolute;
+  z-index: 100;
+  top: -80px;
+  left: 20px;
+  padding: 12px 20px;
+  background: #edf2e2;
+  color: #203e32;
+  border-radius: 6px;
+}
+.skip-link:focus {
+  top: 12px;
+}
+
+/* The small caps label above a group in the reading panel and the Trails drawer. */
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #7a8c70;
+  font-size: 9px;
+  letter-spacing: 1.45px;
+  line-height: 1.5;
+}
+
+/* Header */
+.topbar {
+  height: var(--header);
+  display: flex;
+  align-items: center;
+  margin: 0 var(--gutter);
+  border-bottom: 1px solid #ffffff13;
+  gap: 35px;
+  position: relative;
+  z-index: 10;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  font-size: 29px;
+  font-weight: 600;
+  letter-spacing: -1.4px;
+  background: none;
+  border: 0;
+  color: #f4f5ee;
+}
+.brand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 11px;
+  color: #d6deb9;
+  transform: rotate(-17deg);
+}
+.brand-period {
+  color: #c2cfaa;
+}
+.topbar-note {
+  font-size: 13px;
+  color: #8c9ba4;
+  letter-spacing: 0.1px;
+}
+.header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.nav-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  color: #b9c8c9;
+  font-size: 12px;
+  position: relative;
+  padding: 10px 0;
+}
+.nav-button:hover {
+  color: #e1e8cb;
+}
+.saved-indicator {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #d1dab6;
+  position: absolute;
+  right: -7px;
+  top: 7px;
+}
+.search-trigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff07;
+  border: 1px solid #ffffff1c;
+  border-radius: 8px;
+  padding: 11px 12px;
+  color: #ced5d8;
+  font-size: 14px;
+  min-width: 200px;
+}
+.search-trigger:hover {
+  background: #ffffff0f;
+  border-color: #ffffff38;
+}
+.search-trigger kbd {
+  display: inline-grid;
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 11px;
+  border: 1px solid #ffffff1d;
+  border-radius: 4px;
+  padding: 2px 5px;
+  color: #83949f;
+}
+/* Both platform labels share one cell; only the reader's shows, once it is known. */
+.search-trigger kbd > span {
+  grid-area: 1 / 1;
+  text-align: center;
+  visibility: hidden;
+}
+.search-trigger kbd[data-platform='apple'] > span:first-child,
+.search-trigger kbd[data-platform='other'] > span:last-child {
+  visibility: visible;
+}
+
+/* Map controls: reset and zoom, beside the reading panel when there is one. */
+.map-controls {
+  position: absolute;
+  right: var(--gutter);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #102633c9;
+  border: 1px solid #ffffff18;
+  border-radius: 9px;
+  padding: 5px;
+  z-index: 4;
+  backdrop-filter: blur(14px);
+  transition: right 1s;
+}
+.world-app:has(#country-reading) .map-controls {
+  right: calc(var(--gutter) + var(--panel-width) + 24px);
+}
+.map-controls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 34px;
+  height: 37px;
+  border: 0;
+  background: none;
+  color: #b8c8cf;
+  border-radius: 4px;
+}
+.map-controls button:hover {
+  color: white;
+  background: #ffffff0c;
+}
+.map-controls button:disabled {
+  opacity: 0.35;
+}
+.map-controls > span {
+  height: 1px;
+  width: 21px;
+  background: #ffffff13;
+  margin: 3px 0;
+}
+
+/* Footer: status, gesture hint and the About link. */
+.world-footer {
+  position: absolute;
+  bottom: 0;
+  left: var(--gutter);
+  right: var(--gutter);
+  height: var(--footer);
+  display: flex;
+  align-items: center;
+  border-top: 1px solid #ffffff13;
+  font-size: 10px;
+  color: #647e8b;
+  z-index: 4;
+  letter-spacing: 1.1px;
+  gap: 20px;
+}
+.world-footer > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.connection-dot {
+  height: 4px;
+  width: 4px;
+  background: #6c7e82;
+  border-radius: 50%;
+}
+.connection-dot.ready {
+  background: #b1c99a;
+}
+.gesture-hint {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 0.15px;
+  white-space: nowrap;
+  color: #8ea2ae;
+}
+.gesture-hint span {
+  margin: 0 9px;
+  color: #476575;
+}
+.world-footer > button {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  background: none;
+  border: none;
+  color: #849aa5;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+/* The status line under the page: a short message that fades in and out. */
+.atlas-notice {
+  position: fixed;
+  z-index: 80;
+  bottom: 26px;
+  left: 50%;
+  transform: translate(-50%, 10px);
+  background: #f4f7ea;
+  border: 1px solid #d0dbc2;
+  color: #3b5836;
+  border-radius: 8px;
+  box-shadow: 0 5px 30px #0003;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 13px 18px;
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+  max-width: calc(100% - 32px);
+  width: max-content;
+}
+.atlas-notice.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.atlas-notice svg {
+  flex-shrink: 0;
+}
+
+/* Shown inside the globe's box while it loads. */
+.globe-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  font-size: 12px;
+  color: #a6b8bf;
+  pointer-events: none;
+}
+.globe-loading > span {
+  width: 42px;
+  height: 42px;
+  border: 1px solid #9ab3a42a;
+  border-top-color: #c3d6b2;
+  border-radius: 50%;
+  animation: orbit 1.6s linear infinite;
+}
+@keyframes orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .globe-loading > span {
+    animation: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .topbar-note {
+    display: none;
+  }
+  .header-actions {
+    gap: 20px;
+  }
+  .gesture-hint {
+    font-size: 10px;
+  }
+  .world-app:has(#country-reading) .gesture-hint {
+    display: none;
+  }
+}
+
+/*
+ * Phones: every control is at least 44px in both directions. Visual sizes stay close to desktop;
+ * hit areas grow around them.
+ */
+@media (max-width: 800px) {
+  .topbar {
+    gap: 15px;
+  }
+  .brand {
+    font-size: 24px;
+  }
+  .brand-icon {
+    margin-right: 8px;
+  }
+  .brand-icon svg {
+    width: 20px;
+  }
+  .header-actions {
+    gap: 0;
+  }
+  .nav-button {
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+  .nav-button > span {
+    display: none;
+  }
+  .saved-indicator {
+    top: 11px;
+    right: 9px;
+  }
+  .search-trigger {
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: #ffffff08;
+  }
+  .search-trigger > span,
+  .search-trigger kbd {
+    display: none;
+  }
+  .map-controls {
+    right: 17px;
+    top: 29%;
+    transform: translateY(-35%);
+    padding: 3px;
+  }
+  .world-app:has(#country-reading) .map-controls {
+    right: 15px;
+    top: 22%;
+  }
+  /* The globe is taller while the reading panel is collapsed, so the controls move to its middle. */
+  .world-app:has(#country-reading .panel-compact) .map-controls {
+    top: 40%;
+  }
+  .map-controls button {
+    width: 44px;
+    height: 44px;
+  }
+  .map-controls > span {
+    width: 24px;
+    margin: 2px 0;
+  }
+  .world-footer {
+    font-size: 9px;
+  }
+  .world-app:has(#country-reading) .world-footer {
+    display: none;
+  }
+  .world-footer > div {
+    letter-spacing: 0.6px;
+  }
+  .gesture-hint {
+    display: none;
+  }
+  .world-footer > button {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .atlas-notice {
+    bottom: 16px;
+  }
+}
+@media (max-width: 380px) {
+  .brand {
+    font-size: 22px;
+  }
+}

@@ -1,0 +1,162 @@
+/*
+ * The breadcrumb and the caption laid over the map while a country or question is open. Both sit
+ * on a dark glass panel so geographic text stays legible over ice, desert, and ocean alike.
+ */
+.map-breadcrumb {
+  position: absolute;
+  left: var(--gutter);
+  top: calc(var(--header) + var(--inset));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 11px;
+  font-size: 11px;
+  color: #849ea9;
+  background: #0c2332c4;
+  border: 1px solid #ffffff0d;
+  border-radius: 6px;
+  backdrop-filter: blur(8px);
+}
+.map-breadcrumb button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  color: #c8d3d3;
+  font-size: 11px;
+}
+.map-breadcrumb > button:last-of-type {
+  color: #d2dcc3;
+}
+.map-breadcrumb > span {
+  color: #829ea7;
+}
+
+.map-caption {
+  position: absolute;
+  left: var(--gutter);
+  bottom: calc(var(--footer) + var(--inset));
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  max-width: min(450px, calc(100% - 565px));
+  padding: 14px 17px;
+  background: #0c2332dc;
+  border: 1px solid #ffffff12;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+.map-caption.has-focus {
+  pointer-events: auto;
+}
+.caption-line {
+  height: 36px;
+  width: 1px;
+  background: #afbd99;
+  opacity: 0.6;
+  margin-top: 2px;
+}
+.map-caption strong {
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  font-weight: 400;
+  color: #a9bec2;
+}
+.map-caption p {
+  font-size: 12px;
+  color: #d2dfdc;
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+.map-caption.has-focus p {
+  font:
+    25px Georgia,
+    serif;
+  color: #e0e8d2;
+}
+.map-caption button {
+  margin-top: 10px;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border: 0;
+  background: none;
+  color: #a2bbb4;
+  font-size: 11px;
+}
+.focus-context {
+  display: block;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #a6bdbb;
+  margin-top: 8px;
+  max-width: 345px;
+}
+
+@media (max-width: 1100px) {
+  .map-breadcrumb {
+    gap: 8px;
+  }
+  .map-caption {
+    max-width: calc(100% - 500px);
+  }
+}
+
+/* Phones: the caption shows only for a place in focus, and the breadcrumb's links grow hit areas. */
+@media (max-width: 800px) {
+  .map-breadcrumb {
+    max-width: calc(100% - 80px);
+    flex-wrap: wrap;
+    gap: 7px;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+  .map-breadcrumb button {
+    position: relative;
+    font-size: 12px;
+  }
+  /* The pill stays slim; its links take taps from just above and below it. */
+  .map-breadcrumb button::before {
+    content: '';
+    position: absolute;
+    inset: -12px -4px;
+  }
+  .map-breadcrumb > span {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .map-caption {
+    display: none;
+  }
+  .map-caption.has-focus {
+    display: flex;
+    top: 123px;
+    bottom: auto;
+    left: 23px;
+    max-width: calc(100% - 92px);
+    padding: 10px 12px;
+  }
+  .map-caption.has-focus .caption-line {
+    height: 29px;
+  }
+  .map-caption.has-focus strong {
+    font-size: 7px;
+  }
+  .map-caption.has-focus p {
+    font-size: 17px;
+    margin-top: 5px;
+  }
+  .map-caption.has-focus button {
+    font-size: 9px;
+    margin-top: 6px;
+  }
+  .focus-context {
+    display: none;
+  }
+}

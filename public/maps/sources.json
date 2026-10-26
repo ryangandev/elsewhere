@@ -14,14 +14,11 @@
     "precisionDegrees": 0.001,
     "features": 258
   },
-  "elevation": {
-    "source": "NASA Earth Observatory, Blue Marble Next Generation, GEBCO elevation",
-    "url": "https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/topography/gebco_08_rev_elev_21600x10800.jpg",
-    "sha256": "aeecb1d0ae367f836e95f5fec8edcacf37df423f07f9ecaa1739debab8985b58",
-    "widths": [
-      4096,
-      8192
-    ],
-    "jpegQuality": 90
+  "basemap": {
+    "source": "NASA Blue Marble, via the three-globe example assets",
+    "file": "public/maps/earth.jpg",
+    "width": 4096,
+    "height": 2048,
+    "sha256": "228deba2e4b600146bdcb6cfa359b8ead6aacc2b1c13550a29cd82824cfa1c01"
   }
 }
