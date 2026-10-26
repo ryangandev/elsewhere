@@ -37,7 +37,7 @@ src/
   content/legacy/          prototype editorial data, until the content schema replaces it
 content/en/                generated and reviewed content, one file per country
 data/geo/                  Natural Earth derived map identities and gazetteer
-pipeline/                  content generation (step 5)
+pipeline/                  content generation, validation and review (step 5)
 scripts/                   geo data builds and content:check
 tests/                     unit tests; e2e/ for Playwright
 ```
@@ -105,8 +105,8 @@ StoryRef    countryId, storyId, reason? (required when the story is in another c
 SceneSpec   camera?, focusCountryId, highlights[{countryId, role}], placeIds[], routes[], mapNote?
 Route       id, kind: sea | land | river | flow, via: placeId[] (2 or more)
 Source      id, title, publisher, url (https), accessedAt?
-Provenance  generatedBy ("human" or a model ID), generatedAt, reviewedBy?, reviewedAt?,
-            status: draft | reviewed
+Provenance  generatedBy ("human" or a model ID), generatedAt, promptVersion?, reviewedBy?, reviewedAt?,
+            status: draft | reviewed, revision?{notes, requestedBy, requestedAt} (drafts only)
 Trail       id, title, label, description, stops[{countryId, storyId, connection}]
 ```
 
@@ -127,6 +127,7 @@ Rules:
   `land` and `river` routes follow their named places.
   `flow` routes are illustrative arcs for a relationship such as trade or language, and are not checked against land.
 - Each story leads to at least one next question in the same country and one elsewhere.
+  A draft may lead to a planned story in a country that has no file yet (see [pending references](#content-pipeline)); reviewed stories may not.
 - Generated content records when each source was read (`accessedAt`); content converted by hand (`generatedBy: "human"`) may omit it.
 - Only `reviewed` content is built into production.
   In production the loaders drop drafts and every starter question, next question and trail stop that points at one; development shows drafts.
@@ -141,21 +142,86 @@ One schema, ID-only references, and locale-as-directory remove both problems.
 
 ## Content pipeline
 
-Offline scripts in `pipeline/` that produce draft content for review.
+Offline scripts in `pipeline/` research, draft and validate content with Claude, and record Ryan's review.
+Nobody writes content JSON by hand.
 
-1. **Research and draft.**
-   For a country or question, Claude (with web search) drafts a structured `Story` or `Country` and the sources it relied on.
-   Output is constrained to the schema.
-2. **Validate.**
-   Schema check, every source URL resolves, every section cites at least one source, every place ID exists in the gazetteer, and every sea route stays at sea.
-   Everything except URL reachability already runs as `npm run content:check` (`scripts/validate-content.ts`, rules in `src/content/validate.ts`); the URL check arrives with the generation step.
-3. **Review.**
-   Ryan reads and edits the draft, then marks it `reviewed`.
-   Review records who and when in `provenance`.
-4. **Commit.**
-   Reviewed JSON is committed like code; git history is the content history.
+```text
+pipeline/
+  config.ts        paths, default model and effort, per-request limits
+  content-tree.ts  reads and writes one locale's tree on disk (content/en, or a temporary copy in tests)
+  prompts/v1/      versioned prompt files; the version is recorded in provenance
+  batches/         batch definitions (pilot.json) and the question plans generated for them
+  generate/        plan, draft and redraft (npm run content:generate)
+  validate/        every content:check rule plus source URL reachability (npm run content:verify)
+  review/          list, read, approve and send back drafts (npm run content:review)
+```
+
+```sh
+npm run content:generate -- --batch pilot      # plan, then draft every country in the batch
+npm run content:generate -- --country CHL      # draft one country (repeat --country for more)
+npm run content:generate -- --revisions        # redraft everything review sent back
+npm run content:verify                         # content rules and source URLs
+npm run content:review -- list                 # then show, approve, revise
+```
 
 Coverage grows in batches: a pilot batch to tune prompts and the review bar, then expansion.
+
+1. **Plan.**
+   A batch run first asks for a question plan for every country in the batch, in one structured-output request, and writes `pipeline/batches/<batch>.plan.json`.
+   Ryan can edit the plan before drafting; `--plan-only` stops after planning and `--replan` replaces the plan.
+   Planned story IDs are permanent: drafts must keep them, and next questions in other countries link to them.
+2. **Draft.**
+   Each country is one conversation with Claude Opus 5.5 (`--model` to change) with adaptive thinking at `high` effort (`--effort`).
+   Research uses the server-side web search and web fetch tools.
+   Places come from the gazetteer: the system prompt lists every water body and country, the task lists cities and regions in and near the country, and a `find_places` tool searches the rest.
+   The draft is submitted through a strict tool (`submit_draft`), so it has the schema's shape, then parsed with zod and checked with every `content:check` rule inside the current tree.
+   The pipeline adds its own rules: every cited URL came back from a search or fetch in the same conversation, next questions point to existing or planned stories, planned and inbound story IDs are kept, a country has 4 to 6 stories, and text is English.
+   Problems go back to the model as a tool error, up to three repairs; a job that still fails saves its last draft and log in `pipeline/.cache/failed/`.
+   The pipeline fills in what the model does not write: known IDs, each entry's own source list, `accessedAt` (the run date) and `provenance: { generatedBy, generatedAt, promptVersion, status: 'draft' }`.
+   The model never sets a camera; the globe frames the scene.
+   An existing draft is replaced only with `--regenerate`, and a file with reviewed content only with `--force`.
+3. **Verify.**
+   `content:verify` runs every `content:check` rule, lists pending references, and checks every source URL.
+   A URL is ok (2xx), broken (404, 410 or an unknown host; fails the command) or unverified (401, 403, 429, 5xx or a timeout; a warning to open by hand).
+   It tries HEAD then GET, retries twice with backoff, limits requests per host, and caches results in `pipeline/.cache/url-status.json` (ok for 30 days, others for a day).
+   `--offline` skips the network and reports cached results.
+4. **Review.**
+   `content:review -- show <country> [story]` prints the questions, sections with their sources, the map scene by place name, next questions, and validation warnings; `--check-urls` checks the file's URLs first.
+   `approve <country> [story]` sets `status: 'reviewed'`, `reviewedBy` (`--by`, default the git user name) and `reviewedAt`.
+   Without a story it approves the overview; `--all` approves the overview and every story.
+   It refuses while the content has a validation issue, a pending reference, a revision request or a broken source URL.
+   `revise <country> [story] --notes "..."` records `provenance.revision`, and `content:generate -- --revisions` redrafts it: a story keeps its ID and the rest of the file, with the notes and the old story in the prompt.
+   A whole country can be sent back only while nothing in it is reviewed.
+   Changes go through notes and regeneration rather than JSON edits, so every text stays sourced.
+5. **Commit.**
+   Reviewed JSON is committed like code; git history is the content history.
+   A new country file must also be registered in `src/content/registry.ts`, which `content:check` enforces and the pipeline does not edit.
+
+Pending references: a draft story may link to a planned story in a country that has no content file yet, so a batch can link its countries before all of them are drafted.
+`findPendingReferences` in `src/content/validate.ts` lists them; `content:check` accepts them in drafts and rejects them in reviewed stories, and review will not approve a story that has one.
+They resolve when the target country is drafted, because its draft must keep the planned IDs.
+
+Cost controls:
+
+- Prompt caching: the system prompt (instructions, the Singapore file as a reference example, the shared gazetteer) and the list of link targets are identical for every task in a run and end in cache breakpoints, and automatic caching covers the growing conversation.
+  History is append-only so later turns keep reading the cache.
+- Limits per job in `pipeline/config.ts`: 12 searches and 16 fetches per request, 3 repairs, 2 reminders to submit, 6 research continuations, 24 requests, 64k output tokens.
+- `--mode batch` sends each round of requests through the Message Batches API at half price with a 1-hour cache lifetime.
+  The run state is saved in `pipeline/.cache/batch-run.json`, and `--resume` continues an interrupted run.
+  Synchronous runs use server-side fallback models when a request is refused; batch runs cannot.
+- Every job prints its token usage, searches and estimated cost, and the run prints the total.
+  Expect roughly $1 to $3 per country in synchronous mode (about 300k input tokens, mostly cache reads, 80k cache writes, 25k output tokens and 15 searches), so $20 to $60 for the pilot; batch mode about halves the token part.
+
+The API key comes from `ANTHROPIC_API_KEY` in the git-ignored `.env.local`; without it a real run stops before doing any work and says so.
+`--record <dir>` saves every response as `<dir>/<tag>/<n>.json`, and `--replay <dir>` answers requests from such a directory without network or key.
+The end-to-end test replays `tests/pipeline/fixtures/replay` (placeholder text, built by `build-replay.ts` in the same folder), and the same fixtures run from the command line:
+
+```sh
+cp -R content/en /tmp/elsewhere-en
+npm run content:generate -- --country CHL --replay tests/pipeline/fixtures/replay --content-dir /tmp/elsewhere-en
+npm run content:verify -- --offline --content-dir /tmp/elsewhere-en
+npm run content:review -- show CHL --content-dir /tmp/elsewhere-en
+```
 
 Geo data in `data/geo/` is generated from Natural Earth 10m datasets, which are cached in `.map-sources/` and recorded with URL and SHA-256 in `data/geo/sources.json`:
 
@@ -180,8 +246,11 @@ What can go wrong:
   This is why places come from the gazetteer and routes are checked against land polygons.
 - Ocean label points sit in the middle of the ocean, far from most scenes.
   Prefer the nearest marginal sea (the Philippine Sea rather than the Pacific) when a story means the water off a coast.
+- The gazetteer has no canals (Suez, Panama) and no Strait of Hormuz, and the passage paths of Bab-el-Mandeb, the Bristol Channel, Hudson Strait, the Northwest Passage, the Saint Lawrence River and the Strait of Magellan cross land in the detailed geometry.
+  A sea route through any of them fails the land check, so drafts draw a sea route to each side and join them with a short `flow` route until the gazetteer is fixed.
 - A URL that resolves does not prove it supports the claim.
   Review remains necessary; the pipeline only removes mechanical errors.
+- A source can be live and still not say what the text claims; there is no automatic claim check yet.
 
 ## Globe
 
@@ -292,6 +361,7 @@ Adding Chinese later means adding a catalog and a `content/zh/` tree, with no co
 
 - Unit tests (Vitest) for pure logic: schema rules, navigation, search, cartography, picking.
 - Content validation runs in CI on every change to `content/`.
+- Pipeline tests in `tests/pipeline/` run plan, draft, verify, review and redraft end to end on replayed model responses.
 - Playwright e2e covers the core loop: ask, read, follow a next question, bookmark, share, back and forward, mobile layout.
 
 ## Migration plan
