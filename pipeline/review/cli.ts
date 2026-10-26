@@ -5,7 +5,7 @@
 //   approve <country> [story] [--all] [--by me]  mark the overview, a story, or everything reviewed
 //   revise <country> [story] --notes "..."       send a draft back for regeneration
 import { parseArgs } from 'node:util';
-import { DEFAULT_CONTENT_DIR, today } from '../config';
+import { CLAIMS_DIR, DEFAULT_CONTENT_DIR, today } from '../config';
 import { parsedCountryFiles, countryFilePath } from '../content-tree';
 import { checkUrls } from '../validate/urls';
 import {
@@ -34,6 +34,7 @@ const USAGE = `Usage: npm run content:review -- <command> [options]
        --notes "<what to change>"      reviewer notes the regeneration must address
        --by <name>                     reviewer (default: git user.name)
   --content-dir <dir>                  content tree (default ${DEFAULT_CONTENT_DIR})
+  --claims-dir <dir>                   claim check results (default ${CLAIMS_DIR})
 
 <country> is a country ID (CHL) or slug (chile). After revise, run
 npm run content:generate -- --revisions to redraft everything sent back.`;
@@ -48,11 +49,13 @@ async function main(): Promise<number> {
       notes: { type: 'string' },
       'accept-claims': { type: 'string' },
       'content-dir': { type: 'string', default: DEFAULT_CONTENT_DIR },
+      'claims-dir': { type: 'string', default: CLAIMS_DIR },
       help: { type: 'boolean', default: false },
     },
   });
   const [command, country, storyId] = positionals;
   const contentDir = values['content-dir'];
+  const claimsDir = values['claims-dir'];
   if (values.help || !command) {
     console.log(USAGE);
     return values.help ? 0 : 1;
@@ -96,7 +99,7 @@ async function main(): Promise<number> {
       ];
       await checkUrls(urls);
     }
-    const report = fileReport(contentDir, file);
+    const report = fileReport(contentDir, file, undefined, claimsDir);
     console.log(
       countrySummary(file, { files: parsedCountryFiles(contentDir), ...report }, storyId),
     );
@@ -115,6 +118,7 @@ async function main(): Promise<number> {
       by: reviewerName(values.by),
       date: today(),
       acceptClaims: values['accept-claims'],
+      claimsDir,
     });
     const accepted = result.acceptedClaims
       ? ` Accepted ${result.acceptedClaims} flagged claim check result${result.acceptedClaims === 1 ? '' : 's'}.`
