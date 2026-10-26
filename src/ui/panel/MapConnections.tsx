@@ -5,11 +5,16 @@ import type { MapView } from '@/domain/view-models';
 import { format, messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 
-/** Places the reader can tap to find on the globe, with a short note about the one in focus. */
+/**
+ * Places the reader can tap to find on the globe, with a short note about the one in focus.
+ * Without a globe there is nothing to find them on, so the places stay as a plain list.
+ */
 export function MapConnections({ map }: { map: MapView }) {
-  const { focus, focusPlace, go } = useAtlas();
+  const { focus, focusPlace, go, globeStatus } = useAtlas();
   const text = messages.connections;
-  const focused = focus ? map.places.find((place) => place.id === focus.id) : undefined;
+  const globeFailed = globeStatus === 'error';
+  const focused =
+    focus && !globeFailed ? map.places.find((place) => place.id === focus.id) : undefined;
 
   return (
     <section className="map-connections" aria-label={text.label}>
@@ -24,7 +29,8 @@ export function MapConnections({ map }: { map: MapView }) {
           {map.places.map((place) => (
             <button
               key={place.id}
-              aria-pressed={focused?.id === place.id}
+              disabled={globeFailed}
+              aria-pressed={globeFailed ? undefined : focused?.id === place.id}
               onClick={() => focusPlace(focused?.id === place.id ? null : place.id)}
             >
               <span />
@@ -47,7 +53,8 @@ export function MapConnections({ map }: { map: MapView }) {
           </div>
         </div>
       ) : (
-        map.places.length > 0 && <small className="map-instruction">{text.instruction}</small>
+        map.places.length > 0 &&
+        !globeFailed && <small className="map-instruction">{text.instruction}</small>
       )}
     </section>
   );

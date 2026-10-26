@@ -6,7 +6,12 @@ import { LABEL_ALTITUDE, labelScale, type CountryFeature, type LabelScale } from
 import type { HighlightRoles } from './fills';
 import { createGeography } from './geography';
 import { createPointerInteractions } from './interactions';
-import { createLabelLayer, type CountryLabelData, type LabelDatum } from './label-layer';
+import {
+  createLabelLayer,
+  type CountryLabelData,
+  type GlobeLabelMessages,
+  type LabelDatum,
+} from './label-layer';
 import { createBasemapMaterial } from './materials';
 import { createGlobeUnprojector } from './projection';
 import { createRouteLayer } from './route-layer';
@@ -31,6 +36,7 @@ export function loadBasemap(url: string): Promise<Texture> {
 export type EngineOptions = {
   container: HTMLElement;
   labels: readonly CountryLabelData[];
+  messages: GlobeLabelMessages;
   assets: AtlasGlobeAssets;
   homeView: CameraView;
   occluders: () => Iterable<Element>;
@@ -130,7 +136,7 @@ export function createGlobeEngine(options: EngineOptions) {
     onFeaturesChange: scheduleLayout,
   });
 
-  const labels = createLabelLayer(options.labels, {
+  const labels = createLabelLayer(options.labels, options.messages, {
     onSelectCountry: options.onSelect,
     onFocusPlace: options.onFocusPlace,
     onHoverCountry: (id) => geography.setHovered(id),

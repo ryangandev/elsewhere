@@ -19,6 +19,7 @@ export type Story = {
   sections: { title: string; text: string; sourceIds: string[] }[];
   next: StoryRef[];
   sources: Source[];
+  scene: { placeIds: string[] };
   provenance: { status: 'draft' | 'reviewed' };
 };
 

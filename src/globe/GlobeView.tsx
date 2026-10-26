@@ -7,10 +7,20 @@ import {
   type AtlasGlobe,
   type AtlasGlobeAssets,
   type CountryLabelData,
+  type GlobeLabelMessages,
   type GlobeStatus,
 } from './controller';
 import type { MapScene } from './scene';
 import './globe.css';
+
+/** Interface text the globe shows, supplied by the app's message catalog. */
+export type GlobeMessages = GlobeLabelMessages & {
+  /** Accessible name of the globe region. */
+  region: string;
+  errorTitle: string;
+  errorDetail: string;
+  retry: string;
+};
 
 export type GlobeViewHandle = {
   zoom(direction: 'in' | 'out' | 'reset'): void;
@@ -20,6 +30,7 @@ type GlobeViewProps = {
   scene: MapScene;
   // Read when the globe mounts; changing them later has no effect.
   labels: readonly CountryLabelData[];
+  messages: GlobeMessages;
   assets?: AtlasGlobeAssets;
   // Elements the globe's labels must not cover.
   occluders?: () => Iterable<Element>;
@@ -34,6 +45,7 @@ type GlobeViewProps = {
 export default function GlobeView({
   scene,
   labels,
+  messages,
   assets = DEFAULT_GLOBE_ASSETS,
   occluders,
   onSelect,
@@ -47,7 +59,7 @@ export default function GlobeView({
   // Each retry mounts a fresh controller.
   const [attempt, setAttempt] = useState(0);
 
-  const mountOptions = useEffectEvent(() => ({ labels, assets, scene }));
+  const mountOptions = useEffectEvent(() => ({ labels, messages, assets, scene }));
   const findOccluders = useEffectEvent(() => occluders?.() ?? []);
   const select = useEffectEvent((id: string) => onSelect?.(id));
   const focusPlace = useEffectEvent((id: string) => onFocusPlace?.(id));
@@ -57,9 +69,10 @@ export default function GlobeView({
   });
 
   useEffect(() => {
-    const { labels, assets, scene } = mountOptions();
+    const { labels, messages, assets, scene } = mountOptions();
     const instance = createAtlasGlobe(host.current!, {
       labels,
+      messages,
       assets,
       occluders: () => findOccluders(),
     });
@@ -85,15 +98,15 @@ export default function GlobeView({
   useImperativeHandle(ref, () => ({ zoom: (direction) => globe.current?.zoom(direction) }), []);
 
   return (
-    <div className="globe-render" role="region" aria-label="Interactive 3D world globe">
+    <div className="globe-render" role="region" aria-label={messages.region}>
       {/* A failed globe hides entirely, so stale labels and tooltips never sit over the message. */}
       <div ref={host} className="globe-host" hidden={status === 'error'} />
       {status === 'error' && (
         <div className="globe-error" role="status">
-          <strong>The globe couldn&rsquo;t load.</strong>
-          <p>All stories, search, and your saved places are still available.</p>
+          <strong>{messages.errorTitle}</strong>
+          <p>{messages.errorDetail}</p>
           <button type="button" onClick={() => setAttempt((value) => value + 1)}>
-            Try again
+            {messages.retry}
           </button>
         </div>
       )}

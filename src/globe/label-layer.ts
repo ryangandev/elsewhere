@@ -46,6 +46,14 @@ export type LabelLayoutContext = {
   occluders: Iterable<Element>;
 };
 
+/** Accessible names for label buttons, supplied by the app so the globe holds no interface text. */
+export type GlobeLabelMessages = {
+  /** A country name, which opens that country. */
+  exploreCountry(name: string): string;
+  /** A scene place, which finds that place on the globe. */
+  locatePlace(name: string): string;
+};
+
 type LabelCallbacks = {
   onSelectCountry: (id: string) => void;
   onFocusPlace: (id: string) => void;
@@ -182,6 +190,7 @@ function occluderRects(occluders: Iterable<Element>, bounds: DOMRect) {
 // so navigation touches only the place labels that actually changed.
 export function createLabelLayer(
   countries: readonly CountryLabelData[],
+  messages: GlobeLabelMessages,
   callbacks: LabelCallbacks,
 ) {
   const countryLabels: CountryLabel[] = [];
@@ -191,7 +200,7 @@ export function createLabelLayer(
     element.dataset.country = country.id;
     const name = country.shortName ?? country.name;
     element.textContent = stackedName(name) ?? name;
-    element.setAttribute('aria-label', `Explore ${country.name}`);
+    element.setAttribute('aria-label', messages.exploreCountry(country.name));
     element.setAttribute('aria-hidden', 'true');
     element.tabIndex = -1;
     element.addEventListener('mouseenter', () => callbacks.onHoverCountry(country.id));
@@ -235,7 +244,7 @@ export function createLabelLayer(
     element.classList.toggle('active', label.active);
     element.dataset.place = place.id;
     element.textContent = place.name;
-    element.setAttribute('aria-label', `Locate ${place.name}`);
+    element.setAttribute('aria-label', messages.locatePlace(place.name));
     // The text or style may have changed.
     label.width = 0;
   };
