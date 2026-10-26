@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getCountry, getStory, listCountries, listStories } from '@/content';
+import { getCountry, getHome, getStory, listCountries, listStories } from '@/content';
 import { buildAtlasIndex, buildCountryLabels } from '@/domain/client-indexes';
 import {
   buildCountryPage,
@@ -70,12 +70,14 @@ describe('story page', () => {
     expect(storySceneSpec(elsewhere, country).camera).toBeUndefined();
   });
 
-  it('offers at most three next questions, with reasons for those elsewhere', () => {
+  it('offers at most three next questions, same place first, with reasons for those elsewhere', () => {
     expect(view.next.length).toBeGreaterThan(0);
     expect(view.next.length).toBeLessThanOrEqual(3);
-    expect(view.next.some((link) => link.countryName === 'Singapore')).toBe(true);
-    for (const link of view.next.filter((item) => item.countryName !== 'Singapore')) {
-      expect(link.caption).toBeTruthy();
+    expect(view.next[0]).toMatchObject({ relation: 'deeper', countryName: 'Singapore' });
+    expect(view.next.some((link) => link.relation === 'elsewhere')).toBe(true);
+    for (const link of view.next) {
+      expect(link.relation).toBe(link.countryName === 'Singapore' ? 'deeper' : 'elsewhere');
+      if (link.relation === 'elsewhere') expect(link.caption).toBeTruthy();
     }
     expect(view.next.map((link) => link.href)).toContain('/malaysia/two-shores');
   });
@@ -113,12 +115,6 @@ describe('country page', () => {
       value: '6.04 million',
       asOf: '2024',
     });
-    expect(view.connections.length).toBeGreaterThan(0);
-    expect(view.connections.length).toBeLessThanOrEqual(3);
-    for (const link of view.connections) {
-      expect(link.countryName).not.toBe('Singapore');
-      expect(link.caption).toBeTruthy();
-    }
     expect(view.shell.scene.routes).toEqual([]);
     expect(view.shell.destination.storyId).toBeUndefined();
     expect(roundTrip(view)).toEqual(view);
@@ -148,15 +144,21 @@ describe('country page', () => {
 });
 
 describe('home and client indexes', () => {
-  it('begins at home with edited countries', () => {
+  it('begins at home with the starting questions content suggests', () => {
     const home = buildHomeView();
-    expect(home.picks.map((pick) => pick.href)).toEqual([
-      '/singapore',
-      '/japan',
-      '/brazil',
-      '/turkey',
-    ]);
-    expect(home.surprise).toHaveLength(listCountries().length);
+    expect(home.suggestions.map((link) => link.href)).toEqual(
+      getHome().suggestedQuestions.map(
+        (ref) => buildStoryPage(ref.countryId, ref.storyId).shell.destination.href,
+      ),
+    );
+    expect(home.suggestions.length).toBeGreaterThanOrEqual(3);
+    expect(home.suggestions.length).toBeLessThanOrEqual(4);
+    expect(home.suggestions[0]).toMatchObject({
+      href: '/singapore/shipping',
+      title: 'Why is Singapore a shipping crossroads?',
+      countryName: 'Singapore',
+    });
+    expect(roundTrip(home)).toEqual(home);
   });
 
   it('labels every map identity with its editorial name and page', () => {
@@ -187,6 +189,7 @@ describe('home and client indexes', () => {
     );
     expect(index.stories).toHaveLength(listStories().length);
     expect(index.trails.length).toBeGreaterThan(0);
+    expect(index.suggestions).toEqual(getHome().suggestedQuestions);
   });
 
   it('turns ISO codes into flags', () => {

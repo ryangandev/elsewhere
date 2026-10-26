@@ -4,6 +4,7 @@
 import 'server-only';
 import {
   getCountry,
+  getHome,
   getMapCountry,
   getPlace,
   getStory,
@@ -30,6 +31,7 @@ import type {
   HomeView,
   MapCountryPageView,
   MapView,
+  NextQuestionView,
   PageView,
   PlaceView,
   ProvenanceView,
@@ -40,11 +42,7 @@ import type {
   TrailView,
 } from './view-models';
 
-/** Edited countries the home view begins with, until the question-first home replaces it. */
-const HOME_PICK_IDS = ['SGP', 'JPN', 'BRA', 'TUR'];
-const HOME_PICK_COUNT = 4;
 const NEARBY_COUNT = 3;
-const CONNECTION_COUNT = 3;
 
 /** The emoji flag for an ISO 3166 alpha-2 code: two regional indicator symbols. */
 export function flagEmoji(isoA2: string | null): string {
@@ -96,8 +94,12 @@ export function storyLink(destination: Destination, caption?: string): StoryLink
   };
 }
 
-function refLink(ref: StoryRef): StoryLinkView {
-  return storyLink({ countryId: ref.countryId, storyId: ref.storyId }, ref.reason);
+/** A next question of a story, marked as going deeper into the same place or elsewhere. */
+function nextQuestion(from: Story, ref: StoryRef): NextQuestionView {
+  return {
+    ...storyLink({ countryId: ref.countryId, storyId: ref.storyId }, ref.reason),
+    relation: ref.countryId === from.countryId ? 'deeper' : 'elsewhere',
+  };
 }
 
 function sourceViews(sources: Source[], ids?: string[]): SourceView[] {
@@ -192,27 +194,9 @@ function editedCountryPage(profile: Country): CountryPageView {
       .filter((story): story is Story => !!story)
       .map(link),
     moreQuestions: stories.filter((story) => !starterIds.has(story.id)).map(link),
-    connections: countryConnections(profile, stories),
     sources: sourceViews(profile.sources),
     provenance: provenanceView(profile.provenance),
   };
-}
-
-/**
- * Questions elsewhere that this country's questions lead to, starter questions first.
- * They come from the stories' own `next` references, so they always carry a reason.
- */
-function countryConnections(profile: Country, stories: Story[]): StoryLinkView[] {
-  const ordered = [
-    ...profile.starterStoryIds.flatMap((id) => stories.filter((story) => story.id === id)),
-    ...stories.filter((story) => !profile.starterStoryIds.includes(story.id)),
-  ];
-  const refs = ordered.flatMap((story) => story.next).filter((ref) => ref.countryId !== profile.id);
-  const unique = refs.filter(
-    (ref, index) =>
-      refs.findIndex((other) => destinationKey(other) === destinationKey(ref)) === index,
-  );
-  return unique.slice(0, CONNECTION_COUNT).map(refLink);
 }
 
 /** Great-circle closeness of two points (haversine term; smaller is closer). */
@@ -278,7 +262,10 @@ export function buildStoryPage(countryId: string, storyId: string): StoryPageVie
       sources: sourceViews(story.sources, section.sourceIds),
     })),
     takeaway: story.takeaway,
-    next: story.next.map(refLink),
+    next: story.next
+      .map((ref) => nextQuestion(story, ref))
+      // Same place first, keeping content order within each kind.
+      .sort((a, b) => Number(a.relation === 'elsewhere') - Number(b.relation === 'elsewhere')),
     trails: listTrails()
       .filter((trail) =>
         trail.stops.some((stop) => destinationKey(stop) === destinationKey(destination)),
@@ -315,19 +302,9 @@ export function trailView(trail: Trail): TrailView {
   };
 }
 
+/** The home view: the starting questions content suggests next to the question input. */
 export function buildHomeView(): HomeView {
-  const edited = listCountries();
-  const picks = [
-    ...HOME_PICK_IDS.filter((id) => edited.some((country) => country.id === id)),
-    ...edited.map((country) => country.id).filter((id) => !HOME_PICK_IDS.includes(id)),
-  ].slice(0, HOME_PICK_COUNT);
-  return {
-    picks: picks.map((id) => countryLink(id)),
-    surprise: edited.map((country) => ({
-      countryId: country.id,
-      href: destinationPath({ countryId: country.id }),
-    })),
-  };
+  return { suggestions: getHome().suggestedQuestions.map((ref) => storyLink(ref)) };
 }
 
 export type PageSummary = { title: string; description: string };

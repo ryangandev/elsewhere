@@ -36,7 +36,7 @@ function Frame({ children }: { children: ReactNode }) {
 
   return (
     <main className={classes.filter(Boolean).join(' ')}>
-      <a className="skip-link" href={destination ? '#country-reading' : '#discovery-start'}>
+      <a className="skip-link" href={destination ? '#country-reading' : '#home-start'}>
         {messages.topbar.skip}
       </a>
       <Topbar />
