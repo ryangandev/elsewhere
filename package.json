@@ -15,7 +15,9 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "maps:index": "node scripts/build-country-index.mjs",
     "maps:build": "node scripts/build-map-assets.mjs",
-    "maps:basics": "node scripts/build-country-basics.mjs"
+    "maps:basics": "node scripts/build-country-basics.mjs",
+    "maps:countries": "node scripts/build-countries.mjs",
+    "maps:gazetteer": "node --import tsx scripts/build-gazetteer.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

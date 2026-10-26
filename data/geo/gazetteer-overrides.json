@@ -1,0 +1,90 @@
+{
+  "description": "Hand-maintained inputs to scripts/build-gazetteer.mjs. 'include' adds Natural Earth features that the default filters leave out, by dataset and ne_id. 'rename' replaces a Natural Earth name with its common English form before the ID is derived. 'features' adds the few features Natural Earth lacks; each is anchored to Natural Earth geometry (a gazetteer place, or the part of a country polygon containing a place), never to typed coordinates. Keep every list short and give every entry a reason.",
+  "include": [
+    {
+      "dataset": "places",
+      "neId": 1159149959,
+      "name": "Nagoya",
+      "reason": "Japan coasts story names the Tokyo, Nagoya and Osaka corridor."
+    },
+    {
+      "dataset": "places",
+      "neId": 1159150521,
+      "name": "Memphis",
+      "reason": "Waypoint on the Mississippi river route."
+    },
+    {
+      "dataset": "places",
+      "neId": 1159148321,
+      "name": "Kuantan",
+      "reason": "East-coast port of Peninsular Malaysia; start of the route to Sabah."
+    },
+    {
+      "dataset": "places",
+      "neId": 1159148335,
+      "name": "Kota Kinabalu",
+      "reason": "Capital and port of Sabah; end of the route from the peninsula."
+    },
+    {
+      "dataset": "admin1",
+      "neId": 1159310033,
+      "name": "Sabah",
+      "reason": "Malaysian state on northern Borneo."
+    },
+    {
+      "dataset": "admin1",
+      "neId": 1159310021,
+      "name": "Sarawak",
+      "reason": "Malaysian state on northern Borneo."
+    },
+    {
+      "dataset": "admin1",
+      "neId": 1159311355,
+      "name": "French Guiana",
+      "reason": "Overseas region of France; part of the FRA map identity, so not a country entry."
+    }
+  ],
+  "rename": [
+    {
+      "dataset": "places",
+      "from": "Ōsaka",
+      "to": "Osaka",
+      "reason": "Common English spelling; Natural Earth writes Tokyo without a macron."
+    },
+    {
+      "dataset": "regions",
+      "from": "Amazon basin",
+      "to": "Amazon Basin",
+      "reason": "Capitalize the proper name."
+    },
+    {
+      "dataset": "rivers",
+      "from": "Amazonas River",
+      "to": "Amazon River",
+      "reason": "English name of the river."
+    }
+  ],
+  "features": [
+    {
+      "id": "peninsular-malaysia",
+      "name": "Peninsular Malaysia",
+      "kind": "region",
+      "anchor": {
+        "type": "countryPart",
+        "countryId": "MYS",
+        "containingPlaceId": "kuala-lumpur"
+      },
+      "reason": "Natural Earth has the whole Malay Peninsula, which extends into Thailand and Myanmar, but not Malaysia's peninsular region. Labelled at the interior point of the Malaysian polygon that contains Kuala Lumpur."
+    },
+    {
+      "id": "cerrado",
+      "name": "Cerrado",
+      "kind": "region",
+      "anchor": {
+        "type": "place",
+        "placeId": "planalto-central"
+      },
+      "reason": "Natural Earth has no biome features. The Cerrado savanna covers Brazil's central plateau, so it is labelled at Natural Earth's Planalto Central."
+    }
+  ]
+}

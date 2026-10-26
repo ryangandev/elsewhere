@@ -1,0 +1,44 @@
+{
+  "countries": {
+    "source": "Natural Earth, public domain",
+    "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_countries.geojson",
+    "sha256": "239eec57ac17f100a11e2536cffc56752c318b50ae765b0918ff7aab4ce8f255",
+    "labelGeometry": "public/maps/countries-detail.geojson",
+    "features": 258
+  },
+  "gazetteer": {
+    "source": "Natural Earth, public domain",
+    "datasets": {
+      "marine": {
+        "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_geography_marine_polys.geojson",
+        "sha256": "53f865e8ffa966cdd402145c82c5cd14ee7ce974cd0eb9a3f59f03a4cfd2d66c"
+      },
+      "rivers": {
+        "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_rivers_lake_centerlines.geojson",
+        "sha256": "bb854a900ecbd3b408df46d5e16e3e0f974ba55993f9d8b5c26e855273c0905a"
+      },
+      "regions": {
+        "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_geography_regions_polys.geojson",
+        "sha256": "b7b26e50ea917d3696aec87f932def2bf5f890f5770e441d59c162c6f4c92a77"
+      },
+      "places": {
+        "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_populated_places_simple.geojson",
+        "sha256": "fd3fa867a320cbd5c5b6bb5bc550afeec2939fb2cef688e508007282a55ac42f"
+      },
+      "admin1": {
+        "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson",
+        "sha256": "22d0e3ad85eb3e27f17cabf8ba2d50e554fbc27a87796ff891d958185da62fb5"
+      }
+    },
+    "filters": {
+      "marine": "all named features except river mouths",
+      "rivers": "featurecla River, scalerank <= 2",
+      "regions": "scalerank <= 3",
+      "places": "scalerank <= 2, or a national capital",
+      "admin1": "only features listed in gazetteer-overrides.json"
+    },
+    "overrides": "data/geo/gazetteer-overrides.json",
+    "seaPointGeometry": "public/maps/countries-detail.geojson",
+    "features": 1251
+  }
+}
