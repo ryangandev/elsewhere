@@ -14,6 +14,8 @@ export const en = {
     atlasLabel: 'Open your atlas',
     search: 'Ask a question',
     searchLabel: 'Ask a question or find a country',
+    shortcutApple: '⌘ K',
+    shortcutOther: 'Ctrl K',
   },
   home: {
     eyebrow: 'A QUESTION-FIRST ATLAS',
@@ -84,6 +86,9 @@ export const en = {
       'Your atlas and recent explorations stay in this browser. No account is needed, and these choices are not sent to a server.',
     credits:
       'Boundaries: Natural Earth. Globe imagery: NASA Blue Marble. Sources and further reading accompany the stories. Boundaries are generalized for exploration and do not express a political position. Map routes are illustrative.',
+  },
+  dialog: {
+    close: 'Close',
   },
   share: {
     title: 'A little curiosity, shared.',
@@ -214,6 +219,7 @@ export const en = {
     sourcesNote:
       'The map contains 258 country and territory identities, not 258 sovereign states. Names and boundaries are for exploration and do not endorse territorial claims. Population retains its source year. These are static references and guides, without live updates or AI answers.',
     nearby: 'STORIES NEAR HERE',
+    sourceLink: 'Natural Earth · Admin 0',
   },
   sources: {
     questionSummary: 'Sources & further reading',

@@ -31,7 +31,7 @@ export function BasicCountryView({ view }: { view: MapCountryPageView }) {
     <>
       <div className="country-region">
         {country.region}
-        <span>· {text.badge}</span>
+        <span>{text.badge}</span>
       </div>
       <h2 ref={heading} tabIndex={-1} className="country-title">
         {country.name}
@@ -73,7 +73,7 @@ export function BasicCountryView({ view }: { view: MapCountryPageView }) {
         <summary>{text.sourcesSummary}</summary>
         <p>{text.sourcesNote}</p>
         <a href={NATURAL_EARTH_URL} target="_blank" rel="noreferrer">
-          Natural Earth · Admin 0 <ArrowUpRight size={12} />
+          {text.sourceLink} <ArrowUpRight size={12} />
         </a>
       </details>
       <section className="related-stories">

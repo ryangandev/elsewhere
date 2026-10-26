@@ -73,6 +73,7 @@ How it is built:
   Pages are prerendered without it and the panel shows trail progress once the page hydrates, which keeps the page itself static.
 - Each page sets its own title and description with `generateMetadata`.
 - The tab icon is a file convention: `app/icon.svg`, plus `app/favicon.ico` for the browser's automatic `/favicon.ico` request, which would otherwise reach `app/[country]`.
+  `app/apple-icon.png` is the full-bleed home screen icon for iOS, which rounds the corners itself.
 
 What changed from the prototype:
 
@@ -377,7 +378,7 @@ What can go wrong:
 
 - globe.gl recreates every label element when its `htmlElement` accessor changes, so it is set exactly once.
 - globe.gl applies a new size to its camera in a debounced update, so layout waits until the camera's aspect matches the size; projecting earlier puts names in the wrong place.
-- globe.gl writes every label's `transform` each frame, so a CSS transition on `transform`, such as the global `button` rule, makes labels trail the globe and cross each other; `globe.css` turns it off for pins.
+- globe.gl writes every label's `transform` each frame, so a CSS transition on `transform` makes labels trail the globe and cross each other; the interface button rule in `app/globals.css` leaves out everything inside `.globe-host`, and label styles transition colors only.
 - Some medium countries, such as Pakistan and the United Kingdom, still have no name at world zoom where their neighbors take the space or the name does not fit.
 
 ## Server and client boundary
@@ -410,6 +411,8 @@ How a page reaches the shell:
 - Focus on a map place is shell state keyed to the destination, so it resets when the destination changes and survives a re-render of the same page.
 - The breadcrumb and map caption are part of the page, so they arrive with the server-rendered HTML rather than after hydration.
 - Shell layout reacts to the page with CSS (`.world-app:has(#country-reading)`) instead of a class set from client state, so the first paint is already correct.
+- The shell's grid lives in CSS variables on `.world-app` (`--gutter`, `--header`, `--footer`, `--inset`, `--panel-width`), so the header, panel, breadcrumb, caption, home column and map controls share one set of edges at each width.
+- The globe labels avoid the elements in `OCCLUDERS` (`src/ui/shell/GlobeStage.tsx`) by their boxes, so those boxes must match what is drawn: each child of `.home` is only as wide as its content, except the input and the suggestions, which are drawn full width.
 
 Client indexes are static route handlers (`dynamic = 'force-static'`), written to `out/atlas/` at build time and fetched once, on demand:
 
@@ -430,6 +433,7 @@ The question input:
 
 - The home page leads with one question input ("What are you curious about?") over the globe, a few suggested starting questions below it, and a quieter "continue" line and trail link under those.
   The header search (Cmd/Ctrl K) opens the same component, `QuestionSearch` in `src/ui/search/`, so both rank, group and render results identically.
+  Its shortcut label reads ⌘ K on Apple platforms and Ctrl K elsewhere; pages are prerendered without knowing the platform, so `useApplePlatform` decides after hydration and both labels share one cell, keeping the button's width stable.
 - Results appear as the reader types, from the atlas index, which loads when the input first gets focus.
   Arrow keys move through them, and Enter opens the highlighted result, which starts at the top result for each query.
 - `src/domain/search.ts` scores countries (names and native names), map identities, and questions (text, category, summary, keywords).
@@ -468,10 +472,10 @@ Adding Chinese later means adding a catalog and a `content/zh/` tree, with no co
 - Unit tests (Vitest) for pure logic: schema rules, navigation, search, cartography, picking.
 - Content validation runs in CI on every change to `content/`.
 - Pipeline tests in `tests/pipeline/` run plan, draft, verify, review and redraft end to end on replayed model responses.
-- Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, and back and forward.
+- Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, back and forward, trails, saving a story to your atlas, share, and the About sheet.
+  A phone project runs the core loop (home, ask, story, follow) at 390 by 844 with touch.
   The specs find things by role and visible text, read expected questions and sources from `content/en/`, and never depend on globe pixels or on WebGL (one spec runs with WebGL disabled).
   Run `npm run build` first, then `npm run test:e2e`; CI runs it as its own `e2e` job and keeps the Playwright report when it fails.
-  Bookmark, share and the mobile layout are not covered yet.
 
 ## Migration plan
 

@@ -54,6 +54,15 @@ body {
   margin: 0;
   font-family: Arial, Helvetica, sans-serif;
 }
+/* Headings wrap into even lines, and paragraphs avoid a lone last word. */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+p {
+  text-wrap: pretty;
+}
 button,
 a,
 input {
@@ -62,25 +71,44 @@ input {
 button {
   cursor: pointer;
 }
+::selection {
+  background: #d3e2c0;
+  color: #1f3324;
+}
 button:focus-visible,
 a:focus-visible,
 summary:focus-visible {
   outline: 2px solid #bdcfa4;
   outline-offset: 5px;
 }
-button {
+/*
+ * Interface buttons ease their colors and settle a pixel when pressed. Globe labels are buttons
+ * too, but globe.gl writes their transform every frame to follow the camera, so they are left
+ * out: a transform transition would make them trail the globe.
+ */
+:where(button:not(.globe-host *)) {
   transition:
     background 0.2s,
     color 0.2s,
     transform 0.2s;
 }
+:where(button:not(.globe-host *, :disabled)):active {
+  transform: translateY(1px);
+}
 button:disabled {
   cursor: default;
 }
-button:active {
-  transform: translateY(1px);
-}
+/*
+ * Page geometry. Chrome lines up on one gutter: the header, footer, home column, breadcrumb,
+ * caption and reading panel all share --gutter, and the stage between the header and footer
+ * lines is inset by --inset.
+ */
 .world-app {
+  --gutter: 46px;
+  --header: 98px;
+  --footer: 63px;
+  --inset: 20px;
+  --panel-width: 420px;
   height: 100svh;
   min-height: 680px;
   overflow: hidden;
@@ -89,10 +117,10 @@ button:active {
   color: #edf0e8;
 }
 .topbar {
-  height: 98px;
+  height: var(--header);
   display: flex;
   align-items: center;
-  margin: 0 46px;
+  margin: 0 var(--gutter);
   border-bottom: 1px solid #ffffff13;
   gap: 35px;
   position: relative;
@@ -147,6 +175,7 @@ button:active {
   border-color: #ffffff38;
 }
 .search-trigger kbd {
+  display: inline-grid;
   margin-left: auto;
   font-family: inherit;
   font-size: 11px;
@@ -154,6 +183,16 @@ button:active {
   border-radius: 4px;
   padding: 2px 5px;
   color: #83949f;
+}
+/* Both platform labels share one cell; only the reader's shows, once it is known. */
+.search-trigger kbd > span {
+  grid-area: 1 / 1;
+  text-align: center;
+  visibility: hidden;
+}
+.search-trigger kbd[data-platform='apple'] > span:first-child,
+.search-trigger kbd[data-platform='other'] > span:last-child {
+  visibility: visible;
 }
 .globe-area {
   position: absolute;
@@ -163,7 +202,9 @@ button:active {
   height: 85%;
   transition:
     left 1.2s,
-    width 1.2s;
+    top 1.2s,
+    width 1.2s,
+    height 1.2s;
   touch-action: none;
   /* The renderer stacks its HTML labels with large z-indexes; keep them under the page. */
   isolation: isolate;
@@ -194,6 +235,10 @@ button:active {
   border-radius: 5px;
   box-shadow: 0 2px 10px #0002;
   text-shadow: 0 1px 4px #000b;
+  /* Colors only: globe.gl owns the transform (see the button rule above). */
+  transition:
+    background 0.2s,
+    color 0.2s;
 }
 .globe-pin:hover {
   background: #183542dc;
@@ -253,7 +298,7 @@ button:active {
 }
 .map-controls {
   position: absolute;
-  right: 39px;
+  right: var(--gutter);
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -303,9 +348,9 @@ button:active {
 .world-footer {
   position: absolute;
   bottom: 0;
-  left: 46px;
-  right: 46px;
-  height: 63px;
+  left: var(--gutter);
+  right: var(--gutter);
+  height: var(--footer);
   display: flex;
   align-items: center;
   border-top: 1px solid #ffffff13;
@@ -353,19 +398,22 @@ button:active {
   font-size: 10px;
   letter-spacing: 0;
 }
+/* While reading, the map fills the stage between the header and footer lines. */
 .world-app:has(#country-reading) .globe-area {
   left: -8%;
+  top: var(--header);
   width: calc(100% - 280px);
+  height: calc(100% - var(--header) - var(--footer));
 }
 .world-app:has(#country-reading) .map-controls {
-  right: 466px;
+  right: calc(var(--gutter) + var(--panel-width) + 24px);
 }
 .country-panel {
   position: absolute;
-  right: 27px;
-  top: 118px;
-  bottom: 85px;
-  width: 405px;
+  right: var(--gutter);
+  top: calc(var(--header) + var(--inset));
+  bottom: calc(var(--footer) + var(--inset));
+  width: var(--panel-width);
   color: #26392f;
   background: #f6f7f2;
   border-radius: 13px;
@@ -483,7 +531,7 @@ button:active {
   border-left: 1px solid #dce2d5;
 }
 .quick-facts span {
-  font-size: 8px;
+  font-size: 9px;
   letter-spacing: 1.1px;
   text-transform: uppercase;
   color: #8b9686;
@@ -553,17 +601,25 @@ button:active {
   color: #88977c;
 }
 .small-details {
-  margin-top: 26px;
-  font-size: 10px;
-  color: #879080;
+  margin-top: 18px;
+  font-size: 12px;
+  color: #6f7f66;
+}
+.small-details + .small-details {
+  margin-top: 0;
 }
 .small-details summary {
+  padding: 8px 0;
   cursor: pointer;
+}
+.small-details summary:hover {
+  color: #3f5739;
 }
 .small-details p {
   line-height: 1.65;
-  font-size: 11px;
-  margin: 14px 0;
+  font-size: 12px;
+  margin: 6px 0 12px;
+  color: #74806d;
 }
 .small-details a {
   display: flex;
@@ -593,8 +649,8 @@ button:active {
 }
 .map-breadcrumb {
   position: absolute;
-  left: 47px;
-  top: 124px;
+  left: var(--gutter);
+  top: calc(var(--header) + var(--inset));
   z-index: 5;
   display: flex;
   align-items: center;
@@ -616,8 +672,8 @@ button:active {
 }
 .map-caption {
   position: absolute;
-  left: 49px;
-  bottom: 105px;
+  left: var(--gutter);
+  bottom: calc(var(--footer) + var(--inset));
   display: flex;
   align-items: flex-start;
   gap: 13px;
@@ -659,7 +715,7 @@ button:active {
   color: #728365;
 }
 .topic-meta span {
-  font-size: 8px;
+  font-size: 9px;
   letter-spacing: 0.7px;
   margin-left: 7px;
   color: #99a08f;
@@ -728,7 +784,7 @@ button:active {
 }
 .topic-sections p.section-sources {
   margin-top: 8px;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.6;
   color: #879080;
 }
@@ -743,7 +799,7 @@ button:active {
 }
 .provenance-note {
   margin: 12px 0 0;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.2px;
   color: #879080;
 }
@@ -798,18 +854,25 @@ blockquote {
 }
 .globe-error {
   position: absolute;
-  top: 48%;
-  left: 45%;
+  top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
+  width: min(300px, calc(100% - 48px));
   text-align: center;
-  max-width: 290px;
   font-size: 14px;
   color: #ccdad9;
   z-index: 3;
 }
+.globe-error strong {
+  font:
+    400 22px/1.25 Georgia,
+    serif;
+  color: #e6ece0;
+}
 .globe-error p {
-  margin: 15px 0;
-  color: #859fae;
+  margin: 10px 0 20px;
+  line-height: 1.6;
+  color: #9db1bb;
 }
 .globe-error button {
   background: #203c48;
@@ -819,12 +882,8 @@ blockquote {
   padding: 10px 16px;
 }
 @media (min-width: 1500px) {
-  .country-panel {
-    width: 450px;
-    right: 35px;
-  }
-  .world-app:has(#country-reading) .map-controls {
-    right: 520px;
+  .world-app {
+    --panel-width: 450px;
   }
   .world-app:has(#country-reading) .globe-area {
     width: calc(100% - 320px);
@@ -842,11 +901,8 @@ blockquote {
 }
 @media (max-height: 800px) and (min-width: 801px) {
   .world-app {
+    --inset: 13px;
     min-height: 650px;
-  }
-  .country-panel {
-    top: 111px;
-    bottom: 77px;
   }
   .panel-topline {
     padding-top: 13px;
@@ -857,6 +913,10 @@ blockquote {
   }
 }
 @media (max-width: 1100px) {
+  .world-app {
+    --gutter: 30px;
+    --panel-width: 375px;
+  }
   .topbar-note {
     display: none;
   }
@@ -864,31 +924,12 @@ blockquote {
     left: 22%;
     width: 83%;
   }
-  .world-footer {
-    left: 30px;
-    right: 30px;
-  }
-  .world-footer > div {
-    font-size: 8px;
-    letter-spacing: 0.5px;
-  }
   .gesture-hint {
-    left: 58%;
     font-size: 10px;
-  }
-  .topbar {
-    margin: 0 30px;
-  }
-  .country-panel {
-    width: 375px;
-    right: 20px;
   }
   .world-app:has(#country-reading) .globe-area {
     left: -16%;
     width: calc(100% - 170px);
-  }
-  .world-app:has(#country-reading) .map-controls {
-    right: 412px;
   }
   .map-caption {
     max-width: 330px;
@@ -902,11 +943,10 @@ blockquote {
 }
 @media (max-width: 800px) {
   .world-app {
-    min-height: 600px;
-  }
-  .topbar {
-    height: 77px;
-    margin: 0 23px;
+    --gutter: 20px;
+    --header: 70px;
+    --footer: 49px;
+    --inset: 14px;
   }
   .brand {
     font-size: 25px;
@@ -917,13 +957,8 @@ blockquote {
   .header-actions {
     gap: 0;
   }
-  .search-trigger {
-    min-width: 0;
-    padding: 10px;
-    border: 0;
-    background: #ffffff08;
-  }
-  .search-trigger span {
+
+  .search-trigger > span {
     display: none;
   }
   .search-trigger kbd {
@@ -935,17 +970,9 @@ blockquote {
     height: 55%;
     width: 106%;
   }
-  .world-footer {
-    height: 49px;
-    left: 24px;
-    right: 24px;
-  }
   .world-footer > div {
-    font-size: 7px;
-    letter-spacing: 0.5px;
-  }
-  .world-footer > button {
     font-size: 9px;
+    letter-spacing: 0.6px;
   }
   .gesture-hint {
     display: none;
@@ -955,16 +982,6 @@ blockquote {
     top: 30%;
     transform: translateY(-35%);
     padding: 3px;
-  }
-  .map-controls button {
-    height: 30px;
-    width: 29px;
-  }
-  .map-controls button:first-child {
-    height: 39px;
-  }
-  .map-controls button svg {
-    width: 15px;
   }
   .map-controls > span {
     margin: 2px 0;
@@ -992,8 +1009,6 @@ blockquote {
     display: none;
   }
   .map-breadcrumb {
-    top: 94px;
-    left: 24px;
     font-size: 10px;
   }
   .map-breadcrumb button {
@@ -1044,12 +1059,6 @@ blockquote {
 }
 /* Comfortable reading, compact framing, and a clear next step. */
 @media (min-width: 801px) {
-  .country-panel {
-    width: 420px;
-  }
-  .world-app:has(#country-reading) .map-controls {
-    right: 477px;
-  }
   .panel-scroll {
     padding: 24px 25px;
   }
@@ -1080,22 +1089,6 @@ blockquote {
   }
 }
 
-@media (min-width: 1500px) {
-  .country-panel {
-    width: 450px;
-  }
-  .world-app:has(#country-reading) .map-controls {
-    right: 520px;
-  }
-}
-@media (min-width: 801px) and (max-width: 1100px) {
-  .country-panel {
-    width: 375px;
-  }
-  .world-app:has(#country-reading) .map-controls {
-    right: 412px;
-  }
-}
 .curiosity-jump {
   display: flex;
   align-items: center;
@@ -1123,8 +1116,25 @@ blockquote {
 .topic-sections p {
   color: #63715e;
 }
+/* The map fades in below the header line and out above the footer line. */
 .world-app:has(#country-reading) .globe-area {
-  mask-image: linear-gradient(to bottom, transparent 0%, black 5%, black 93%, transparent 100%);
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 40px,
+    black calc(100% - 40px),
+    transparent
+  );
+}
+/* Beside the panel, the area's right edge would show as a straight cut above and below the
+   panel, so it fades out too. */
+@media (min-width: 801px) {
+  .world-app:has(#country-reading) .globe-area {
+    mask-image:
+      linear-gradient(to bottom, transparent, black 40px, black calc(100% - 40px), transparent),
+      linear-gradient(to right, black calc(100% - 96px), transparent);
+    mask-composite: intersect;
+  }
 }
 /* HTML map pins must receive input above the renderer's transparent label layer. */
 .globe-pin {
@@ -1179,12 +1189,11 @@ blockquote {
 }
 .globe-loading {
   position: absolute;
-  left: 64%;
-  top: 47%;
-  transform: translate(-50%, -50%);
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 20px;
   font-size: 12px;
   color: #a6b8bf;
@@ -1202,9 +1211,6 @@ blockquote {
   to {
     transform: rotate(360deg);
   }
-}
-.world-app:has(#country-reading) .globe-loading {
-  left: 36%;
 }
 .globe-pin.context-label {
   pointer-events: auto;
@@ -1262,9 +1268,6 @@ blockquote {
   outline: 2px solid #344f3d;
   outline-offset: 3px;
   border-radius: 3px;
-}
-.atlas-country-name:active {
-  transform: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .atlas-country-name {
@@ -1352,7 +1355,7 @@ blockquote {
   align-items: center;
   gap: 8px;
   color: #7a8c70;
-  font-size: 8px;
+  font-size: 9px;
   letter-spacing: 1.45px;
   line-height: 1.5;
 }
@@ -1484,7 +1487,7 @@ blockquote {
 }
 .story-link small {
   color: #7e8b73;
-  font-size: 9px;
+  font-size: 11px;
   display: block;
   line-height: 1.6;
 }
@@ -1845,17 +1848,30 @@ blockquote {
 }
 .library-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  border-bottom: 1px solid #dfe5d8;
 }
 .library-row .story-link {
   flex: 1;
+  border-bottom: 0;
 }
 .remove-saved {
-  padding: 6px;
-  color: #93a386;
-  background: none;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  /* Centers the button on the row's first line, level with the link arrow. */
+  margin: 10px 0 0 8px;
+  padding: 0;
   border: 0;
-  margin-left: 8px;
+  border-radius: 6px;
+  background: none;
+  color: #93a386;
+}
+.remove-saved:hover {
+  background: #e6ecde;
+  color: #3f5739;
 }
 .library-empty {
   padding: 40px 10px;
@@ -1892,24 +1908,56 @@ blockquote {
   color: #48613d !important;
   background: #f7f9f1 !important;
 }
+.share-dialog > svg {
+  color: #81976e;
+}
+.share-dialog [data-slot='dialog-title'] {
+  font:
+    25px/1.2 Georgia,
+    serif;
+  letter-spacing: -0.4px;
+  color: #354d2d;
+}
+.share-dialog [data-slot='dialog-description'] {
+  color: #66775c;
+}
+.share-dialog [data-slot='dialog-close'] {
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  color: #5f7456;
+  opacity: 1;
+}
+.share-dialog [data-slot='dialog-close']:hover {
+  background: #e6ecde;
+}
 .share-dialog input {
-  font-size: 12px;
+  font-size: 13px;
   padding: 13px;
   background: #eef2e8;
   border: 1px solid #d8e1ce;
-  border-radius: 5px;
+  border-radius: 6px;
   width: 100%;
+  color: #2f4630;
+}
+.share-dialog input:focus-visible {
+  outline: 2px solid #9fb489;
+  outline-offset: 2px;
 }
 .share-dialog > button:not([data-slot='dialog-close']) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
   border: 0;
   background: #dfebd5;
-  border-radius: 5px;
-  padding: 10px;
-  font-size: 12px;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 13px;
+  color: #3f5b32;
+}
+.share-dialog > button:not([data-slot='dialog-close']):hover {
+  background: #d4e3c8;
 }
 @media (min-width: 801px) {
   .panel-compact .panel-scroll,
@@ -1926,7 +1974,6 @@ blockquote {
     gap: 20px;
   }
   .map-breadcrumb {
-    left: 30px;
     gap: 8px;
   }
   .map-caption {
@@ -1939,21 +1986,10 @@ blockquote {
     height: 100dvh;
   }
   .topbar {
-    height: 70px;
-    margin: 0 20px;
     gap: 15px;
-  }
-  .header-actions {
-    gap: 18px;
   }
   .nav-button > span {
     display: none;
-  }
-  .nav-button {
-    padding: 10px 1px;
-  }
-  .search-trigger {
-    min-width: 0;
   }
   .brand {
     font-size: 24px;
@@ -1965,14 +2001,6 @@ blockquote {
     top: 66px;
     height: 53%;
   }
-  .globe-loading {
-    left: 50%;
-    top: 30%;
-  }
-  .world-app:has(#country-reading) .globe-loading {
-    left: 50%;
-    top: 25%;
-  }
   .world-app:has(#country-reading) .globe-area {
     top: 65px;
     height: 39%;
@@ -1983,8 +2011,6 @@ blockquote {
     right: 10px;
   }
   .map-breadcrumb {
-    left: 23px;
-    top: 85px;
     max-width: calc(100% - 80px);
     flex-wrap: wrap;
     gap: 7px;
@@ -2007,13 +2033,6 @@ blockquote {
   .mobile-chevron {
     display: inline;
     margin-left: 5px;
-  }
-  .panel-tools {
-    gap: 10px;
-  }
-  .panel-tools button {
-    width: 28px;
-    height: 30px;
   }
   .panel-scroll {
     padding: 21px;
@@ -2042,9 +2061,6 @@ blockquote {
   }
   .map-controls {
     top: 29%;
-  }
-  .map-controls button:first-child {
-    height: 31px;
   }
   .world-app:has(#country-reading) .map-controls {
     top: 22%;
@@ -2112,20 +2128,11 @@ blockquote {
   }
 }
 @media (max-width: 380px) {
-  .header-actions {
-    gap: 11px;
-  }
   .brand {
     font-size: 22px;
   }
   .panel-scroll {
     padding: 18px;
-  }
-  .route-key {
-    font-size: 8px;
-  }
-  .section-label {
-    font-size: 7px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2144,12 +2151,22 @@ blockquote {
   }
 }
 .atlas-drawer > button:last-child {
-  right: 18px;
-  top: 18px;
-  width: 28px;
-  height: 28px;
+  right: 14px;
+  top: 14px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
+  border-radius: 8px;
+  color: #5f7456;
+  opacity: 1;
+}
+.atlas-drawer > button:last-child:hover {
+  background: #e6ecde;
+}
+.atlas-drawer > button:last-child svg {
+  width: 18px;
+  height: 18px;
 }
 /* Geographic text stays legible over ice, desert, and ocean alike. */
 .map-caption {
@@ -2248,10 +2265,18 @@ blockquote {
   display: grid;
   gap: 7px;
 }
+.quick-facts:has(+ .reference-population) {
+  margin-bottom: 0;
+}
+.quick-facts + .reference-population {
+  margin-top: 0;
+  border-top: 0;
+}
 .reference-population > span {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: #687469;
+  font-size: 9px;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: #8b9686;
 }
 .reference-population > strong {
   font-size: 25px;
@@ -2265,8 +2290,172 @@ blockquote {
 .learning-prompts {
   margin: 28px 0;
 }
-@media (max-width: 640px) {
-  .topbar .header-actions {
-    gap: 5px;
+
+/*
+ * Phones: every control is at least 44px in both directions, and text is at least 12px apart
+ * from small uppercase labels. Visual sizes stay close to desktop; hit areas grow around them.
+ */
+@media (max-width: 800px) {
+  .world-app {
+    /* The globe sits in the top half on phones, so the light falls there. */
+    background: radial-gradient(ellipse at 50% 30%, #173548 0%, #0d202d 45%, #091824 80%);
+  }
+  .header-actions {
+    gap: 0;
+  }
+  .nav-button {
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+  .search-trigger {
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: #ffffff08;
+  }
+  .saved-indicator {
+    top: 11px;
+    right: 9px;
+  }
+  .map-controls button,
+  .map-controls button:first-child {
+    width: 44px;
+    height: 44px;
+  }
+  .map-controls > span {
+    width: 24px;
+  }
+  .map-breadcrumb,
+  .map-breadcrumb button {
+    font-size: 12px;
+  }
+  /* The breadcrumb pill stays slim; its links take taps from just above and below it. */
+  .map-breadcrumb button {
+    position: relative;
+  }
+  .map-breadcrumb button::before {
+    content: '';
+    position: absolute;
+    inset: -12px -4px;
+  }
+  .panel-topline {
+    padding: 4px 4px 4px 16px;
+  }
+  .panel-mode {
+    align-self: stretch;
+    min-height: 44px;
+    font-size: 9px;
+  }
+  .panel-tools {
+    gap: 0;
+  }
+  .panel-tools button {
+    width: 44px;
+    height: 44px;
+  }
+  .back-link {
+    min-height: 44px;
+    margin: -12px 0 16px;
+    font-size: 13px;
+  }
+  .topic-meta,
+  .country-region,
+  .native-name {
+    font-size: 12px;
+  }
+  .place-chips {
+    gap: 8px;
+  }
+  .place-chips button {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .map-instruction,
+  .topic-sections p.section-sources,
+  .provenance-note,
+  .reference-population > small {
+    font-size: 12px;
+  }
+  .place-detail button {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .small-details,
+  .more-questions {
+    font-size: 13px;
+  }
+  .small-details summary,
+  .more-questions summary {
+    padding: 12px 0;
+  }
+  .small-details p,
+  .small-details a {
+    font-size: 13px;
+  }
+  .story-link small {
+    font-size: 12px;
+  }
+  .story-link p {
+    font-size: 13px;
+  }
+  .trail-progress > div > button {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin: -12px -12px -12px auto;
+  }
+  .trail-progress nav button {
+    min-height: 40px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .trail-progress nav span {
+    font-size: 10px;
+  }
+  .next-stop > button,
+  .library-empty button {
+    min-height: 44px;
+  }
+  .compact-story span {
+    font-size: 12px;
+  }
+  .world-footer > button {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .atlas-drawer > button:last-child {
+    top: 10px;
+    right: 10px;
+    width: 44px;
+    height: 44px;
+  }
+  .library-tabs button {
+    min-height: 44px;
+    padding: 12px 0;
+  }
+  .remove-saved {
+    width: 44px;
+    height: 44px;
+    margin: 4px 0 0;
+  }
+  .trail-card > button {
+    min-height: 48px;
+    font-size: 13px;
+  }
+  .trail-card > button > span {
+    font-size: 12px;
+  }
+  .about-sheet .credits {
+    font-size: 12px;
+  }
+  .atlas-notice {
+    font-size: 12px;
   }
 }

@@ -74,6 +74,17 @@ export function suggestedStories(): Story[] {
   return home.suggestedQuestions.map((ref) => getStory(ref.countryId, ref.storyId));
 }
 
+export type Trail = {
+  id: string;
+  title: string;
+  stops: StoryRef[];
+};
+
+/** The trails, in the order the trails drawer lists them (content/en/trails.json). */
+export function trails(): Trail[] {
+  return readJson<Trail[]>('trails.json');
+}
+
 /** The reviewed stories a story leads to, in order. */
 export function nextStories(story: Story): Story[] {
   return story.next.flatMap((ref) => {

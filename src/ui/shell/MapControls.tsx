@@ -8,6 +8,8 @@ export function MapControls() {
   const { globeStatus, commandGlobe } = useAtlas();
   const text = messages.controls;
   const ready = globeStatus === 'ready';
+  // Without a globe there is nothing to steer.
+  if (globeStatus === 'error') return null;
 
   return (
     <div className="map-controls" aria-label={text.label}>

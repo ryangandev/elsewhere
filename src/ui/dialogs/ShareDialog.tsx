@@ -1,6 +1,6 @@
 'use client';
 
-import { Link2, X } from 'lucide-react';
+import { Link2 } from 'lucide-react';
 import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../primitives/dialog';
@@ -22,10 +22,7 @@ export function ShareDialog() {
           value={shareUrl}
           onFocus={(event) => event.currentTarget.select()}
         />
-        <button onClick={closeShare}>
-          {text.done}
-          <X size={14} />
-        </button>
+        <button onClick={closeShare}>{text.done}</button>
       </DialogContent>
     </Dialog>
   );

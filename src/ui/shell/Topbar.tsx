@@ -3,10 +3,14 @@
 import { Bookmark, Compass, Globe2, Search } from 'lucide-react';
 import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
+import { useApplePlatform } from './use-apple-platform';
 
 export function Topbar() {
   const { go, openDialog, library } = useAtlas();
   const text = messages.topbar;
+  // Both labels are laid out in one cell so the key keeps its width while the platform is unknown.
+  const apple = useApplePlatform();
+  const platform = apple === undefined ? undefined : apple ? 'apple' : 'other';
 
   return (
     <header className="topbar">
@@ -38,11 +42,15 @@ export function Topbar() {
         <button
           className="search-trigger"
           aria-label={text.searchLabel}
+          aria-keyshortcuts="Meta+K Control+K"
           onClick={() => openDialog('search')}
         >
           <Search size={17} />
           <span>{text.search}</span>
-          <kbd>⌘ K</kbd>
+          <kbd data-platform={platform} aria-hidden>
+            <span>{text.shortcutApple}</span>
+            <span>{text.shortcutOther}</span>
+          </kbd>
         </button>
       </div>
     </header>

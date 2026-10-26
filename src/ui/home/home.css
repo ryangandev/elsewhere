@@ -3,18 +3,25 @@
  * itself vertically, so the question input stays at the optical center at every height.
  * Spacing follows a 4px scale. The column ignores the pointer except on its controls, so the
  * globe can still be dragged through its empty parts.
+ * Each child is a globe label occluder (see GlobeStage), so text blocks shrink to their text
+ * instead of claiming the column's full width; only the input and the suggestion rows span it.
  */
 .home {
   position: absolute;
   z-index: 6;
-  top: 98px;
-  bottom: 63px;
-  left: 64px;
+  top: var(--header);
+  bottom: var(--footer);
+  left: var(--gutter);
   width: 400px;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   justify-content: center;
   pointer-events: none;
+}
+.home-ask,
+.home-suggestions {
+  align-self: stretch;
 }
 .home a,
 .home button,
@@ -45,6 +52,8 @@
   color: #cbd4ac;
 }
 .home-title-small {
+  /* Narrow enough to break into two even lines, so its box ends where its text does. */
+  max-width: 8.5em;
   font-size: 40px;
   letter-spacing: -1px;
 }
@@ -89,8 +98,8 @@
   top: 100%;
   left: 0;
   right: 0;
-  /* Down to the footer line, which is the column's bottom edge. */
-  max-height: min(420px, calc(var(--room-below, 420px) - 63px));
+  /* Down to a step above the footer line. */
+  max-height: min(420px, calc(var(--room-below, 420px) - var(--footer) - 24px));
   border-top: 1px solid var(--search-line);
   border-radius: 0 0 12px 12px;
   background: var(--search-surface);
@@ -203,7 +212,6 @@
 
 @media (min-width: 1500px) {
   .home {
-    left: 80px;
     width: 420px;
   }
   .home-title {
@@ -212,7 +220,6 @@
 }
 @media (max-width: 1100px) and (min-width: 801px) {
   .home {
-    left: 32px;
     width: 340px;
   }
   .home-title {
@@ -254,9 +261,8 @@
 @media (max-width: 800px) {
   .home {
     top: auto;
-    bottom: 57px;
-    left: 20px;
-    right: 20px;
+    bottom: calc(var(--footer) + 8px);
+    right: var(--gutter);
     width: auto;
   }
   .home-eyebrow,
@@ -284,8 +290,8 @@
   .question-search-home .question-results {
     top: auto;
     bottom: 100%;
-    /* Up to just below the header. */
-    max-height: calc(var(--room-above, 420px) - 96px);
+    /* Up to a step below the header line. */
+    max-height: calc(var(--room-above, 420px) - var(--header) - 24px);
     border-top: 0;
     border-bottom: 1px solid var(--search-line);
     border-radius: 12px 12px 0 0;
@@ -299,7 +305,7 @@
   }
   .home-suggestion {
     gap: 12px;
-    padding: 10px 0;
+    padding: 12px 0;
   }
   .home-suggestion strong {
     font-size: 14px;
@@ -312,7 +318,11 @@
     flex-direction: row;
     flex-wrap: wrap;
     gap: 0 20px;
-    margin-top: 8px;
+    margin-top: 0;
+  }
+  .home-link {
+    min-height: 44px;
+    font-size: 13px;
   }
 }
 @media (max-width: 800px) and (max-height: 700px) {

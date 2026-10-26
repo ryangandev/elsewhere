@@ -29,15 +29,6 @@
   text-shadow: none;
 }
 
-/* globe.gl writes each label's transform every frame to follow the camera, so a transform
-   transition, such as the one every button inherits, would make pins trail the globe and
-   cross names that layout had kept apart. */
-.globe-render .globe-pin {
-  transition:
-    background 0.2s,
-    color 0.2s;
-}
-
 /* Parks label elements globe.gl has not attached yet, so layout can measure them.
    A parked name stays hidden even once layout marks it visible. */
 .globe-label-measure {

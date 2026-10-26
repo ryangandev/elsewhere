@@ -47,26 +47,25 @@ export function GlobeStage() {
   const ready = labels.data !== undefined || labels.failed;
 
   return (
-    <>
-      <div className="globe-area">
-        {ready && (
-          <GlobeView
-            ref={globe}
-            scene={scene}
-            labels={labels.data ?? []}
-            occluders={occluders}
-            onSelect={select}
-            onFocusPlace={focusPlace}
-            onStatus={setGlobeStatus}
-          />
-        )}
-      </div>
+    <div className="globe-area">
+      {ready && (
+        <GlobeView
+          ref={globe}
+          scene={scene}
+          labels={labels.data ?? []}
+          occluders={occluders}
+          onSelect={select}
+          onFocusPlace={focusPlace}
+          onStatus={setGlobeStatus}
+        />
+      )}
+      {/* Inside the globe's box, so it sits where the globe will appear. */}
       {globeStatus === 'loading' && (
         <div className="globe-loading" role="status">
           <span />
           {messages.map.loading}
         </div>
       )}
-    </>
+    </div>
   );
 }
