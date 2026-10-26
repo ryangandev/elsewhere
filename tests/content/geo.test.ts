@@ -159,12 +159,77 @@ describe('routes', () => {
       through: ['falkland-islands', 'strait-of-magellan', 'south-pacific-ocean'],
       acrossLand: ['bahia-grande', 'south-pacific-ocean'],
     },
+    {
+      // Natural Earth's own polygon is slivers; the passage is where the two oceans meet.
+      passage: 'drake-passage',
+      through: ['bellingshausen-sea', 'drake-passage', 'scotia-sea'],
+      acrossLand: ['bellingshausen-sea', 'scotia-sea'],
+    },
   ];
 
   it.each(passages)('pass through $passage', ({ passage, through, acrossLand }) => {
     expect(getPlace(passage)?.path?.length).toBeGreaterThanOrEqual(2);
     expect(findRouteLandCrossings({ kind: 'sea', via: through }, landIndex())).toEqual([]);
     expect(findRouteLandCrossings({ kind: 'sea', via: acrossLand }, landIndex())).not.toEqual([]);
+  });
+
+  // Waters and ports the pilot countries need that Natural Earth lacks or leaves out by default:
+  // a realistic route through each stays at sea, the shortcut across the land beside it does not.
+  const places: { place: string; through: string[][]; acrossLand: string[] }[] = [
+    {
+      place: 'celtic-sea',
+      through: [['bay-of-biscay', 'celtic-sea', 'irish-sea']],
+      acrossLand: ['bay-of-biscay', 'irish-sea'],
+    },
+    {
+      place: 'cabot-strait',
+      through: [
+        ['saint-lawrence-river', 'gulf-of-saint-lawrence', 'cabot-strait', 'north-atlantic-ocean'],
+      ],
+      acrossLand: ['cabot-strait', 'bay-of-fundy'],
+    },
+    {
+      place: 'cardiff',
+      through: [['celtic-sea', 'bristol-channel', 'cardiff']],
+      acrossLand: ['english-channel', 'cardiff'],
+    },
+    {
+      place: 'punta-arenas',
+      through: [
+        ['falkland-islands', 'strait-of-magellan', 'punta-arenas'],
+        ['punta-arenas', 'strait-of-magellan', 'south-pacific-ocean'],
+      ],
+      acrossLand: ['bahia-grande', 'punta-arenas'],
+    },
+  ];
+
+  it.each(places)('reach $place', ({ place, through, acrossLand }) => {
+    expect(getPlace(place)).toBeDefined();
+    for (const via of through) {
+      expect(findRouteLandCrossings({ kind: 'sea', via }, landIndex()), via.join(' > ')).toEqual(
+        [],
+      );
+    }
+    expect(findRouteLandCrossings({ kind: 'sea', via: acrossLand }, landIndex())).not.toEqual([]);
+  });
+
+  it('leave a passage at the port on it instead of sailing to the far end', () => {
+    // Istanbul is on the Bosporus: the route stops there, short of the Black Sea end.
+    const path = getPlace('bosporus')!.path!;
+    const blackSeaEnd = path.at(-1)!;
+    const points = routePoints({ via: ['sea-of-marmara', 'bosporus', 'istanbul'] });
+    expect(points.at(-1)).toEqual(placeCoordinates('istanbul'));
+    expect(points).not.toContainEqual(blackSeaEnd);
+    // A route from the port joins the passage at the same point and goes on through it.
+    const outbound = routePoints({ via: ['istanbul', 'bosporus', 'black-sea'] });
+    expect(outbound).toContainEqual(blackSeaEnd);
+    expect(outbound).not.toContainEqual(path[0]);
+  });
+
+  it('know the Saint Lawrence River by one ID', () => {
+    expect(getPlace('saint-lawrence-river')?.path?.length).toBeGreaterThanOrEqual(2);
+    expect(getPlace('st-lawrence-river')).toBeUndefined();
+    expect(listPlaces().filter((place) => /lawrence river/i.test(place.name))).toHaveLength(1);
   });
 
   it('stay at sea in all content', () => {

@@ -8,8 +8,10 @@
 // - regions: islands, ranges, plains, deserts and other physical regions (scalerank <= 3)
 // - places: major populated places (scalerank <= 2) and every national capital
 // - data/geo/gazetteer-overrides.json: extra Natural Earth features by ne_id, English renames,
-//   extra passages, canals from the river and lake centerlines, and the few features Natural
-//   Earth lacks, anchored to Natural Earth geometry rather than typed coordinates
+//   extra passages (including ones whose Natural Earth polygon is too broken to route through,
+//   placed where two oceans meet instead), canals from the river and lake centerlines, and the
+//   few features Natural Earth lacks, anchored to Natural Earth geometry rather than typed
+//   coordinates
 //
 // Straits, channels, canals and the passages listed in the overrides get a passage path that
 // sea routes follow (see passage-paths.mjs). The script reports passages without a way through
@@ -347,9 +349,11 @@ for (const country of countries) {
     const isPassage =
       PASSAGE_CLASSES.has(feature.properties.featurecla) ||
       passageOverrides.has(feature.properties.ne_id);
-    // Passages that end where they meet named water bodies get their path once those are added.
+    // Passages that end where they meet named water bodies, or that are placed where two oceans
+    // meet, get their path once those are added.
+    const override = passageOverrides.get(feature.properties.ne_id);
     const path =
-      isPassage && !passageOverrides.get(feature.properties.ne_id)?.between
+      isPassage && !override?.between && !override?.junction
         ? await passagePath(names[index], feature)
         : undefined;
     add({
@@ -380,6 +384,18 @@ for (const { neId, name, between } of overrides.passages) {
   });
   const path = await passagePath(entry.name, feature, ends);
   if (path) entry.path = path;
+}
+
+// Passages whose Natural Earth polygon is only slivers, such as the Drake Passage, are placed
+// where the two oceans they join meet, like the Strait of Hormuz below.
+for (const { neId, name, junction } of overrides.passages) {
+  if (!junction) continue;
+  const entry = entries.find((candidate) => candidate.source === 'marine' && candidate.neId === neId);
+  if (!entry) throw new Error(`Override passage not found: ${neId} (${name})`);
+  const { point, path } = await junctionPassage(entry.name, junction);
+  entry.lat = round(point[1]);
+  entry.lng = round(point[0]);
+  entry.path = path;
 }
 
 // Major rivers: one entry per river, labelled at the middle vertex of its longest line.
@@ -575,45 +591,104 @@ function circlePolygon([lng, lat], radiusKm, sides = 72) {
   return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } };
 }
 
+/** The part of a polygon feature inside a clipping layer (a FeatureCollection as JSON). */
+async function clipTo(feature, clip) {
+  const output = await mapshaper.applyCommands('-i water.geojson -clip clip.geojson -o out.geojson', {
+    'water.geojson': JSON.stringify({ type: 'FeatureCollection', features: [feature] }),
+    'clip.geojson': clip,
+  });
+  return JSON.parse(output['out.geojson'].toString()).features?.[0];
+}
+
+/** The interior label point of a polygon feature, as [lng, lat], or null when it is empty. */
+async function interiorPoint(feature) {
+  if (!feature) return null;
+  const [point] = await innerPoints([feature]);
+  return point ?? null;
+}
+
 /**
  * A strait Natural Earth draws only as the line where two marine polygons meet (the Strait of
- * Hormuz between the Persian Gulf and the Gulf of Oman). The label point is the middle of the
- * shared boundary; the passage runs from the part of one water body within `radiusKm` of it to
- * the part of the other.
+ * Hormuz between the Persian Gulf and the Gulf of Oman), or the passage between two oceans whose
+ * own polygon is unusable (the Drake Passage between the Pacific and the Atlantic). The label
+ * point is the middle of the shared boundary; the passage runs through their water within
+ * `radiusKm` of it, from the part of one water body to the part of the other.
  */
 async function junctionPassage(name, { placeIds, radiusKm }) {
   const features = placeIds.map(marineFeature);
   const middle = sharedBoundaryMiddle(features[0], features[1]);
   if (!middle) throw new Error(`${name}: ${placeIds.join(' and ')} do not meet`);
-  const union = {
-    type: 'Feature',
-    properties: {},
-    geometry: { type: 'MultiPolygon', coordinates: features.flatMap(polygonsOf) },
-  };
-  const point = seaPoint(union, middle);
-  if (!point) throw new Error(`${name}: no sea point where ${placeIds.join(' and ')} meet`);
-
   const circle = JSON.stringify({
     type: 'FeatureCollection',
     features: [circlePolygon(middle, radiusKm)],
   });
+  const near = await Promise.all(features.map((feature) => clipTo(feature, circle)));
+  const union = {
+    type: 'Feature',
+    properties: {},
+    geometry: { type: 'MultiPolygon', coordinates: near.flatMap((part) => (part ? polygonsOf(part) : [])) },
+  };
+  const point = seaPoint(union, middle);
+  if (!point) throw new Error(`${name}: no sea point where ${placeIds.join(' and ')} meet`);
+
   const ends = [];
-  for (const feature of features) {
-    const output = await mapshaper.applyCommands(
-      '-i water.geojson -clip circle.geojson -points inner -o out.geojson',
-      {
-        'water.geojson': JSON.stringify({ type: 'FeatureCollection', features: [feature] }),
-        'circle.geojson': circle,
-      },
-    );
-    const inner = JSON.parse(output['out.geojson'].toString()).features?.[0]?.geometry?.coordinates;
-    const end = inner && seaPoint(feature, inner);
-    if (!end) throw new Error(`${name}: no sea point in ${feature.properties.name}`);
+  for (const [index, part] of near.entries()) {
+    const inner = await interiorPoint(part);
+    const end = inner && seaPoint(part, inner);
+    if (!end) throw new Error(`${name}: no sea point in ${features[index].properties.name}`);
     ends.push([end[1], end[0]]);
   }
   const path = await passagePath(name, union, ends);
   if (!path) throw new Error(`${name}: no way through`);
   return { point, path };
+}
+
+/** The Natural Earth region polygon behind a gazetteer region, such as an island. */
+function regionFeature(placeId) {
+  const place = byId.get(placeId);
+  const feature =
+    place?.source === 'regions' &&
+    datasets.regions.features.find((f) => f.properties.NE_ID === place.neId);
+  if (!feature) throw new Error(`No region polygon for gazetteer place ${placeId}`);
+  return feature;
+}
+
+/**
+ * A strait between two pieces of land (Cabot Strait between Cape Breton Island and
+ * Newfoundland): the middle of the shortest line between the two Natural Earth region polygons,
+ * as [lng, lat].
+ */
+function narrowsMiddle(name, placeIds) {
+  const [a, b] = placeIds.map((placeId) => polygonsOf(regionFeature(placeId)).flatMap((rings) => rings[0]));
+  let best;
+  for (const p of a) {
+    for (const q of b) {
+      const length = distanceKm([p[1], p[0]], [q[1], q[0]]);
+      if (!best || length < best.length) best = { p, q, length };
+    }
+  }
+  if (!best?.length) throw new Error(`${name}: ${placeIds.join(' and ')} touch or are empty`);
+  return [(best.p[0] + best.q[0]) / 2, (best.p[1] + best.q[1]) / 2];
+}
+
+/**
+ * A sea that Natural Earth folds into an ocean (the Celtic Sea in the North Atlantic): the
+ * interior point of the ocean's water within `radiusKm` of where each adjoining water body meets
+ * it, as [lng, lat].
+ */
+async function adjoiningPoint(name, { placeId, adjoining, radiusKm }) {
+  const water = marineFeature(placeId);
+  const circles = adjoining.map((other) => {
+    const middle = sharedBoundaryMiddle(water, marineFeature(other));
+    if (!middle) throw new Error(`${name}: ${other} does not meet ${placeId}`);
+    return circlePolygon(middle, radiusKm);
+  });
+  const clip = JSON.stringify({ type: 'FeatureCollection', features: circles });
+  const part = await clipTo(water, clip);
+  const inner = await interiorPoint(part);
+  const point = inner && seaPoint(part, inner);
+  if (!point) throw new Error(`${name}: no sea point in ${placeId} near ${adjoining.join(', ')}`);
+  return point;
 }
 
 // Features Natural Earth lacks. Each is anchored to Natural Earth geometry, never typed coordinates.
@@ -623,6 +698,13 @@ for (const feature of overrides.features) {
   let path;
   if (anchor.type === 'junction') {
     ({ point, path } = await junctionPassage(feature.name, anchor));
+  } else if (anchor.type === 'narrows') {
+    const middle = narrowsMiddle(feature.name, anchor.placeIds);
+    if (landIndex.isLand([middle[1], middle[0]]))
+      throw new Error(`Override ${feature.id}: the narrows middle is on land`);
+    point = middle;
+  } else if (anchor.type === 'adjoining') {
+    point = await adjoiningPoint(feature.name, anchor);
   } else if (anchor.type === 'place') {
     const target = byId.get(anchor.placeId);
     if (!target) throw new Error(`Override ${feature.id}: unknown anchor place ${anchor.placeId}`);
