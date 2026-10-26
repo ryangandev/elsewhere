@@ -15,12 +15,14 @@ export type ContentTree = {
   countryFiles: ContentFile[];
   trails: ContentFile;
   placeNotes: ContentFile;
+  home: ContentFile;
 };
 
 /** The top-level files of a content tree, by their key in ContentTree. */
 export const TOP_LEVEL_FILES = {
   trails: 'trails.json',
   placeNotes: 'places.json',
+  home: 'home.json',
 } as const satisfies Record<Exclude<keyof ContentTree, 'countryFiles'>, string>;
 
 export const COUNTRIES_DIR = 'countries';
@@ -80,6 +82,7 @@ export function readContentTree(dir: string): ContentTree {
     countryFiles: listJson(countriesDir).map((name) => readContentFile(join(countriesDir, name))),
     trails: readContentFile(join(dir, TOP_LEVEL_FILES.trails)),
     placeNotes: readContentFile(join(dir, TOP_LEVEL_FILES.placeNotes)),
+    home: readContentFile(join(dir, TOP_LEVEL_FILES.home)),
   };
 }
 

@@ -22,36 +22,12 @@ export function storySlug(countryId: string, storyId: string): string {
   return story.slug;
 }
 
-/**
- * Reads a country path segment. `canonical` is false for the interim ID paths (`/sgp`)
- * that redirect to the readable slug (`/singapore`).
- */
-export function countryFromSegment(
-  segment: string,
-): { countryId: string; canonical: boolean } | undefined {
-  const bySlug = listMapCountries().find((country) => country.slug === segment);
-  if (bySlug) return { countryId: bySlug.id, canonical: true };
-  if (isInterimCountrySegment(segment))
-    return { countryId: segment.toUpperCase(), canonical: false };
-  return undefined;
+/** The map identity a country path segment names, by its readable slug. */
+export function countryFromSegment(segment: string): string | undefined {
+  return listMapCountries().find((country) => country.slug === segment)?.id;
 }
 
-/** Reads a story path segment: its readable slug, or its ID on an interim ID path. */
-export function storyFromSegment(
-  countryId: string,
-  segment: string,
-  canonical: boolean,
-): string | undefined {
-  if (canonical) return getStoryBySlug(countrySlug(countryId), segment)?.id;
-  return getStory(countryId, segment)?.id;
-}
-
-/** The interim path segment for a country, its lowercase ID. Only redirects use it. */
-export function interimCountrySegment(countryId: string): string {
-  return countryId.toLowerCase();
-}
-
-function isInterimCountrySegment(segment: string): boolean {
-  const id = segment.toUpperCase();
-  return /^[a-z]{3}$/.test(segment) && getMapCountry(id)?.id === id;
+/** The question a story path segment names within a country, by its readable slug. */
+export function storyFromSegment(countryId: string, segment: string): string | undefined {
+  return getStoryBySlug(countrySlug(countryId), segment)?.id;
 }

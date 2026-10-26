@@ -20,6 +20,12 @@ export type StoryLinkView = {
   caption?: string;
 };
 
+/** A next question at the end of an answer, with how it relates to the question just read. */
+export type NextQuestionView = StoryLinkView & {
+  /** deeper: the same place, one step further; elsewhere: a connected question in another country. */
+  relation: 'deeper' | 'elsewhere';
+};
+
 export type SourceView = { id: string; title: string; publisher: string; url: string };
 
 export type ProvenanceView = {
@@ -98,12 +104,10 @@ export type CountryPageView = PageBase & {
   quickFacts: QuickFactView[];
   whyItMatters: { title: string; text: string }[];
   map: MapView;
-  /** The questions the overview leads with. */
+  /** The questions the overview leads with, right after the summary. */
   starters: StoryLinkView[];
   /** The country's other questions, offered without leading with them. */
   moreQuestions: StoryLinkView[];
-  /** Questions elsewhere that this country's questions lead to. */
-  connections: StoryLinkView[];
   sources: SourceView[];
   provenance: ProvenanceView;
 };
@@ -117,8 +121,8 @@ export type StoryPageView = PageBase & {
   map: MapView;
   sections: CitedText[];
   takeaway: string;
-  /** At most three: at least one in the same country and one elsewhere. */
-  next: StoryLinkView[];
+  /** At most three, same place first: at least one deeper and one elsewhere. */
+  next: NextQuestionView[];
   /** Trails this question is a stop on; the `?trail=` parameter picks one in the browser. */
   trails: TrailView[];
   sources: SourceView[];
@@ -136,10 +140,8 @@ export type MapCountryPageView = PageBase & {
 export type PageView = CountryPageView | StoryPageView | MapCountryPageView;
 
 export type HomeView = {
-  /** A few edited countries to begin with. */
-  picks: StoryLinkView[];
-  /** Every edited country, for "take me somewhere". */
-  surprise: { countryId: string; href: string }[];
+  /** The few starting questions shown next to the question input (content/<locale>/home.json). */
+  suggestions: StoryLinkView[];
 };
 
 /** The destination a page shows, without trail context. */

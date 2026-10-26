@@ -155,15 +155,6 @@ button:active {
   padding: 2px 5px;
   color: #83949f;
 }
-.about-trigger {
-  background: none;
-  border: 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  color: #aeb9bd;
-}
 .globe-area {
   position: absolute;
   left: 23%;
@@ -174,6 +165,8 @@ button:active {
     left 1.2s,
     width 1.2s;
   touch-action: none;
+  /* The renderer stacks its HTML labels with large z-indexes; keep them under the page. */
+  isolation: isolate;
 }
 .globe-render {
   width: 100%;
@@ -252,132 +245,11 @@ button:active {
   color: #678072;
   font-size: 11px;
 }
-.discovery {
-  position: absolute;
-  left: 64px;
-  top: calc(50% - 258px);
-  width: 323px;
-  z-index: 3;
-  pointer-events: none;
-}
-.discovery button,
-.discovery a {
-  pointer-events: auto;
-}
-.eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 10px;
-  letter-spacing: 2.1px;
-  color: #a7b7b7;
-}
 .tiny-orbit {
   width: 7px;
   height: 7px;
   border: 1px solid #b7c99c;
   border-radius: 50%;
-}
-.discovery h1 {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 57px;
-  font-weight: 400;
-  line-height: 1.1;
-  letter-spacing: -1.7px;
-  margin: 27px 0 22px;
-  color: #f2f1e9;
-}
-.discovery h1 em {
-  font-weight: 400;
-  color: #cbd4ac;
-}
-.intro {
-  font-size: 15px;
-  line-height: 1.7;
-  color: #9baeb7;
-  margin: 0 0 37px;
-}
-.discovery-label {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-  letter-spacing: 1.65px;
-  font-size: 10px;
-  color: #7e929f;
-  margin-bottom: 13px;
-}
-.discovery-label span {
-  font-size: 18px;
-  color: #bbc6b3;
-}
-.country-picks {
-  width: 300px;
-  display: flex;
-  flex-direction: column;
-}
-.country-picks a {
-  text-decoration: none;
-  padding: 13px 4px;
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  background: none;
-  color: #eef0e8;
-  border: 0;
-  border-bottom: 1px solid #ffffff12;
-  text-align: left;
-}
-.country-picks a:hover {
-  padding-left: 10px;
-  background: linear-gradient(90deg, #ffffff09, transparent);
-}
-.pick-flag {
-  font-size: 23px;
-  filter: saturate(0.72);
-}
-.country-picks strong {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
-}
-.country-picks small {
-  display: block;
-  font-size: 11px;
-  color: #7f939e;
-  margin-top: 5px;
-  max-width: 220px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.country-picks svg {
-  margin-left: auto;
-  color: #879b9b;
-}
-.surprise {
-  text-decoration: none;
-  margin-top: 24px;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  background: #cbd5b7;
-  color: #23342f;
-  font-size: 13px;
-  font-weight: 500;
-  padding: 12px 17px;
-  border: 1px solid #d4dfc2;
-  border-radius: 6px;
-}
-.surprise:hover {
-  background: #e1e9cf;
-}
-.surprise svg:last-child {
-  margin-left: 15px;
-}
-.curated-note {
-  font-size: 10px;
-  color: #66818f;
-  margin: 14px 0;
 }
 .map-controls {
   position: absolute;
@@ -623,14 +495,6 @@ button:active {
   font-weight: 500;
   color: #354c39;
 }
-.matters h4,
-.geography h4,
-.topics h4 {
-  font-size: 14px;
-  font-weight: 500;
-  margin: 0 0 15px;
-  color: #314735;
-}
 .matters > div {
   display: flex;
   gap: 14px;
@@ -653,46 +517,6 @@ button:active {
   display: block;
   color: #41543d;
   margin-bottom: 3px;
-}
-.geography {
-  background: #eaf0e4;
-  display: flex;
-  align-items: flex-start;
-  gap: 11px;
-  padding: 16px;
-  margin: 23px 0 28px;
-  border: 1px solid #e1e8d9;
-  border-radius: 6px;
-  color: #748a62;
-}
-.geography svg {
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-.geography h4 {
-  font-size: 12px;
-  margin-bottom: 6px;
-}
-.geography p {
-  font-size: 12px;
-  line-height: 1.7;
-  color: #76876c;
-  margin: 0;
-}
-.topics-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 7px;
-}
-.topics-heading h4 {
-  margin: 0;
-  font-size: 14px;
-}
-.topics-heading > span {
-  font-size: 7px;
-  letter-spacing: 1px;
-  color: #939d8b;
 }
 .topics > a {
   text-decoration: none;
@@ -932,113 +756,6 @@ blockquote {
     serif;
   color: #62764f;
 }
-.next-topic {
-  border: 1px solid #d8e1ce;
-  background: #eaf0e2;
-  color: #5e744e;
-  border-radius: 5px;
-  font-size: 12px;
-  padding: 13px 17px;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.unfeatured {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  padding: 24px;
-  width: 290px;
-  background: #f4f6ed;
-  color: #3e543b;
-  border-radius: 10px;
-  z-index: 12;
-  box-shadow: 0 10px 60px #0007;
-}
-.unfeatured > button:first-child {
-  position: absolute;
-  right: 10px;
-  top: 10px;
-  background: none;
-  border: 0;
-}
-.unfeatured strong {
-  display: block;
-  font: 25px Georgia;
-  margin-top: 12px;
-}
-.unfeatured p {
-  font-size: 13px;
-  line-height: 1.6;
-  color: #7a8973;
-}
-.unfeatured > button:last-child {
-  display: flex;
-  gap: 15px;
-  align-items: center;
-  background: #e0e8d7;
-  padding: 10px 12px;
-  border: 0;
-  border-radius: 4px;
-  font-size: 12px;
-  margin-top: 16px;
-}
-.country-search {
-  padding: 5px !important;
-  border-radius: 13px !important;
-  max-width: 500px !important;
-  border: 1px solid #dbe2d5 !important;
-  top: 30% !important;
-  background: #f7f9f2 !important;
-  box-shadow: 0 30px 120px #0005 !important;
-}
-.country-search [data-slot='command-input-wrapper'] {
-  height: 61px !important;
-  border-bottom: 1px solid #e0e6d9 !important;
-  padding-left: 17px !important;
-}
-.country-search [data-slot='command-input'] {
-  font-size: 15px !important;
-}
-.country-search [cmdk-group-heading] {
-  font-size: 9px !important;
-  letter-spacing: 1.5px !important;
-  padding: 17px 15px 8px !important;
-}
-.country-search [cmdk-item] {
-  padding: 13px 15px !important;
-  border-radius: 6px !important;
-  gap: 14px !important;
-  cursor: pointer !important;
-}
-.search-flag {
-  font-size: 23px;
-}
-.country-search [cmdk-item] strong {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
-}
-.country-search [cmdk-item] small {
-  display: block;
-  font-size: 11px;
-  margin-top: 4px;
-  color: #889380;
-}
-.country-search [cmdk-item] > svg {
-  margin-left: auto;
-  color: #8f9d87;
-}
-.search-foot {
-  border-top: 1px solid #e0e6d9;
-  padding: 15px 17px;
-  color: #93a087;
-  font-size: 10px;
-  display: flex;
-  gap: 22px;
-}
 .about-sheet {
   padding: 48px 32px !important;
   background: #f7f8f2 !important;
@@ -1102,14 +819,6 @@ blockquote {
   padding: 10px 16px;
 }
 @media (min-width: 1500px) {
-  .discovery {
-    left: 80px;
-    top: calc(50% - 275px);
-    width: 350px;
-  }
-  .discovery h1 {
-    font-size: 65px;
-  }
   .country-panel {
     width: 450px;
     right: 35px;
@@ -1127,9 +836,6 @@ blockquote {
   .matters p {
     font-size: 15px;
   }
-  .geography p {
-    font-size: 13px;
-  }
   .topics > a {
     font-size: 15px;
   }
@@ -1137,23 +843,6 @@ blockquote {
 @media (max-height: 800px) and (min-width: 801px) {
   .world-app {
     min-height: 650px;
-  }
-  .discovery {
-    top: 143px;
-  }
-  .discovery h1 {
-    font-size: 49px;
-    margin: 20px 0 15px;
-  }
-  .intro {
-    margin-bottom: 23px;
-    font-size: 14px;
-  }
-  .country-picks a {
-    padding: 10px 4px;
-  }
-  .surprise {
-    margin-top: 18px;
   }
   .country-panel {
     top: 111px;
@@ -1170,16 +859,6 @@ blockquote {
 @media (max-width: 1100px) {
   .topbar-note {
     display: none;
-  }
-  .discovery {
-    left: 37px;
-    width: 270px;
-  }
-  .discovery h1 {
-    font-size: 49px;
-  }
-  .country-picks {
-    width: 265px;
   }
   .globe-area {
     left: 22%;
@@ -1238,9 +917,6 @@ blockquote {
   .header-actions {
     gap: 0;
   }
-  .about-trigger {
-    display: none;
-  }
   .search-trigger {
     min-width: 0;
     padding: 10px;
@@ -1258,57 +934,6 @@ blockquote {
     left: -3%;
     height: 55%;
     width: 106%;
-  }
-  .discovery {
-    left: 24px;
-    right: 24px;
-    top: auto;
-    bottom: 65px;
-    width: auto;
-  }
-  .eyebrow,
-  .intro,
-  .discovery-label,
-  .curated-note {
-    display: none;
-  }
-  .discovery h1 {
-    font-size: 33px;
-    margin: 0 0 16px;
-    letter-spacing: -0.8px;
-  }
-  .discovery h1 br {
-    display: none;
-  }
-  .country-picks {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0 20px;
-  }
-  .country-picks a {
-    padding: 11px 1px;
-    gap: 9px;
-  }
-  .pick-flag {
-    font-size: 21px;
-  }
-  .country-picks strong {
-    font-size: 12px;
-  }
-  .country-picks small {
-    display: none;
-  }
-  .country-picks svg {
-    width: 12px;
-  }
-  .surprise {
-    font-size: 11px;
-    padding: 9px 12px;
-    margin-top: 17px;
-  }
-  .surprise svg {
-    width: 13px;
   }
   .world-footer {
     height: 49px;
@@ -1394,14 +1019,8 @@ blockquote {
   .quick-facts {
     margin: 20px 0;
   }
-  .geography p {
-    font-size: 13px;
-  }
   .topics > a {
     font-size: 14px;
-  }
-  .topics-heading > span {
-    font-size: 8px;
   }
   .panel-footer {
     padding: 12px 20px;
@@ -1412,13 +1031,6 @@ blockquote {
   .about-sheet {
     padding: 43px 24px !important;
     width: 90% !important;
-  }
-  .country-search {
-    width: calc(100% - 32px) !important;
-    top: 40% !important;
-  }
-  .unfeatured {
-    top: 40%;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1432,25 +1044,6 @@ blockquote {
 }
 /* Comfortable reading, compact framing, and a clear next step. */
 @media (min-width: 801px) {
-  .discovery {
-    top: 143px;
-  }
-  .discovery h1 {
-    margin: 20px 0 16px;
-  }
-  .intro {
-    margin-bottom: 24px;
-  }
-  .country-picks a {
-    padding-top: 11px;
-    padding-bottom: 11px;
-  }
-  .surprise {
-    margin-top: 18px;
-  }
-  .curated-note {
-    margin-top: 11px;
-  }
   .country-panel {
     width: 420px;
   }
@@ -1470,9 +1063,6 @@ blockquote {
   .topic-sections p {
     font-size: 16px;
   }
-  .geography p {
-    font-size: 14px;
-  }
   .topics > a {
     font-size: 15px;
   }
@@ -1489,38 +1079,8 @@ blockquote {
     font-size: 10px;
   }
 }
-@media (min-width: 801px) and (max-height: 820px) {
-  .discovery {
-    top: 121px;
-  }
-  .discovery h1 {
-    font-size: 43px;
-    margin: 14px 0 12px;
-  }
-  .intro {
-    font-size: 13px;
-    margin-bottom: 17px;
-  }
-  .country-picks a {
-    padding: 8px 4px;
-  }
-  .surprise {
-    margin-top: 14px;
-  }
-  .curated-note {
-    display: none;
-  }
-  .country-picks small {
-    font-size: 10px;
-  }
-  .discovery-label {
-    margin-bottom: 6px;
-  }
-}
+
 @media (min-width: 1500px) {
-  .discovery {
-    top: calc(50% - 305px);
-  }
   .country-panel {
     width: 450px;
   }
@@ -1558,12 +1118,8 @@ blockquote {
 .curiosity-jump:hover {
   color: #2c502a;
 }
-.topics {
-  scroll-margin-top: 10px;
-}
 .country-summary,
 .matters p,
-.geography p,
 .topic-sections p {
   color: #63715e;
 }
@@ -1620,60 +1176,6 @@ blockquote {
 }
 .search-trigger {
   min-width: 200px;
-}
-.home-trail {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  color: #aebfba;
-  background: none;
-  border: 0;
-  padding: 17px 0 0;
-  font-size: 11px;
-}
-.home-trail:hover {
-  color: #e0e8d0;
-}
-.home-trail span {
-  text-align: left;
-}
-.home-trail svg {
-  flex-shrink: 0;
-}
-.resume-story {
-  background: #ffffff05;
-  border: 1px solid #ffffff12;
-  border-radius: 7px;
-  color: #b3c6bf;
-  margin-top: 21px;
-  padding: 12px 15px;
-  text-align: left;
-  position: relative;
-  width: 300px;
-}
-.resume-story > span {
-  font-size: 8px;
-  letter-spacing: 1.5px;
-  display: block;
-  margin-bottom: 7px;
-  color: #79918e;
-}
-.resume-story strong {
-  font-size: 11px;
-  font-weight: 400;
-  display: block;
-  padding-right: 18px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.resume-story > svg {
-  position: absolute;
-  right: 12px;
-  bottom: 13px;
-}
-.resume-story:hover {
-  background: #ffffff0c;
 }
 .globe-loading {
   position: absolute;
@@ -2064,6 +1566,82 @@ blockquote {
   flex-shrink: 0;
   margin-left: auto;
 }
+
+/* Country starter questions sit right under the overview as the obvious next step. */
+.topics {
+  margin-top: 26px;
+}
+.topics > .section-label {
+  margin: 0 0 2px;
+}
+.small-details.matters > div:first-of-type {
+  margin-top: 16px;
+}
+.small-details.matters p {
+  font-size: 13px;
+  margin: 0;
+}
+/* The way onward at the end of an answer: deeper in the same place, or elsewhere. */
+.next-questions {
+  margin-top: 30px;
+}
+.next-questions > .section-label {
+  margin: 0 0 2px;
+}
+.next-question {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 14px;
+  padding: 16px 0;
+  border-bottom: 1px solid #dfe5d8;
+  color: #3f5739;
+  text-decoration: none;
+}
+.next-question:hover {
+  color: #1a3820;
+  background: #eaf0e4;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.next-question-relation {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  line-height: 1.5;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #5f7b4d;
+}
+.next-question-elsewhere .next-question-relation {
+  color: #4c6f78;
+}
+.next-question-relation > span {
+  font-size: 13px;
+  letter-spacing: 0;
+  filter: saturate(0.65);
+}
+.next-question strong {
+  grid-column: 1;
+  margin-top: 5px;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.next-question p {
+  grid-column: 1;
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #66775c;
+}
+.next-question > svg {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  align-self: center;
+  color: #88977c;
+}
 .trail-progress {
   margin: -6px 0 24px;
   padding-bottom: 17px;
@@ -2114,22 +1692,6 @@ blockquote {
   line-height: 1.7;
   color: #7b8872;
 }
-.map-only-icon {
-  width: 72px;
-  height: 72px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #dfe6d6;
-  border-radius: 50%;
-  margin-top: 25px;
-  color: #809773;
-}
-.source-note {
-  font-size: 11px;
-  color: #89957e;
-  line-height: 1.7;
-  margin-top: 26px;
-}
 .atlas-notice {
   position: fixed;
   z-index: 80;
@@ -2160,119 +1722,6 @@ blockquote {
 }
 .atlas-notice svg {
   flex-shrink: 0;
-}
-.atlas-search {
-  padding: 0 !important;
-  overflow: hidden;
-  border-radius: 14px !important;
-  max-width: 560px !important;
-  background: #f7f9f2 !important;
-  border-color: #dbe2d5 !important;
-  gap: 0 !important;
-}
-.search-command {
-  background: #f7f9f2;
-}
-.search-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px 22px 0;
-  color: #849178;
-  font-size: 9px;
-  letter-spacing: 1.5px;
-}
-.search-heading button {
-  background: none;
-  border: 0;
-  padding: 3px;
-}
-.atlas-search [data-slot='command-input-wrapper'] {
-  height: 65px;
-  padding: 0 22px;
-  border-color: #e0e6d9;
-  gap: 12px;
-}
-.atlas-search [data-slot='command-input'] {
-  font-size: 16px;
-  height: 64px;
-  color: #2e4a33;
-}
-.atlas-search [cmdk-list] {
-  max-height: min(460px, 58dvh);
-  padding: 5px 7px;
-}
-.atlas-search [cmdk-group-heading] {
-  font-size: 9px !important;
-  letter-spacing: 1.3px;
-  padding: 14px 12px 8px !important;
-  color: #8a987d !important;
-}
-.atlas-search [cmdk-item] {
-  padding: 12px !important;
-  gap: 12px !important;
-  border-radius: 6px;
-  align-items: flex-start;
-}
-.atlas-search [cmdk-item] > span:not(.search-flag) {
-  flex: 1;
-  min-width: 0;
-}
-.atlas-search [cmdk-item] strong {
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.5;
-  display: block;
-  color: #385032;
-}
-.atlas-search [cmdk-item] small {
-  display: block;
-  font-size: 10px;
-  color: #839375;
-  margin-top: 4px;
-}
-.atlas-search [cmdk-item] > svg {
-  margin-top: 3px;
-  flex-shrink: 0;
-  color: #8f9e84;
-}
-.atlas-search .search-foot {
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 9px;
-  color: #88967c;
-  padding: 15px 22px;
-}
-.search-empty {
-  padding: 32px 30px;
-  text-align: center;
-  color: #839575;
-}
-.search-empty > svg {
-  margin: auto auto 15px;
-}
-.search-empty h3 {
-  font:
-    24px Georgia,
-    serif;
-  color: #4b6440;
-}
-.search-empty p {
-  font-size: 13px;
-  line-height: 1.7;
-  margin: 14px auto;
-  max-width: 340px;
-}
-.search-empty button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  background: #e6eddd;
-  color: #4b6540;
-  font-size: 12px;
-  padding: 10px 13px;
-  border-radius: 5px;
 }
 .atlas-drawer {
   padding: 45px 30px 30px !important;
@@ -2470,56 +1919,8 @@ blockquote {
   .compact-story {
     display: none;
   }
-  .discovery {
-    top: 133px;
-  }
-  .country-picks a {
-    padding-top: 10px;
-    padding-bottom: 10px;
-  }
 }
-@media (min-width: 801px) and (max-height: 850px) {
-  .discovery {
-    top: 120px;
-  }
-  .discovery h1 {
-    font-size: 43px;
-    margin: 15px 0 13px;
-  }
-  .intro {
-    font-size: 13px;
-    margin-bottom: 22px;
-  }
-  .country-picks a {
-    padding-top: 8px;
-    padding-bottom: 8px;
-  }
-  .surprise {
-    margin-top: 17px;
-  }
-  .home-trail {
-    padding-top: 13px;
-  }
-  .resume-story {
-    margin-top: 14px;
-    padding-top: 9px;
-    padding-bottom: 9px;
-  }
-}
-@media (min-width: 801px) and (max-height: 730px) {
-  .discovery h1 {
-    font-size: 36px;
-  }
-  .intro {
-    display: none;
-  }
-  .discovery-label {
-    margin-top: 20px;
-  }
-  .resume-story {
-    display: none;
-  }
-}
+
 @media (max-width: 1100px) {
   .header-actions {
     gap: 20px;
@@ -2530,9 +1931,6 @@ blockquote {
   }
   .map-caption {
     max-width: calc(100% - 500px);
-  }
-  .resume-story {
-    width: 265px;
   }
 }
 @media (max-width: 800px) {
@@ -2574,25 +1972,6 @@ blockquote {
   .world-app:has(#country-reading) .globe-loading {
     left: 50%;
     top: 25%;
-  }
-  .discovery {
-    bottom: 65px;
-  }
-  .discovery h1 {
-    font-size: 31px;
-  }
-  .country-picks a {
-    padding: 10px 1px;
-  }
-  .home-trail {
-    font-size: 10px;
-    padding-top: 13px;
-  }
-  .home-trail > svg:first-child {
-    width: 14px;
-  }
-  .resume-story {
-    display: none;
   }
   .world-app:has(#country-reading) .globe-area {
     top: 65px;
@@ -2724,22 +2103,6 @@ blockquote {
   .map-caption.has-focus .caption-line {
     height: 29px;
   }
-  .atlas-search {
-    max-width: calc(100% - 28px) !important;
-  }
-  .atlas-search .search-foot {
-    font-size: 8px;
-    padding: 13px 17px;
-  }
-  .search-heading {
-    padding: 17px 18px 0;
-  }
-  .atlas-search [data-slot='command-input-wrapper'] {
-    padding: 0 18px;
-  }
-  .atlas-search [data-slot='command-input'] {
-    font-size: 14px;
-  }
   .atlas-drawer {
     padding: 43px 25px 25px !important;
   }
@@ -2754,9 +2117,6 @@ blockquote {
   }
   .brand {
     font-size: 22px;
-  }
-  .discovery h1 {
-    font-size: 28px;
   }
   .panel-scroll {
     padding: 18px;
@@ -2909,16 +2269,4 @@ blockquote {
   .topbar .header-actions {
     gap: 5px;
   }
-}
-
-/* On short screens the "continue" card takes the room of the last starter countries. */
-@media (min-width: 801px) and (max-height: 960px) {
-  .discovery:has(.resume-story) .country-picks a:nth-child(n + 3) {
-    display: none;
-  }
-}
-
-/* Jumping to the questions leaves breathing room above their heading. */
-#curiosity-topics {
-  scroll-margin-top: 20px;
 }

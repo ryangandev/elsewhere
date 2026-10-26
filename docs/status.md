@@ -10,11 +10,12 @@ The platform workstream (migration steps 1 and 2) moved it to Next.js with path 
 The globe workstream (step 4) replaced the prototype globe with the `MapScene`-driven controller in `src/globe/`.
 The content workstream (step 3) added the schema, the English edition in `content/en/`, and the gazetteer.
 The content wiring removed the prototype data: pages read only `content/en/` through server-only loaders, hand the shell serializable view models, and the browser loads two build-time indexes instead of content modules.
-URLs use readable slugs; prototype query URLs and interim ID paths redirect in the browser.
+URLs use readable slugs; prototype query URLs redirect in the browser.
 The content pipeline workstream (step 5) added generation, verification and review commands in `pipeline/`; no content has been generated with them yet.
+The question-first experience (step 6) made the home a question input with suggested questions from `content/en/home.json`, shared with Cmd K.
 Product direction and target architecture were settled on 2026-10-26; see [product.md](product.md) and [architecture.md](architecture.md).
 Migration is in progress.
-Steps 1 to 5 are merged; step 6 (question-first experience) is in progress.
+Steps 1 to 6 are merged; step 7 (scale and ship) is next.
 
 ## Confirmed decisions (2026-10-26)
 
@@ -45,6 +46,9 @@ Follow [Migration plan](architecture.md#migration-plan).
 Fix these where the migration touches them, or explicitly drop them with the code they belong to.
 
 - The home view shows only two or three country names; large countries such as Russia and Kazakhstan get none.
-- The home picks are a fixed list of four country IDs in `src/domain/page-views.ts` until the question-first home (step 6) replaces them.
-- In development, the browser's automatic `/favicon.ico` request matches `app/[country]` and logs a 500, because `output: 'export'` forbids unknown params; the static build serves a plain 404.
-- Redirects from old URLs run in the browser; move them to Vercel `redirects` when the site deploys there.
+- In development, an unknown path such as `/atlantis` answers 500 instead of 404, because `output: 'export'` forbids unknown params; the static build serves a plain 404.
+- The prototype query URL redirect runs in the browser; move it to Vercel `redirects` when the site deploys there.
+- Search is lexical: prefix matching, TF-IDF keywords and a short synonym list.
+  A question phrased with none of a story's words ("What makes Singapore wealthy?" works, "Why is Singapore loaded?" does not) is reported as unanswered; revisit with embeddings or pipeline-generated paraphrases once the question bank grows.
+- Same-country next questions carry no `reason` in content, so the story shows only "Deeper in <country>" for them; the pipeline could write one.
+- The header search shows the Mac shortcut (⌘K) on every platform; Ctrl K works but is not labelled.

@@ -26,3 +26,7 @@ tests/pipeline/fixtures/replay
 # Written by the map data scripts (the gazetteer one place per line for readable diffs), or
 # kept in their JSON formatting next to them.
 data/geo/*.json
+
+# Playwright output.
+playwright-report
+test-results

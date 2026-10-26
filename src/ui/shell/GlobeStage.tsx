@@ -9,7 +9,7 @@ import { useCountryLabels } from '../atlas/use-indexes';
 
 // Page chrome that country and place labels must not cover.
 const OCCLUDERS =
-  '.country-panel, .topbar, .map-controls, .map-caption, .map-breadcrumb, .discovery';
+  '.country-panel, .topbar, .map-controls, .map-caption, .map-breadcrumb, .home > *, .question-results';
 const occluders = () => document.querySelectorAll(OCCLUDERS);
 
 /**

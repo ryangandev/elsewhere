@@ -7,9 +7,11 @@ import { getPlace, routePoints } from './geo';
 import type { MapScene } from './map-scene';
 import {
   CountryFile,
+  HomeFile,
   PlaceNotesFile,
   TrailsFile,
   type Country,
+  type Home,
   type PlaceNotes,
   type SceneSpec,
   type Story,
@@ -30,6 +32,8 @@ export type ContentStore = {
   /** Stories of one country in editorial order, or of all countries by country name. */
   listStories(countryId?: string): Story[];
   listTrails(): Trail[];
+  /** The home screen's suggested questions, without any that are hidden. */
+  getHome(): Home;
   getPlaceNote(placeId: string): string | undefined;
   /** The globe-level scene for a content scene: coordinates from the gazetteer, notes from content. */
   resolveScene(spec: SceneSpec): MapScene;
@@ -50,6 +54,7 @@ type Indexed = {
   countriesBySlug: Map<string, Country>;
   stories: Map<string, Story[]>;
   trails: Trail[];
+  home: Home;
   placeNotes: PlaceNotes;
 };
 
@@ -103,12 +108,15 @@ function buildIndex(sources: ContentSources, { includeDrafts }: ContentStoreOpti
     .map((trail) => ({ ...trail, stops: trail.stops.filter(isVisible) }))
     .filter((trail) => trail.stops.length >= 2);
 
+  const home = parseFile(HomeFile, sources.home);
+
   return {
     countries,
     countriesById: new Map(countries.map((country) => [country.id, country])),
     countriesBySlug: new Map(countries.map((country) => [country.slug, country])),
     stories,
     trails,
+    home: { ...home, suggestedQuestions: home.suggestedQuestions.filter(isVisible) },
     placeNotes: parseFile(PlaceNotesFile, sources.placeNotes),
   };
 }
@@ -153,6 +161,7 @@ export function createContentStore(
     },
     listStories,
     listTrails: () => [...index().trails],
+    getHome: () => ({ suggestedQuestions: [...index().home.suggestedQuestions] }),
     getPlaceNote,
     resolveScene: (spec) => resolveScene(spec, getPlaceNote),
   };

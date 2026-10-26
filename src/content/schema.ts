@@ -222,6 +222,23 @@ export type Trail = z.infer<typeof Trail>;
 /** content/<locale>/trails.json */
 export const TrailsFile = z.array(Trail);
 
+/** A question the home screen suggests: a story by its permanent IDs. */
+export const SuggestedQuestion = z.strictObject({
+  countryId: CountryId,
+  storyId: StoryId,
+});
+export type SuggestedQuestion = z.infer<typeof SuggestedQuestion>;
+
+/**
+ * content/<locale>/home.json: what the home screen offers a reader who arrives without a
+ * question. A few starting questions, never a catalog (docs/product.md#core-loop).
+ */
+export const HomeFile = z.strictObject({
+  /** Shown next to the question input, in this order. */
+  suggestedQuestions: z.array(SuggestedQuestion).min(3).max(4),
+});
+export type Home = z.infer<typeof HomeFile>;
+
 /**
  * content/<locale>/places.json: short editorial descriptions of gazetteer places, keyed by
  * place ID. One note per place, shown wherever the place is labelled. Kept in the content tree

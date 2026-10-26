@@ -15,7 +15,26 @@ test('country names rank first, including native names and map-only places', () 
   assert.equal(search('Singapore')[0].kind, 'country');
   assert.ok(search('Türkiye').some((result) => result.countryId === 'TUR'));
   assert.ok(isPlaceQuery(index, 'canada'));
+  assert.ok(isPlaceQuery(index, 'cana'));
   assert.ok(!isPlaceQuery(index, 'shipping'));
+  assert.ok(!isPlaceQuery(index, 'c'));
+});
+
+test('typed words match the start of a word, synonyms only whole words', () => {
+  // While typing, "ship" already finds shipping.
+  assert.equal(search('ship').find((result) => result.kind === 'story')?.storyId, 'shipping');
+  // "port" stands for shipping, but must not find "Portuguese".
+  assert.ok(!search('shipping').some((result) => result.storyId === 'language'));
+  // A single letter matches whole words only.
+  assert.equal(search('q').length, 0);
+});
+
+test('results count how much of the query they cover', () => {
+  const wealth = search('Why is Singapore so rich?').find((result) => result.storyId === 'wealth');
+  assert.equal(wealth?.matches, 2);
+  const singapore = search('Singapore').find((result) => result.kind === 'country');
+  assert.equal(singapore?.named, true);
+  assert.equal(search('Singa').find((result) => result.kind === 'country')?.named, undefined);
 });
 
 test('natural questions find the question that answers them', () => {
