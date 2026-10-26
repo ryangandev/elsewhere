@@ -55,6 +55,30 @@ describe('references', () => {
     ]);
   });
 
+  it('from the home screen are a few existing, distinct questions', () => {
+    const input = contentInput();
+    const withHome = (suggestedQuestions: unknown[]) =>
+      validateContent({ ...input, home: { ...input.home, data: { suggestedQuestions } } });
+    const shipping = { countryId: 'SGP', storyId: 'shipping' };
+    const wealth = { countryId: 'SGP', storyId: 'wealth' };
+    const dollar = { countryId: 'USA', storyId: 'dollar' };
+
+    expect(withHome([shipping, wealth, dollar])).toEqual([]);
+    expect(withHome([shipping, wealth, { countryId: 'SGP', storyId: 'gone' }])).toEqual([
+      expect.objectContaining({
+        path: 'suggestedQuestions[2]',
+        message: 'Unknown story "SGP/gone"',
+      }),
+    ]);
+    expect(withHome([shipping, wealth, shipping])).toEqual([
+      expect.objectContaining({ message: '"SGP/shipping" is suggested twice' }),
+    ]);
+    // Never a catalog: at least three, at most four.
+    expect(withHome([shipping, wealth])).not.toEqual([]);
+    expect(withHome([shipping, wealth, dollar, shipping, wealth])).not.toEqual([]);
+    expect(withHome([{ ...shipping, reason: 'Begin here.' }, wealth, dollar])).not.toEqual([]);
+  });
+
   it('never use index keys in content', () => {
     const { countryFiles, trails } = contentInput();
     expect(JSON.stringify([countryFiles, trails])).not.toMatch(/"[A-Za-z]*(?:Index|Idx)"\s*:/);

@@ -17,6 +17,7 @@ export function contentInput(): Omit<ContentInput, 'land'> {
       .map((name) => entry(`${COUNTRIES_DIR}/${name}`)),
     trails: entry('content/en/trails.json'),
     placeNotes: entry('content/en/places.json'),
+    home: entry('content/en/home.json'),
     gazetteer: entry('data/geo/gazetteer.json'),
     mapCountries: entry('data/geo/countries.json'),
   };

@@ -6,8 +6,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: { default: 'Elsewhere | A wider world', template: '%s | Elsewhere' },
   description:
-    'Follow your curiosity around an interactive 3D globe. Ten country stories, thirty questions, and trails that connect them.',
-  icons: { icon: '/favicon.svg', shortcut: '/favicon.svg' },
+    'Start with a question. See the answer on the map. Follow it somewhere new. A question-first atlas on an interactive 3D globe.',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

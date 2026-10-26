@@ -8,8 +8,6 @@ import { BasicCountryView } from './BasicCountryView';
 import { CountryView } from './CountryView';
 import { PanelFooter } from './PanelFooter';
 import { PanelHeader } from './PanelHeader';
-import { ProvenanceNote } from './ProvenanceNote';
-import { SourcesDetails } from './SourcesDetails';
 import { StoryView } from './StoryView';
 import { TrailProgress } from './TrailProgress';
 
@@ -46,14 +44,8 @@ export function ExplorerPanel({ view, destination, trail }: Props) {
           ) : (
             <BasicCountryView view={view} />
           )}
-          {view.kind !== 'map' && (
-            <>
-              <SourcesDetails sources={view.sources} question={view.kind === 'story'} />
-              <ProvenanceNote provenance={view.provenance} />
-            </>
-          )}
         </div>
-        <PanelFooter view={view} />
+        <PanelFooter />
       </aside>
     </div>
   );

@@ -11,6 +11,7 @@ import malaysia from '../../content/en/countries/malaysia.json';
 import singapore from '../../content/en/countries/singapore.json';
 import turkey from '../../content/en/countries/turkey.json';
 import unitedStates from '../../content/en/countries/united-states.json';
+import home from '../../content/en/home.json';
 import places from '../../content/en/places.json';
 import trails from '../../content/en/trails.json';
 import type { ContentSources } from './store';
@@ -30,4 +31,5 @@ export const englishContent: ContentSources = {
   ],
   trails,
   placeNotes: places,
+  home,
 };

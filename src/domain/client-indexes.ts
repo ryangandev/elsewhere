@@ -1,7 +1,14 @@
 // Builds the compact indexes the browser loads instead of content (see ./atlas-index.ts).
 // They are served as static JSON by the route handlers in app/atlas/, generated at build time.
 import 'server-only';
-import { getCountry, listMapCountries, listStories, listTrails, type Story } from '@/content';
+import {
+  getCountry,
+  getHome,
+  listMapCountries,
+  listStories,
+  listTrails,
+  type Story,
+} from '@/content';
 import type { AtlasIndex, CountryLabel, IndexCountry, IndexStory } from './atlas-index';
 import { countryFlag, countryName, trailView } from './page-views';
 import { destinationPath } from './paths';
@@ -68,7 +75,15 @@ export function buildAtlasIndex(): AtlasIndex {
     keywords: keywords[index].join(' '),
   }));
 
-  return { countries, stories: storyEntries, trails: listTrails().map(trailView) };
+  return {
+    countries,
+    stories: storyEntries,
+    trails: listTrails().map(trailView),
+    suggestions: getHome().suggestedQuestions.map(({ countryId, storyId }) => ({
+      countryId,
+      storyId,
+    })),
+  };
 }
 
 /** The answer text a question's keywords are drawn from. */
