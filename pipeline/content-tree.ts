@@ -77,6 +77,10 @@ export function contentInput(
       file: join(contentDir, 'places.json'),
       data: readJson(join(contentDir, 'places.json')),
     },
+    home: {
+      file: join(contentDir, 'home.json'),
+      data: readJson(join(contentDir, 'home.json')),
+    },
     gazetteer: { file: GAZETTEER_FILE, data: readJson(GAZETTEER_FILE) },
     mapCountries: { file: MAP_COUNTRIES_FILE, data: readJson(MAP_COUNTRIES_FILE) },
   };
