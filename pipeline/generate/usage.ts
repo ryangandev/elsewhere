@@ -32,13 +32,27 @@ export function addUsage(total: Usage, usage: BetaUsage, batch: boolean): void {
   total.inputTokens += usage.input_tokens;
   total.outputTokens += usage.output_tokens;
   total.cacheReadTokens += usage.cache_read_input_tokens ?? 0;
-  const creation = usage.cache_creation;
-  if (creation) {
-    total.cacheWrite5mTokens += creation.ephemeral_5m_input_tokens;
-    total.cacheWrite1hTokens += creation.ephemeral_1h_input_tokens;
-  } else {
-    total.cacheWrite5mTokens += usage.cache_creation_input_tokens ?? 0;
-  }
+  // cache_creation_input_tokens sums every iteration of a server tool loop, but the top-level
+  // cache_creation breakdown can describe only the first one, so the total is the count and the
+  // per-iteration breakdowns only say how much of it was written with the 1-hour lifetime.
+  const breakdowns = usage.iterations
+    ? usage.iterations
+        .filter((entry) => entry.type !== 'compaction')
+        .map((entry) => (entry as { cache_creation?: BetaUsage['cache_creation'] }).cache_creation)
+    : [usage.cache_creation];
+  const oneHour = breakdowns.reduce(
+    (sum, entry) => sum + (entry?.ephemeral_1h_input_tokens ?? 0),
+    0,
+  );
+  const writes =
+    usage.cache_creation_input_tokens ??
+    breakdowns.reduce(
+      (sum, entry) =>
+        sum + (entry?.ephemeral_5m_input_tokens ?? 0) + (entry?.ephemeral_1h_input_tokens ?? 0),
+      0,
+    );
+  total.cacheWrite1hTokens += Math.min(oneHour, writes);
+  total.cacheWrite5mTokens += Math.max(0, writes - oneHour);
   total.webSearches += usage.server_tool_use?.web_search_requests ?? 0;
   total.webFetches += usage.server_tool_use?.web_fetch_requests ?? 0;
 }
