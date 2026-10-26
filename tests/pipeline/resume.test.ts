@@ -67,10 +67,18 @@ describe('resuming a batch run', () => {
         }),
       ).rejects.toThrow(/same settings/);
 
-      const summary = await generate({ ...base, client: resumed, mode: 'sync', resume: true });
+      const log: string[] = [];
+      const summary = await generate({
+        ...base,
+        client: resumed,
+        mode: 'sync',
+        resume: true,
+        log: (line) => log.push(line),
+      });
       expect(summary.results.map((result) => result.outcome)).toEqual(['written']);
       // Only the round already submitted goes through the Batches API; three turns follow in sync.
       expect(awaited).toEqual(['msgbatch_1']);
+      expect(log.filter((line) => line.startsWith('Round'))).toEqual(['Round 1: 1 request.']);
       expect(replay.requests).toHaveLength(4);
       expect(summary.usage).toMatchObject({ requests: 4 });
       expect(existsSync(batchRunFile(cacheDir))).toBe(false);

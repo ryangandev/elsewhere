@@ -262,7 +262,8 @@ async function runBatch(jobs: Job[], options: GenerateOptions): Promise<JobResul
       continue;
     }
 
-    state.round += 1;
+    // A resumed run waits for its saved batch, which is the round it already counted.
+    if (!state.pendingBatchId) state.round += 1;
     options.log(
       `Round ${state.round}: ${running.length} request${running.length === 1 ? '' : 's'}.`,
     );
