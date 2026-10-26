@@ -33,7 +33,6 @@ Follow [Migration plan](architecture.md#migration-plan).
 
 Fix these where the migration touches them, or explicitly drop them with the code they belong to.
 
-- The home view shows only two or three country names; large countries such as Russia and Kazakhstan get none.
 - The home picks are a fixed list of four country IDs in `src/domain/page-views.ts` until the question-first home (step 6) replaces them.
 - In development, the browser's automatic `/favicon.ico` request matches `app/[country]` and logs a 500, because `output: 'export'` forbids unknown params; the static build serves a plain 404.
 - Redirects from old URLs run in the browser; move them to Vercel `redirects` when the site deploys there.
