@@ -126,7 +126,7 @@ export function checkVerdicts(input: unknown, context: VerdictContext): VerdictR
     if (!source) continue;
     if (reading.status === 'read' && !context.fetched.has(normalizeUrl(source.url))) {
       issues.push(
-        `sources.${reading.id}: marked read, but ${source.url} was not fetched with web_fetch in this conversation. Fetch it, or mark it unreachable and say why.`,
+        `sources.${reading.id}: marked read, but ${source.url} was not fetched with web_fetch or fetch_page in this conversation. Fetch it, or mark it unreachable and say why.`,
       );
     }
     if (reading.status === 'unreachable' && !reading.note?.trim()) {

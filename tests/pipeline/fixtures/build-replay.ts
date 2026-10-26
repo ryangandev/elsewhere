@@ -2,9 +2,9 @@
 // Messages API returns, for the pipeline to run end to end without network or an API key.
 // The text is placeholder, not content; the place IDs are real gazetteer IDs and every cited URL
 // appears in a web search result of the same conversation, as the pipeline requires.
-// The claims-* fixtures check the drafted Chile overview and its "length" story against their
-// sources: pages fetched with web_fetch (or fetch_page when web_fetch fails), then verdicts
-// through submit_verdicts.
+// The claims-CHL fixture checks the drafted Chile overview and its "length" story against their
+// sources in one conversation: pages fetched with web_fetch (or fetch_page when web_fetch fails),
+// then verdicts through submit_verdicts.
 //
 //   node --import tsx tests/pipeline/fixtures/build-replay.ts
 //
@@ -334,8 +334,11 @@ const supported = (unitId: string, sourceId: string) => ({
   note: null,
 });
 
-/** Verdicts on the Chile overview: one page could not be read, and one quick fact is unsupported. */
-function overviewVerdicts() {
+/**
+ * Verdicts on the Chile overview and the "length" story: one page could not be read, and one
+ * quick fact is unsupported.
+ */
+function chileVerdicts() {
   return {
     sources: [
       read('fixture-overview'),
@@ -361,13 +364,15 @@ function overviewVerdicts() {
         note: 'The page does not name the capital.',
       },
       supported('quick-fact-2', 'fixture-overview'),
+      supported('length-section-1', 'fixture-geography'),
+      supported('length-section-2', 'fixture-geography'),
     ],
   };
 }
 
 /** The first submission: claims a page it never fetched was read, and skips a unit. */
-function invalidOverviewVerdicts() {
-  const verdicts = overviewVerdicts();
+function invalidChileVerdicts() {
+  const verdicts = chileVerdicts();
   verdicts.sources[3] = read('fixture-history');
   verdicts.verdicts = verdicts.verdicts.filter((entry) => entry.unitId !== 'quick-fact-2');
   return verdicts;
@@ -492,47 +497,31 @@ export function replayFixtures(): Record<string, unknown[]> {
       ),
     ],
     'claims-CHL': [
+      // The geography page refuses web_fetch, so it is fetched locally.
       message(
         [
           ...webFetch('chile/overview', placeholder('the overview page')),
-          ...webFetch('chile/geography', placeholder('the geography page')),
+          ...webFetch('chile/geography', null),
           ...webFetch('chile/economy', placeholder('the economy page')),
           ...webFetch('chile/history', null),
-          toolUse('submit_verdicts', invalidOverviewVerdicts()),
+          toolUse('fetch_page', { url: url('chile/geography') }),
         ],
         'tool_use',
         { input: 12000, output: 1500, fetches: 4 },
       ),
-      message([toolUse('submit_verdicts', overviewVerdicts())], 'tool_use', {
-        input: 600,
-        cacheRead: 13000,
-        output: 1200,
+      // The turn ends without submitting and is reminded.
+      message([text('Read them.')], 'end_turn', { input: 400, cacheRead: 12000, output: 100 }),
+      // The first submission is sent back.
+      message([toolUse('submit_verdicts', invalidChileVerdicts())], 'tool_use', {
+        input: 300,
+        cacheRead: 12500,
+        output: 1500,
       }),
-    ],
-    'claims-CHL-length': [
-      // web_fetch fails, so the page is fetched locally; then the turn ends without submitting.
-      message(
-        [
-          ...webFetch('chile/geography', null),
-          toolUse('fetch_page', { url: url('chile/geography') }),
-        ],
-        'tool_use',
-        { input: 6000, output: 300, fetches: 1 },
-      ),
-      message([text('Read it.')], 'end_turn', { input: 400, cacheRead: 6000, output: 100 }),
-      message(
-        [
-          toolUse('submit_verdicts', {
-            sources: [read('fixture-geography')],
-            verdicts: [
-              supported('section-1', 'fixture-geography'),
-              supported('section-2', 'fixture-geography'),
-            ],
-          }),
-        ],
-        'tool_use',
-        { input: 300, cacheRead: 6500, output: 500 },
-      ),
+      message([toolUse('submit_verdicts', chileVerdicts())], 'tool_use', {
+        input: 600,
+        cacheRead: 14000,
+        output: 1500,
+      }),
     ],
   };
 }

@@ -1,7 +1,7 @@
-// Run claim check sessions, a few at a time or in rounds through the Message Batches API, and save
-// each session's verdicts as soon as it finishes. A scope is checked only while one of its units
-// has no result for its current text, so an interrupted run picks up where it stopped (a batch
-// round in flight is lost, not resumed; checks are short, so a round costs little).
+// Run claim check sessions, one per country, a few at a time or in rounds through the Message
+// Batches API, and save each session's verdicts as soon as it finishes. An overview or story is
+// checked only while one of its units has no result for its current text, so an interrupted run
+// picks up where it stopped (a batch round in flight is lost, not resumed).
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CountryFile } from '../../src/content/schema';
@@ -21,16 +21,17 @@ import {
   recordChecks,
   type UnitStatus,
 } from './store';
-import { allScopes, scopeLabel, scopeUnits, type ClaimScope, type ClaimUnit } from './units';
+import { allScopes, scopesLabel, scopeUnits, type ClaimScope, type ClaimUnit } from './units';
 
-export type ClaimsJob = { file: CountryFile; scope: ClaimScope };
+/** One country's overview and stories to check in one conversation. */
+export type ClaimsJob = { file: CountryFile; scopes: ClaimScope[] };
 
 export type ClaimsJobResult = {
   tag: string;
   label: string;
   outcome: 'checked' | 'failed';
   detail: string;
-  /** The scope's units with their new results (empty when the session failed). */
+  /** The job's units with their new results (empty when the session failed). */
   statuses: UnitStatus[];
   usage: Usage;
 };
@@ -57,7 +58,10 @@ export type JobSelection = {
   recheck?: boolean;
 };
 
-/** The scopes of a file to check: those with a unit that has no result for its current text. */
+/**
+ * The check a file needs, as at most one job: its overview and stories with a unit that has no
+ * result for its current text.
+ */
 export function claimsJobs(
   file: CountryFile,
   selection: JobSelection,
@@ -67,7 +71,7 @@ export function claimsJobs(
   const scopes = selection.storyId
     ? [{ kind: 'story' as const, storyId: selection.storyId }]
     : allScopes(file);
-  return scopes
+  const due = scopes
     .filter((scope) => {
       if (!selection.draftsOnly) return true;
       const provenance =
@@ -79,8 +83,8 @@ export function claimsJobs(
     .filter(
       (scope) =>
         selection.recheck || scopeUnits(file, scope).some((unit) => !claims.checks[unit.key]),
-    )
-    .map((scope) => ({ file, scope }));
+    );
+  return due.length ? [{ file, scopes: due }] : [];
 }
 
 type Entry = {
@@ -91,12 +95,12 @@ type Entry = {
 };
 
 function start(job: ClaimsJob, context: ClaimsContext): Entry {
-  const setup = claimSession(context, job.file, job.scope);
+  const setup = claimSession(context, job.file, job.scopes);
   return {
     job,
     units: setup.units,
     session: new DraftSession(setup),
-    label: scopeLabel(job.file.country.id, job.scope),
+    label: scopesLabel(job.file.country.id, job.scopes),
   };
 }
 

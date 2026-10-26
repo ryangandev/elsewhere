@@ -6,11 +6,11 @@
 import { createHash } from 'node:crypto';
 import type { Country, CountryFile, Source, Story } from '../../src/content/schema';
 
-/** What one claim check session covers: the overview (with quick facts) or one story. */
+/** A part of a country file whose units are checked together: the overview (with quick facts) or one story. */
 export type ClaimScope = { kind: 'overview' } | { kind: 'story'; storyId: string };
 
 export type ClaimUnit = {
-  /** Readable ID within one check, e.g. "quick-fact-2"; only the model and logs see it. */
+  /** Readable ID within one check, e.g. "quick-fact-2" or "length-section-1"; only the model and logs see it. */
   id: string;
   /** Where the text is, for people, e.g. 'Quick fact "Capital"'. */
   label: string;
@@ -24,6 +24,10 @@ export type ClaimUnit = {
 
 export const scopeLabel = (countryId: string, scope: ClaimScope) =>
   scope.kind === 'overview' ? countryId : `${countryId}/${scope.storyId}`;
+
+/** A check of one story is named after it; any other set of scopes after the country. */
+export const scopesLabel = (countryId: string, scopes: ClaimScope[]) =>
+  scopes.length === 1 ? scopeLabel(countryId, scopes[0]) : countryId;
 
 function unit(
   id: string,
@@ -83,7 +87,7 @@ export const quickFactUnit = (
 
 export const sectionUnit = (story: Story, section: Story['sections'][number], position: number) =>
   unit(
-    `section-${position}`,
+    `${story.id}-section-${position}`,
     `Section "${section.title}"`,
     `${section.title}: ${section.text}`,
     section.sourceIds,

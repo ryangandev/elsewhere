@@ -43,19 +43,8 @@
       "type": "web_fetch_tool_result",
       "tool_use_id": "srvtoolu_fixture015",
       "content": {
-        "type": "web_fetch_result",
-        "url": "https://example.org/elsewhere-fixture/chile/geography",
-        "retrieved_at": "2026-10-26T00:00:00Z",
-        "content": {
-          "type": "document",
-          "source": {
-            "type": "text",
-            "media_type": "text/plain",
-            "data": "Placeholder text about the geography page for the pipeline tests. It is not real content."
-          },
-          "title": "Fixture page chile/geography",
-          "citations": null
-        }
+        "type": "web_fetch_tool_error",
+        "error_code": "url_not_accessible"
       }
     },
     {
@@ -104,74 +93,9 @@
     {
       "type": "tool_use",
       "id": "toolu_fixture018",
-      "name": "submit_verdicts",
+      "name": "fetch_page",
       "input": {
-        "sources": [
-          {
-            "id": "fixture-overview",
-            "status": "read",
-            "note": null
-          },
-          {
-            "id": "fixture-geography",
-            "status": "read",
-            "note": null
-          },
-          {
-            "id": "fixture-economy",
-            "status": "read",
-            "note": null
-          },
-          {
-            "id": "fixture-history",
-            "status": "read",
-            "note": null
-          }
-        ],
-        "verdicts": [
-          {
-            "unitId": "overview",
-            "verdict": "supported",
-            "unsupported": [],
-            "evidence": [
-              {
-                "sourceId": "fixture-overview",
-                "quote": "Placeholder text"
-              }
-            ],
-            "note": null
-          },
-          {
-            "unitId": "why-it-matters-1",
-            "verdict": "supported",
-            "unsupported": [],
-            "evidence": [
-              {
-                "sourceId": "fixture-economy",
-                "quote": "Placeholder text"
-              }
-            ],
-            "note": null
-          },
-          {
-            "unitId": "why-it-matters-2",
-            "verdict": "source_unreachable",
-            "unsupported": [
-              "Fixture point two"
-            ],
-            "evidence": [],
-            "note": "Its only source could not be read."
-          },
-          {
-            "unitId": "quick-fact-1",
-            "verdict": "not_supported",
-            "unsupported": [
-              "Capital: Fixture value"
-            ],
-            "evidence": [],
-            "note": "The page does not name the capital."
-          }
-        ]
+        "url": "https://example.org/elsewhere-fixture/chile/geography"
       }
     }
   ],

@@ -105,9 +105,13 @@ async function main(): Promise<number> {
   let fetchPage = values.replay ? replayPages(values.replay) : fetchPageText;
   if (values.record) fetchPage = recordPages(fetchPage, values.record);
 
-  const units = jobs.reduce((sum, job) => sum + scopeUnits(job.file, job.scope).length, 0);
+  const units = jobs.reduce(
+    (sum, job) =>
+      sum + job.scopes.reduce((count, scope) => count + scopeUnits(job.file, scope).length, 0),
+    0,
+  );
   console.log(
-    `Checking ${units} units in ${jobs.length} overview${jobs.length === 1 ? '' : 's'} and stories (${client.description}, ${values.model} at ${values.effort} effort).`,
+    `Checking ${units} units in ${jobs.length} countr${jobs.length === 1 ? 'y' : 'ies'} (${client.description}, ${values.model} at ${values.effort} effort).`,
   );
   const model = values.model;
   const { results, usage } = await checkClaims({

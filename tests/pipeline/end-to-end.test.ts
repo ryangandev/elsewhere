@@ -138,14 +138,17 @@ describe('content pipeline, end to end on replayed responses', () => {
           date: RUN_DATE,
           fetchPage: async () => 'Placeholder text about the geography page.',
         },
-        jobs: claimsJobs(chile, {}, claimsDir).filter(
-          ({ scope }) => scope.kind === 'overview' || scope.storyId === 'length',
-        ),
+        jobs: claimsJobs(chile, {}, claimsDir).map((job) => ({
+          ...job,
+          scopes: job.scopes.filter(
+            (scope) => scope.kind === 'overview' || scope.storyId === 'length',
+          ),
+        })),
         mode: 'sync',
         claimsDir,
         log: (line) => log.push(line),
       });
-      expect(claimed.results.map((result) => result.outcome)).toEqual(['checked', 'checked']);
+      expect(claimed.results.map((result) => result.outcome)).toEqual(['checked']);
       const overviewSummary = countrySummary(chile, {
         files: parsedCountryFiles(contentDir),
         ...fileReport(contentDir, chile, urlOptions, claimsDir),

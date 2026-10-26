@@ -54,11 +54,15 @@ const context = (mode: 'sync' | 'batch' = 'sync'): ClaimsContext => ({
 });
 
 /** The overview and the "length" story: the scopes the fixtures answer. */
+/** The recorded fixtures cover the overview and the "length" story. */
 const fixtureJobs = (jobs: ClaimsJob[]) =>
-  jobs.filter(
-    ({ scope }) =>
-      scope.kind === 'overview' || (scope.kind === 'story' && scope.storyId === 'length'),
-  );
+  jobs.map((job) => ({
+    ...job,
+    scopes: job.scopes.filter(
+      (scope) =>
+        scope.kind === 'overview' || (scope.kind === 'story' && scope.storyId === 'length'),
+    ),
+  }));
 
 const lastTurn = (request: { request: { messages: unknown[] } }) =>
   JSON.stringify(request.request.messages.at(-1));
@@ -159,10 +163,10 @@ describe('verdict validation', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.issues).toEqual([
-      'sources.fixture-geography: marked read, but https://example.org/elsewhere-fixture/chile/geography was not fetched with web_fetch in this conversation. Fetch it, or mark it unreachable and say why.',
-      'verdicts.section-1: "a phrase that is not in the text" is not in the unit text; copy the phrase exactly',
-      'verdicts.section-2: list the phrases the sources do not state in unsupported',
-      'verdicts.section-2: source_unreachable needs one of its sources (fixture-geography) marked unreachable',
+      'sources.fixture-geography: marked read, but https://example.org/elsewhere-fixture/chile/geography was not fetched with web_fetch or fetch_page in this conversation. Fetch it, or mark it unreachable and say why.',
+      'verdicts.length-section-1: "a phrase that is not in the text" is not in the unit text; copy the phrase exactly',
+      'verdicts.length-section-2: list the phrases the sources do not state in unsupported',
+      'verdicts.length-section-2: source_unreachable needs one of its sources (fixture-geography) marked unreachable',
       'verdicts: "section-9" is not a unit in this task',
     ]);
   });
@@ -176,7 +180,10 @@ describe('verdict validation', () => {
     };
     partial.verdicts.pop();
     const result = checkVerdicts(partial, { units, sources, fetched, stamp });
-    expect(result).toEqual({ ok: false, issues: ['verdicts: give a verdict for "section-2"'] });
+    expect(result).toEqual({
+      ok: false,
+      issues: ['verdicts: give a verdict for "length-section-2"'],
+    });
   });
 });
 
@@ -249,14 +256,15 @@ describe('local page fetches', () => {
   });
 
   it('are limited to the cited URLs of the task', async () => {
-    const setup = claimSession(context(), chileFile(), { kind: 'story', storyId: 'length' });
+    const setup = claimSession(context(), chileFile(), [{ kind: 'story', storyId: 'length' }]);
+    expect(setup.tag).toBe('claims-CHL-length');
     await expect(setup.runTool('fetch_page', { url: 'https://example.org/other' })).rejects.toThrow(
       'https://example.org/other is not a source URL in this task',
     );
     const failing = claimSession(
       { ...context(), fetchPage: () => Promise.reject(new Error('the server answered 403')) },
       chileFile(),
-      { kind: 'story', storyId: 'length' },
+      [{ kind: 'story', storyId: 'length' }],
     );
     await expect(
       failing.runTool('fetch_page', {
@@ -269,9 +277,21 @@ describe('local page fetches', () => {
 });
 
 describe('claim check sessions', () => {
-  it('ask for the basic web fetch, the local fallback and a strict verdict tool', () => {
-    const setup = claimSession(context(), chileFile(), { kind: 'overview' });
+  it('check a country in one conversation with the basic web fetch, the local fallback and a strict verdict tool', () => {
+    const setup = claimSession(context(), chileFile(), [
+      { kind: 'overview' },
+      { kind: 'story', storyId: 'length' },
+    ]);
     expect(setup.tag).toBe('claims-CHL');
+    expect(setup.units.map((unit) => unit.id)).toEqual([
+      'overview',
+      'why-it-matters-1',
+      'why-it-matters-2',
+      'quick-fact-1',
+      'quick-fact-2',
+      'length-section-1',
+      'length-section-2',
+    ]);
     expect(setup.tools).toMatchObject([
       { type: 'web_fetch_20250910', name: 'web_fetch' },
       { name: 'fetch_page', strict: true },
@@ -282,6 +302,9 @@ describe('claim check sessions', () => {
       '- fixture-history: "Fixture history page", Elsewhere test fixtures. https://example.org/elsewhere-fixture/chile/history',
     );
     expect(task).toContain('### quick-fact-1: Quick fact "Capital"\nCites: fixture-overview');
+    expect(task).toContain('# Check the overview and the story "length" of Chile (CHL)');
+    // A source shared by the overview and the story is listed, and read, once.
+    expect(task.match(/- fixture-geography:/g)).toHaveLength(1);
     expect(task).not.toContain('{{');
   });
 });
@@ -298,8 +321,10 @@ describe('checking claims on replayed responses', () => {
 
     const jobs = claimsJobs(file, {}, claimsDir);
     expect(
-      jobs.map(({ scope }) => (scope.kind === 'overview' ? 'overview' : scope.storyId)),
-    ).toEqual(['overview', 'length', 'desert', 'copper', 'andes']);
+      jobs.map(({ scopes }) =>
+        scopes.map((scope) => (scope.kind === 'overview' ? 'overview' : scope.storyId)),
+      ),
+    ).toEqual([['overview', 'length', 'desert', 'copper', 'andes']]);
     const { results, usage } = await checkClaims({
       client,
       context: context(),
@@ -308,28 +333,24 @@ describe('checking claims on replayed responses', () => {
       claimsDir,
       log: (line) => log.push(line),
     });
-    expect(results.map((result) => [result.label, result.outcome])).toEqual([
-      ['CHL', 'checked'],
-      ['CHL/length', 'checked'],
-    ]);
+    expect(results.map((result) => [result.label, result.outcome])).toEqual([['CHL', 'checked']]);
     expect(results[0].detail).toBe(
-      '5 units: 3 supported, 0 partly supported, 1 not supported, 1 source unreachable, 0 not checked (claude-opus-5-5)',
+      '7 units: 5 supported, 0 partly supported, 1 not supported, 1 source unreachable, 0 not checked (claude-opus-5-5)',
     );
-    expect(usage).toMatchObject({ requests: 5, webFetches: 5 });
+    expect(usage).toMatchObject({ requests: 4, webFetches: 4 });
 
-    // The first overview submission was sent back. The story's page refused web_fetch, so it was
-    // fetched locally, which counts as read; then the story was reminded to submit.
-    const overview = client.requests.filter((request) => request.tag === 'claims-CHL');
-    expect(overview).toHaveLength(2);
-    const repair = lastTurn(overview[1]);
-    expect(repair).toContain('sources.fixture-history: marked read');
-    expect(repair).toContain('give a verdict for \\"quick-fact-2\\"');
-    const story = client.requests.filter((request) => request.tag === 'claims-CHL-length');
+    // The geography page refused web_fetch, so it was fetched locally, which counts as read. The
+    // turn then ended without a submission and was reminded, and the first submission was sent back.
+    const requests = client.requests.filter((request) => request.tag === 'claims-CHL');
+    expect(requests).toHaveLength(4);
     expect(locallyFetched).toEqual(['https://example.org/elsewhere-fixture/chile/geography']);
-    expect(lastTurn(story[1])).toContain(
+    expect(lastTurn(requests[1])).toContain(
       "fetched from the editor's computer:\\n\\nPlaceholder text about the geography page",
     );
-    expect(lastTurn(story[2])).toContain('You ended your turn without submitting');
+    expect(lastTurn(requests[2])).toContain('You ended your turn without submitting');
+    const repair = lastTurn(requests[3]);
+    expect(repair).toContain('sources.fixture-history: marked read');
+    expect(repair).toContain('give a verdict for \\"quick-fact-2\\"');
 
     // The flagged unit is reported with what the sources do not state.
     const report = log.find((line) => line.startsWith('CHL: checked'))!;
@@ -354,10 +375,16 @@ describe('checking claims on replayed responses', () => {
     });
 
     // Checked scopes are skipped; an edited unit makes its scope due again.
-    expect(fixtureJobs(claimsJobs(file, {}, claimsDir))).toEqual([]);
+    expect(claimsJobs(file, {}, claimsDir)[0].scopes.map((scope) => scope.kind)).toEqual([
+      'story',
+      'story',
+      'story',
+    ]);
     const edited = structuredClone(file);
     edited.stories[0].sections[1].text = 'Changed placeholder text.';
-    expect(claimsJobs(edited, { storyId: 'length' }, claimsDir)).toHaveLength(1);
+    expect(claimsJobs(edited, { storyId: 'length' }, claimsDir)).toEqual([
+      { file: edited, scopes: [{ kind: 'story', storyId: 'length' }] },
+    ]);
     expect(claimsJobs(file, { storyId: 'length', recheck: true }, claimsDir)).toHaveLength(1);
     expect(claimsJobs(file, { draftsOnly: true, storyId: 'length' }, claimsDir)).toEqual([]);
   });
@@ -376,12 +403,13 @@ describe('checking claims on replayed responses', () => {
       claimsDir,
       log: (line) => log.push(line),
     });
-    expect(results.map((result) => result.outcome)).toEqual(['checked', 'checked']);
+    expect(results.map((result) => result.outcome)).toEqual(['checked']);
     expect(log.filter((line) => line.startsWith('Round'))).toEqual([
-      'Round 1: 2 requests.',
-      'Round 2: 2 requests.',
+      'Round 1: 1 request.',
+      'Round 2: 1 request.',
       'Round 3: 1 request.',
+      'Round 4: 1 request.',
     ]);
-    expect(usage).toMatchObject({ requests: 5, batchRequests: 5 });
+    expect(usage).toMatchObject({ requests: 4, batchRequests: 4 });
   });
 });

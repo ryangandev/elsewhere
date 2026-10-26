@@ -1,8 +1,9 @@
-// One claim check conversation: Claude fetches the cited pages of an overview or a story with the
-// server-side web fetch tool (or, for a page that refuses it, fetch_page from this computer), then
-// submits a verdict per unit through a strict tool. It runs on
-// the drafting session loop (pipeline/generate/session.ts), so pause_turn, reminders and repairs
-// work the same way, and it records and replays through the same ModelClient.
+// One claim check conversation per country: Claude fetches the pages cited by the overview and
+// stories being checked, each once, with the server-side web fetch tool (or, for a page that refuses
+// it, fetch_page from this computer), then submits a verdict per unit through a strict tool. One
+// conversation reads a source shared by several stories once, which matters when it is a long PDF.
+// It runs on the drafting session loop (pipeline/generate/session.ts), so pause_turn, reminders and
+// repairs work the same way, and it records and replays through the same ModelClient.
 import type { BetaTool, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta/messages';
 import { z } from 'zod';
 import type { CountryFile } from '../../src/content/schema';
@@ -14,7 +15,7 @@ import { render, type ClaimsPromptSet } from '../prompts';
 import type { PageFetcher } from './local-fetch';
 import type { ClaimCheck } from './store';
 import { checkVerdicts, fetchedUrls, SubmitVerdicts } from './verdicts';
-import { citedSources, scopeUnits, type ClaimScope, type ClaimUnit } from './units';
+import { citedSources, scopesLabel, scopeUnits, type ClaimScope, type ClaimUnit } from './units';
 
 export type ClaimsContext = {
   prompts: ClaimsPromptSet;
@@ -32,8 +33,8 @@ export type ClaimsContext = {
 /** Results by unit key. */
 export type ClaimChecks = Record<string, ClaimCheck>;
 
-export const claimsTag = (countryId: string, scope: ClaimScope) =>
-  scope.kind === 'overview' ? `claims-${countryId}` : `claims-${countryId}-${scope.storyId}`;
+export const claimsTag = (countryId: string, scopes: ClaimScope[]) =>
+  `claims-${scopesLabel(countryId, scopes).replace('/', '-')}`;
 
 const SUBMIT_TOOL = 'submit_verdicts';
 
@@ -59,7 +60,7 @@ function tools(limits: GenerationLimits): BetaToolUnion[] {
       strict: true,
       input_schema: toStrictJsonSchema(FetchPageInput) as BetaTool.InputSchema,
     },
-    // Strict: the verdict schema is small and fixed, so it compiles for every scope.
+    // Strict: the verdict schema is small and fixed, so it compiles for any number of units.
     {
       name: SUBMIT_TOOL,
       description:
@@ -79,34 +80,42 @@ function renderUnit(unit: ClaimUnit): string {
   ].join('\n');
 }
 
-function scopeText(file: CountryFile, scope: ClaimScope): { scope: string; context: string } {
-  if (scope.kind === 'overview') {
-    return {
-      scope: 'the overview',
-      context:
-        'The country overview: its summary and geography, the points on why the country matters, and its quick facts.',
-    };
+const joinNames = (names: string[]) =>
+  names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+
+function scopeText(file: CountryFile, scopes: ClaimScope[]): { scope: string; context: string } {
+  const names: string[] = [];
+  const context: string[] = [];
+  for (const scope of scopes) {
+    if (scope.kind === 'overview') {
+      names.push('the overview');
+      context.push(
+        '- The country overview: its summary and geography, the points on why the country matters, and its quick facts.',
+      );
+      continue;
+    }
+    const story = file.stories.find((entry) => entry.id === scope.storyId)!;
+    names.push(`the story "${story.id}"`);
+    context.push(
+      `- The story "${story.id}" answers the question "${story.question}" Its short answer, for context only: ${story.summary}`,
+    );
   }
-  const story = file.stories.find((entry) => entry.id === scope.storyId)!;
-  return {
-    scope: `the story "${story.id}"`,
-    context: `The story answers the question "${story.question}" Its short answer, for context only: ${story.summary}`,
-  };
+  return { scope: joinNames(names), context: context.join('\n') };
 }
 
 export function claimSession(
   context: ClaimsContext,
   file: CountryFile,
-  scope: ClaimScope,
+  scopes: ClaimScope[],
 ): SessionSetup<ClaimChecks> & { units: ClaimUnit[] } {
-  const units = scopeUnits(file, scope);
+  const units = scopes.flatMap((scope) => scopeUnits(file, scope));
   const sources = citedSources(units);
   const sourceUrls = new Map(sources.map((source) => [normalizeUrl(source.url), source.url]));
   /** Source pages fetch_page read, which count as fetched like web_fetch results. */
   const fetchedLocally = new Set<string>();
   const ttl = context.cacheTtl === '1h' ? { ttl: '1h' as const } : {};
   const task = render(context.prompts.task, {
-    ...scopeText(file, scope),
+    ...scopeText(file, scopes),
     countryName: file.country.name,
     countryId: file.country.id,
     sources: sources
@@ -116,7 +125,7 @@ export function claimSession(
   });
   return {
     units,
-    tag: claimsTag(file.country.id, scope),
+    tag: claimsTag(file.country.id, scopes),
     model: context.model,
     effort: context.effort,
     limits: context.limits,
