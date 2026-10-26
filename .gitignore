@@ -31,3 +31,4 @@ npm-debug.log*
 
 # Agent worktrees
 /.claude/worktrees/
+/pipeline/.cache/

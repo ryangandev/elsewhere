@@ -39,17 +39,32 @@ export const Source = z.strictObject({
 });
 export type Source = z.infer<typeof Source>;
 
+/** A reviewer's request to redraft a draft; the next regeneration consumes it. */
+export const RevisionRequest = z.strictObject({
+  notes: Text,
+  requestedBy: Text,
+  requestedAt: IsoDate,
+});
+export type RevisionRequest = z.infer<typeof RevisionRequest>;
+
 export const Provenance = z
   .strictObject({
     /** "human", or the model ID that drafted the content. */
     generatedBy: Text,
     generatedAt: IsoDate,
+    /** Version of the pipeline prompts that drafted it, e.g. "v1" for pipeline/prompts/v1/. */
+    promptVersion: Text.optional(),
     reviewedBy: Text.optional(),
     reviewedAt: IsoDate.optional(),
     status: z.enum(['draft', 'reviewed']),
+    /** Set on a draft that review sent back for regeneration. */
+    revision: RevisionRequest.optional(),
   })
   .refine((value) => value.status !== 'reviewed' || (value.reviewedBy && value.reviewedAt), {
     message: 'Reviewed content records who reviewed it and when',
+  })
+  .refine((value) => value.status !== 'reviewed' || !value.revision, {
+    message: 'Reviewed content cannot be waiting for a revision',
   });
 export type Provenance = z.infer<typeof Provenance>;
 
@@ -109,6 +124,10 @@ export const Section = z.strictObject({
 });
 export type Section = z.infer<typeof Section>;
 
+/**
+ * A next question. A draft story may point at a story in a country that has no content file
+ * yet (a pending reference, see findPendingReferences in ./validate.ts); reviewed stories may not.
+ */
 export const StoryRef = z.strictObject({
   countryId: CountryId,
   storyId: StoryId,
