@@ -68,7 +68,7 @@ test('an unanswered question says so and offers what is closest', () => {
   assert.deepEqual(france.suggestions, []);
 
   assert.equal(ask('Why does Japan have earthquakes?').kind, 'unanswered');
-  assert.equal(top('Why does Japan have earthquakes?')?.countryId, 'JPN');
+  assert.equal(top('Why does Japan have earthquakes?'), undefined);
 });
 
 test('a name or topic without a match is unanswered too; stop words alone are idle', () => {

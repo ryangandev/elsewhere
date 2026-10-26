@@ -403,6 +403,7 @@ The question input:
   A question counts as answered only when one question covers its terms (both terms of a short query, all but one of a longer one), and, if the query names edited countries, only their questions qualify.
   Questions that answer the query lead the list, so Enter never opens a near miss.
 - An unanswered question says so plainly: the atlas has not answered it yet, because every answer is sourced and reviewed.
+  Nothing is highlighted and Enter does nothing until the reader moves to a row.
   It then offers the closest questions (those about a country the query names first), the countries the query names, and, when nothing is close, the suggested starting questions.
   There is no generated answer in Stage 1.
 - `src/domain/live-answers.ts` defines the seam for Stage 2: a `LiveAnswerProvider` that takes the question and returns a story view model, or nothing.

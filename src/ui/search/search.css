@@ -58,6 +58,13 @@
   background: var(--search-selected);
   color: var(--search-ink);
 }
+/* Nothing counts as highlighted until the reader moves to a row; see QuestionSearch. */
+.question-search[data-unpicked] .result-item[data-selected='true'] {
+  background: transparent;
+}
+.question-search[data-unpicked] .result-item[data-selected='true'] > .result-arrow {
+  opacity: 0;
+}
 .question-results .result-item > svg {
   flex-shrink: 0;
   width: 16px;

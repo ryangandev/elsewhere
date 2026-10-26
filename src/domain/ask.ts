@@ -129,11 +129,7 @@ export function suggestedQuestions(index: AtlasIndex): SearchResult[] {
   });
 }
 
-/** The result Enter opens: the first one shown. */
+/** The result Enter opens: the first one shown, or none when the query is unanswered. */
 export function topResult(outcome: AskOutcome): SearchResult | undefined {
-  if (outcome.kind === 'results') return outcome.groups[0]?.results[0];
-  if (outcome.kind === 'unanswered') {
-    return outcome.closest[0] ?? outcome.countries[0] ?? outcome.suggestions[0];
-  }
-  return undefined;
+  return outcome.kind === 'results' ? outcome.groups[0]?.results[0] : undefined;
 }

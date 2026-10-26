@@ -26,10 +26,17 @@ type Props = {
 
 const IDLE: AskOutcome = { kind: 'idle' };
 
+// Keys cmdk moves the highlight with, including its vim bindings.
+const MOVE_KEYS = new Set(['ArrowUp', 'ArrowDown', 'Home', 'End']);
+const isMove = (event: KeyboardEvent<HTMLInputElement>) =>
+  MOVE_KEYS.has(event.key) || (event.ctrlKey && ['n', 'p', 'j', 'k'].includes(event.key));
+
 /**
  * The question input and its results, shared by the home page and the search dialog so both
  * rank, group and render results the same way. Results appear as the reader types; arrow keys
  * move through them and Enter opens the highlighted one, which starts at the top result.
+ * An unanswered query has no top result: nothing is highlighted and Enter does nothing until the
+ * reader moves to a row, so a near miss is never opened in place of an answer.
  */
 export function QuestionSearch({ variant, inputRef }: Props) {
   const { destination } = useAtlas();
@@ -55,8 +62,17 @@ export function QuestionSearch({ variant, inputRef }: Props) {
   const [selection, setSelection] = useState({ query: '', value: '' });
   const top = topResult(outcome)?.key ?? '';
   const selected = selection.query === query && selection.value ? selection.value : top;
+  // cmdk always highlights a row, so whether the reader chose one is tracked here.
+  const [movedFor, setMovedFor] = useState<string | null>(null);
+  const unpicked = outcome.kind === 'unanswered' && movedFor !== query;
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (isMove(event)) {
+      setMovedFor(query);
+      // The first move reveals the row cmdk already holds, the top one, rather than skipping it.
+      if (unpicked && event.key !== 'End') event.preventDefault();
+    }
+    if (event.key === 'Enter' && unpicked) event.preventDefault();
     if (event.key !== 'Escape' || variant !== 'home') return;
     event.preventDefault();
     if (typed) setQuery('');
@@ -76,6 +92,7 @@ export function QuestionSearch({ variant, inputRef }: Props) {
       onValueChange={(value) => setSelection({ query, value })}
       className={`question-search question-search-${variant}`}
       data-open={open || undefined}
+      data-unpicked={unpicked || undefined}
       onFocus={() => setFocused(true)}
       onBlur={onBlur}
     >
@@ -93,6 +110,7 @@ export function QuestionSearch({ variant, inputRef }: Props) {
           label={text.resultsLabel}
           // Keep focus in the input while a result is clicked.
           onMouseDown={(event) => event.preventDefault()}
+          onPointerMove={() => setMovedFor(query)}
         >
           {index.data ? (
             <Results lookup={index.data} outcome={outcome} variant={variant} />

@@ -29,6 +29,17 @@ test.describe('asking a question', () => {
     // It offers real stories to begin with, and nothing was invented or opened.
     await expect(page.getByRole('group', { name: 'BEGIN WITH ONE OF THESE' })).toBeVisible();
     await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toHaveCount(0);
+
+    // Enter does not open a near miss in place of an answer.
+    await questionInput(page).press('Enter');
+    await expect(notice).toBeVisible();
     expect(pathOf(page)).toBe('/');
+
+    // Moving to a row first makes Enter open it, starting from the top one.
+    const first = page.getByRole('option').first();
+    await questionInput(page).press('ArrowDown');
+    await expect(first).toHaveAttribute('aria-selected', 'true');
+    await questionInput(page).press('Enter');
+    await expect(page).not.toHaveURL(/\/$/);
   });
 });
