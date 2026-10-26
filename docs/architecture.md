@@ -406,6 +406,8 @@ How a page reaches the shell:
 - Focus on a map place is shell state keyed to the destination, so it resets when the destination changes and survives a re-render of the same page.
 - The breadcrumb and map caption are part of the page, so they arrive with the server-rendered HTML rather than after hydration.
 - Shell layout reacts to the page with CSS (`.world-app:has(#country-reading)`) instead of a class set from client state, so the first paint is already correct.
+- The shell's grid lives in CSS variables on `.world-app` (`--gutter`, `--header`, `--footer`, `--inset`, `--panel-width`), so the header, panel, breadcrumb, caption, home column and map controls share one set of edges at each width.
+- The globe labels avoid the elements in `OCCLUDERS` (`src/ui/shell/GlobeStage.tsx`) by their boxes, so those boxes must match what is drawn: each child of `.home` is only as wide as its content, except the input and the suggestions, which are drawn full width.
 
 Client indexes are static route handlers (`dynamic = 'force-static'`), written to `out/atlas/` at build time and fetched once, on demand:
 
