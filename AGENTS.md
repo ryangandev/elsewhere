@@ -15,6 +15,7 @@ npm run typecheck
 npm run lint
 npm test
 npm run build      # static export to out/
+npm run test:e2e   # Playwright against out/ (build first)
 npm run format     # Prettier
 ```
 

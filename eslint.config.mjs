@@ -17,7 +17,14 @@ const clientCode = [
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  globalIgnores(['.next/**', 'out/**', 'next-env.d.ts', '.claude/**']),
+  globalIgnores([
+    '.next/**',
+    'out/**',
+    'playwright-report/**',
+    'test-results/**',
+    'next-env.d.ts',
+    '.claude/**',
+  ]),
   {
     files: clientCode,
     rules: {

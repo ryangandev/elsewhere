@@ -1,0 +1,44 @@
+import { expectAnswer, expectPath, globeRegion, openAtlas, questionInput } from './atlas';
+import { getStory, nextStories, storyPath } from './content';
+import { expect, test } from './fixtures';
+
+// Headless CI browsers may have no WebGL at all. The atlas says so and keeps working.
+test.describe('without WebGL', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const getContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string) {
+        if (/webgl/i.test(type)) return null;
+        // eslint-disable-next-line prefer-rest-params
+        return getContext.apply(this, arguments as never);
+      } as typeof getContext;
+    });
+  });
+
+  test('the globe reports that it could not load', async ({ page }) => {
+    await openAtlas(page);
+
+    await expect(globeRegion(page).getByText('The globe couldn’t load.')).toBeVisible();
+    await expect(globeRegion(page).getByRole('button', { name: 'Try again' })).toBeVisible();
+    await expect(page.getByText('THE STORIES ARE STILL HERE.')).toBeVisible();
+  });
+
+  test('asking, reading and following a question still work', async ({ page }) => {
+    const story = getStory('SGP', 'wealth');
+    const [next] = nextStories(story);
+    await openAtlas(page);
+    await expect(globeRegion(page).getByText('The globe couldn’t load.')).toBeVisible();
+
+    await questionInput(page).fill('What makes Singapore wealthy?');
+    await page.getByRole('option', { name: new RegExp(story.question) }).click();
+    await expectPath(page, storyPath(story));
+    await expectAnswer(page, story);
+
+    await page
+      .getByRole('region', { name: 'WHERE THIS LEADS' })
+      .getByRole('link', { name: next.question })
+      .click();
+    await expectPath(page, storyPath(next));
+    await expectAnswer(page, next);
+  });
+});

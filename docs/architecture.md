@@ -431,7 +431,10 @@ Adding Chinese later means adding a catalog and a `content/zh/` tree, with no co
 - Unit tests (Vitest) for pure logic: schema rules, navigation, search, cartography, picking.
 - Content validation runs in CI on every change to `content/`.
 - Pipeline tests in `tests/pipeline/` run plan, draft, verify, review and redraft end to end on replayed model responses.
-- Playwright e2e covers the core loop: ask, read, follow a next question, bookmark, share, back and forward, mobile layout.
+- Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, and back and forward.
+  The specs find things by role and visible text, read expected questions and sources from `content/en/`, and never depend on globe pixels or on WebGL (one spec runs with WebGL disabled).
+  Run `npm run build` first, then `npm run test:e2e`; CI runs it as its own `e2e` job and keeps the Playwright report when it fails.
+  Bookmark, share and the mobile layout are not covered yet.
 
 ## Migration plan
 
