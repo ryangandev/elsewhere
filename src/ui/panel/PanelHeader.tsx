@@ -1,16 +1,26 @@
 'use client';
 
 import { Bookmark, Link2, X } from 'lucide-react';
+import { useRef } from 'react';
 import type { Destination } from '@/domain/destination';
 import type { PageView } from '@/domain/view-models';
 import { messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
 
-type Props = { view: PageView; destination: Destination };
+type Props = {
+  view: PageView;
+  destination: Destination;
+  /** On a phone the panel can collapse to a strip so the globe has the room. */
+  compact: boolean;
+  onToggleCompact: () => void;
+  /** The id of the panel body the toggle shows and hides. */
+  bodyId: string;
+};
 
-/** Mode label, save/share/close tools, and the collapsed one-line state on small screens. */
-export function PanelHeader({ view, destination }: Props) {
-  const { go, save, share, isSaved, compact, toggleCompact } = useAtlas();
+/** Mode label, save/share/close tools, and the collapsed strip on small screens. */
+export function PanelHeader({ view, destination, compact, onToggleCompact, bodyId }: Props) {
+  const { go, save, share, isSaved } = useAtlas();
+  const toggle = useRef<HTMLButtonElement>(null);
   const text = messages.panel;
   const saved = isSaved(destination);
   const mode =
@@ -28,14 +38,18 @@ export function PanelHeader({ view, destination }: Props) {
           {mode}
         </span>
         <button
+          ref={toggle}
           className="panel-mode"
-          onClick={toggleCompact}
+          onClick={onToggleCompact}
           aria-expanded={!compact}
+          aria-controls={bodyId}
           aria-label={compact ? text.expand : text.makeRoom}
         >
           <span className="live-dot" />
           {mode}
-          <span className="mobile-chevron">{compact ? '↑' : '↓'}</span>
+          <span className="mobile-chevron" aria-hidden="true">
+            {compact ? '↑' : '↓'}
+          </span>
         </button>
         <div className="panel-tools">
           <button
@@ -55,9 +69,20 @@ export function PanelHeader({ view, destination }: Props) {
         </div>
       </div>
       {compact && (
-        <button className="compact-story" onClick={toggleCompact}>
-          {view.kind !== 'map' && view.flag} {view.title}
-          <span>{text.continueReading}</span>
+        <button
+          className="compact-story"
+          aria-expanded="false"
+          aria-controls={bodyId}
+          onClick={() => {
+            onToggleCompact();
+            // The strip goes away when the panel opens, so focus moves to the toggle that stays.
+            toggle.current?.focus();
+          }}
+        >
+          <span className="compact-title">
+            {view.kind !== 'map' && view.flag} {view.title}
+          </span>
+          <span className="compact-hint">{text.continueReading}</span>
         </button>
       )}
     </>

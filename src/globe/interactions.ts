@@ -22,7 +22,7 @@ export function createPointerInteractions({
   onSelect,
 }: PointerOptions) {
   const tooltip = document.createElement('div');
-  tooltip.className = 'map-tooltip texture-tooltip';
+  tooltip.className = 'globe-tooltip';
   tooltip.hidden = true;
   container.appendChild(tooltip);
 

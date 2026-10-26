@@ -30,13 +30,13 @@ export function AtlasShell({ children }: { children: ReactNode }) {
 }
 
 function Frame({ children }: { children: ReactNode }) {
-  const { destination, compact } = useAtlas();
-  // Whether a reading panel is open is styled with :has(#country-reading), so the prerendered
-  // page is laid out correctly before the page publishes to the shell.
-  const classes = ['world-app', compact && 'map-expanded'];
+  const { destination } = useAtlas();
 
+  // Whether a reading panel is open, and whether it is collapsed, is styled with
+  // :has(#country-reading), so the prerendered page is laid out correctly before the page
+  // publishes to the shell.
   return (
-    <main className={classes.filter(Boolean).join(' ')}>
+    <main className="world-app">
       <a className="skip-link" href={destination ? '#country-reading' : '#home-start'}>
         {messages.topbar.skip}
       </a>

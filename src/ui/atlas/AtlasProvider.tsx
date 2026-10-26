@@ -26,10 +26,6 @@ export type AtlasState = LibraryState & {
   /** The scene place the reader asked to look at more closely, if any. */
   focus: ScenePlace | null;
   focusPlace: (placeId: string | null) => void;
-  /** On small screens the reading panel can shrink to give the map room. */
-  compact: boolean;
-  toggleCompact: () => void;
-
   globeStatus: GlobeStatus;
   setGlobeStatus: (status: GlobeStatus) => void;
   globeCommand: GlobeCommand;
@@ -68,14 +64,12 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
   const destination = page?.destination ?? null;
   const key = destination?.key ?? '';
 
-  // Focus and compact mode belong to one destination; they are ignored once it changes.
+  // Focus belongs to one destination; it is ignored once the destination changes.
   const [focusState, setFocusState] = useState<{ key: string; placeId: string } | null>(null);
-  const [compactKey, setCompactKey] = useState<string | null>(null);
   const focus =
     (focusState?.key === key &&
       page?.scene.places.find((place) => place.id === focusState.placeId)) ||
     null;
-  const compact = !!key && compactKey === key;
 
   const [globeStatus, setGlobeStatus] = useState<GlobeStatus>('loading');
   const [globeCommand, setGlobeCommand] = useState<GlobeCommand>({ type: 'reset', seq: 0 });
@@ -92,7 +86,6 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
   const go = useCallback(
     (href: string | null) => {
       setFocusState(null);
-      setCompactKey(null);
       setDialog(null);
       const path = href ?? '/';
       if (path !== window.location.pathname + window.location.search) {
@@ -104,10 +97,6 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
 
   const focusPlace = useCallback(
     (placeId: string | null) => setFocusState(placeId ? { key, placeId } : null),
-    [key],
-  );
-  const toggleCompact = useCallback(
-    () => setCompactKey((current) => (current === key ? null : key)),
     [key],
   );
 
@@ -164,8 +153,6 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
     go,
     focus,
     focusPlace,
-    compact,
-    toggleCompact,
     globeStatus,
     setGlobeStatus,
     globeCommand,

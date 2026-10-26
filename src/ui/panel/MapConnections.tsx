@@ -4,6 +4,7 @@ import { ArrowRight, MapPin } from 'lucide-react';
 import type { MapView } from '@/domain/view-models';
 import { format, messages } from '@/i18n';
 import { useAtlas } from '../atlas/AtlasProvider';
+import './map-connections.css';
 
 /**
  * Places the reader can tap to find on the globe, with a short note about the one in focus.
