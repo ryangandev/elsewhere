@@ -75,3 +75,64 @@ describe('references', () => {
     expect(JSON.stringify([countryFiles, trails])).not.toMatch(/"[A-Za-z]*(?:Index|Idx)"\s*:/);
   });
 });
+
+describe('paraphrases', () => {
+  /** Validation messages after giving Singapore's wealth story these paraphrases. */
+  function withParaphrases(paraphrases: Record<string, unknown>) {
+    const input = contentInput();
+    const countryFiles = input.countryFiles.map((entry) => {
+      if (!entry.file.endsWith('/singapore.json')) return entry;
+      const data = structuredClone(entry.data) as { stories: Record<string, unknown>[] };
+      const story = data.stories.find((item) => item.id === 'wealth')!;
+      story.paraphrases = {
+        question: story.question,
+        generatedBy: 'claude-opus-5-5',
+        generatedAt: '2026-10-26',
+        promptVersion: 'paraphrase/v1',
+        ...paraphrases,
+      };
+      return { ...entry, data };
+    });
+    return validateContent({ ...input, countryFiles }).map((issue) => issue.message);
+  }
+
+  const good = [
+    'Why is Singapore so rich?',
+    'Why is Singapore loaded?',
+    'What made Singapore wealthy?',
+  ];
+
+  it('need no sources, because they restate the question', () => {
+    expect(withParaphrases({ phrasings: good })).toEqual([]);
+  });
+
+  it('are stale once the question changes', () => {
+    expect(withParaphrases({ phrasings: good, question: 'Why is Singapore rich?' })).toEqual([
+      expect.stringContaining('Paraphrases were written for "Why is Singapore rich?"'),
+    ]);
+  });
+
+  it('never repeat the question, each other, or a sibling question', () => {
+    expect(
+      withParaphrases({
+        phrasings: [
+          ...good,
+          'how did a tiny island become so wealthy',
+          'why is singapore so rich',
+          'Why is Singapore a shipping crossroads?',
+        ],
+      }),
+    ).toEqual([
+      '"how did a tiny island become so wealthy" repeats the question',
+      '"why is singapore so rich" is listed twice',
+      '"Why is Singapore a shipping crossroads?" is the question of story "shipping"',
+    ]);
+  });
+
+  it('are a handful of short phrasings', () => {
+    expect(withParaphrases({ phrasings: good.slice(0, 2) })).not.toEqual([]);
+    expect(
+      withParaphrases({ phrasings: [...good, `Why ${'really '.repeat(20)}rich?`] }),
+    ).not.toEqual([]);
+  });
+});

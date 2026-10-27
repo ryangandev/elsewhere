@@ -123,6 +123,19 @@
       "countryId": "CHN",
       "slug": "manufacturing",
       "question": "How did China become a manufacturing center?",
+      "paraphrases": {
+        "question": "How did China become a manufacturing center?",
+        "phrasings": [
+          "Why does China make so much of the world's stuff?",
+          "How did China turn into the world's factory?",
+          "Why is so much manufacturing done in China?",
+          "how did china get so big at making things",
+          "china factory industry rise"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Economy",
       "summary": "The transformation happened through decades of experimentation and investment.",
       "sections": [
@@ -207,6 +220,19 @@
       "countryId": "CHN",
       "slug": "population",
       "question": "Why is the east so much more densely populated?",
+      "paraphrases": {
+        "question": "Why is the east so much more densely populated?",
+        "phrasings": [
+          "Why do most people in China live in the east?",
+          "Why is western China so sparsely populated compared to the east?",
+          "Why are China's eastern plains so crowded?",
+          "why is everyone in china packed on the east side",
+          "china population distribution east west"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Geography",
       "summary": "Climate, terrain, and water help explain a striking imbalance.",
       "sections": [
@@ -274,6 +300,19 @@
       "countryId": "CHN",
       "slug": "reforms",
       "question": "What did opening up actually change?",
+      "paraphrases": {
+        "question": "What did opening up actually change?",
+        "phrasings": [
+          "What changed in China after the 1978 reforms?",
+          "What were the effects of China's reform and opening up?",
+          "How did special economic zones change China?",
+          "what did china's opening up really do",
+          "china 1978 reform impact"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Modern history",
       "summary": "A familiar date, 1978, marks the start of a process rather than a single switch.",
       "sections": [

@@ -121,6 +121,19 @@
       "countryId": "IDN",
       "slug": "islands",
       "question": "How do thousands of islands become one country?",
+      "paraphrases": {
+        "question": "How do thousands of islands become one country?",
+        "phrasings": [
+          "How did Indonesia unite so many islands into a single nation?",
+          "how is indonesia one country when it's thousands of islands",
+          "What holds the Indonesian archipelago together as one republic?",
+          "How did Indonesia become a nation after Dutch rule across all its islands?",
+          "indonesia archipelago national unity"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Geography & identity",
       "summary": "The water between the islands is part of the story, not an empty gap.",
       "sections": [
@@ -204,6 +217,19 @@
       "countryId": "IDN",
       "slug": "language",
       "question": "Why does one shared language matter so much?",
+      "paraphrases": {
+        "question": "Why does one shared language matter so much?",
+        "phrasings": [
+          "Why is the Indonesian language so important for Indonesia?",
+          "why does indonesia have one national language with so many local ones",
+          "What role did the 1928 Youth Pledge play in Indonesian becoming the shared language?",
+          "How does Indonesian connect people who speak different regional languages?",
+          "indonesian national language importance"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "People & language",
       "summary": "Indonesian creates a meeting place across many local languages.",
       "sections": [
@@ -279,6 +305,19 @@
       "countryId": "IDN",
       "slug": "nature",
       "question": "Why is its natural world so varied?",
+      "paraphrases": {
+        "question": "Why is its natural world so varied?",
+        "phrasings": [
+          "Why does Indonesia have such diverse wildlife and ecosystems?",
+          "why is indonesia's biodiversity so huge",
+          "How do the Indomalayan and Australasian regions shape Indonesia's nature?",
+          "Why does Indonesia have so many species found nowhere else?",
+          "indonesia biodiversity ecosystems"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Nature & geography",
       "summary": "An island chain can hold many different living worlds.",
       "sections": [

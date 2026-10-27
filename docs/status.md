@@ -13,6 +13,7 @@ Pages read only `content/en/` through server-only loaders, hand the shell serial
 URLs use readable slugs; prototype query URLs get permanent redirects from `vercel.json`.
 The content pipeline workstream (step 5) added generation, verification and review commands in `pipeline/`; no content has been generated with them yet.
 The question-first experience (step 6) made the home a question input with suggested questions from `content/en/home.json`, shared with Cmd K.
+Search also matches paraphrases of each question, written offline by `npm run content:paraphrase`, so a question in a reader's own words finds its story; every story has them.
 Step 7 has started: Playwright e2e tests cover the core loop on desktop and phone, and a visual polish pass covered every surface at 1440, 1024 and 390 pixels wide.
 What remains of step 7 is the pilot batch and the public deployment, both waiting on Ryan.
 Product direction and target architecture were settled on 2026-10-26; see [product.md](product.md) and [architecture.md](architecture.md).
@@ -30,7 +31,7 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
   2. Check the country list and reasons in `pipeline/batches/pilot.json`.
   3. Run `npm run content:generate -- --batch pilot --plan-only`, then read and edit `pipeline/batches/pilot.plan.json` (about $1).
   4. Run `npm run content:generate -- --batch pilot` (about $20 to $60; add `--mode batch` for roughly half the token cost and a slower run).
-  5. Run `npm run content:verify`, then review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back.
+  5. Run `npm run content:verify` and `npm run content:paraphrase -- --all` (a few cents per country), then review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back.
 
 - Deployment: the repository is ready for Vercel; only the project itself is missing.
   The site needs no environment variables: content is generated offline and committed, so the API key never goes to Vercel or CI.
@@ -46,6 +47,8 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
 
 - Some Singapore claims cite only the National Library Board article "Looking back at 700 years of Singapore" (`nlb-singapore-history`), which does not state them: the "Capital" and "Currency" quick facts, and "housing" in the wealth story's "Build what the world needs" step (the MAS economic history now covers the rest of that step).
   The other nine hand-converted countries have not been checked claim by claim against their sources; do that before they are treated like pipeline-reviewed content.
+- The search phrasings of the ten hand-converted countries were written by `npm run content:paraphrase` on 2026-10-26 and checked by the agent that ran it (every name and number appears in its story's text); Ryan has not read them yet.
+  They show in `npm run content:review -- show <country>`.
 
 ## Next steps
 
@@ -57,6 +60,6 @@ Fix these where the migration touches them, or explicitly drop them with the cod
 
 - In development, an unknown path such as `/atlantis` answers 500 instead of 404 unless the request asks for HTML, because `output: 'export'` forbids unknown params; the static build and Vercel answer 404 with the designed not-found page.
   The icons the browser requests on its own are real files (`app/favicon.ico`, `app/apple-icon.png`), so they are not affected.
-- Search is lexical: prefix matching, TF-IDF keywords and a short synonym list.
-  A question phrased with none of a story's words ("What makes Singapore wealthy?" works, "Why is Singapore loaded?" does not) is reported as unanswered; revisit with embeddings or pipeline-generated paraphrases once the question bank grows.
+- Search is lexical: prefix matching, TF-IDF keywords, a short synonym list, and pipeline-written paraphrases of each question, so "Why is Singapore loaded?" now finds the wealth story.
+  A question whose words appear in none of these is still reported as unanswered, even when a story answers it ("How did China get rich?" lists the manufacturing and reform stories as closest); revisit with embeddings if that becomes common as the bank grows.
 - Same-country next questions carry no `reason` in content, so the story shows only "Deeper in <country>" for them; the pipeline could write one.

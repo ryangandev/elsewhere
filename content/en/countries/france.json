@@ -128,6 +128,19 @@
       "countryId": "FRA",
       "slug": "paris",
       "question": "Why does Paris loom so large?",
+      "paraphrases": {
+        "question": "Why does Paris loom so large?",
+        "phrasings": [
+          "Why is Paris so dominant in France?",
+          "How did Paris become so important compared to the rest of France?",
+          "why does everything in france revolve around paris",
+          "paris influence history",
+          "Why is the French capital such a big deal?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Cities & influence",
       "summary": "Centuries of political power and cultural investment accumulated in one place.",
       "sections": [
@@ -210,6 +223,19 @@
       "countryId": "FRA",
       "slug": "europe",
       "question": "How did France help build a shared Europe?",
+      "paraphrases": {
+        "question": "How did France help build a shared Europe?",
+        "phrasings": [
+          "What role did France play in creating the European Union?",
+          "Was France a founding country of the EU?",
+          "how did france get europe to cooperate after the wars",
+          "france european integration",
+          "Why did France push for European unity after the wars?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Politics & history",
       "summary": "After devastating wars, cooperation became a practical political project.",
       "sections": [
@@ -295,6 +321,19 @@
       "countryId": "FRA",
       "slug": "overseas",
       "question": "Why is France on more than one continent?",
+      "paraphrases": {
+        "question": "Why is France on more than one continent?",
+        "phrasings": [
+          "Why does France have territory outside Europe?",
+          "How is French Guiana part of France?",
+          "why is reunion island french",
+          "france overseas territories",
+          "How did France end up with land on other continents?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Geography & history",
       "summary": "The familiar European outline is only part of the state.",
       "sections": [

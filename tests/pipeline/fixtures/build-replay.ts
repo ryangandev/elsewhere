@@ -287,6 +287,33 @@ function revisedAndes() {
 }
 
 /** Recorded turns by tag, in order. */
+/** Phrasings for the Singapore stories, for the paraphrase step. Placeholder wording. */
+const singaporePhrasings = {
+  wealth: [
+    'Why is Singapore so rich?',
+    'Why is Singapore loaded?',
+    'How did Singapore get so wealthy?',
+    'What made Singapore prosperous?',
+    'singapore wealth',
+  ],
+  shipping: [
+    'Why do so many ships stop in Singapore?',
+    "Why is Singapore's port so busy?",
+    'Why is Singapore a big shipping hub?',
+    'How did Singapore become a port city?',
+    'singapore port',
+  ],
+  identity: [
+    'Why are most Singaporeans ethnically Chinese?',
+    'Why does Singapore have so many Chinese people?',
+    'Where do Chinese Singaporeans come from?',
+    'Why is Singapore mostly Chinese?',
+    'singapore chinese population',
+  ],
+};
+
+const thinking = () => ({ type: 'thinking', thinking: '', signature: 'fixture' });
+
 export function replayFixtures(): Record<string, unknown[]> {
   ids = 0;
   return {
@@ -336,6 +363,45 @@ export function replayFixtures(): Record<string, unknown[]> {
         ],
         'tool_use',
         { input: 50000, output: 2500, searches: 1 },
+      ),
+    ],
+    // The first answer repeats a question and leaves a story out; the repair fixes both.
+    'paraphrase-SGP': [
+      message(
+        [
+          thinking(),
+          text(
+            JSON.stringify({
+              stories: [
+                {
+                  id: 'wealth',
+                  phrasings: [
+                    ...singaporePhrasings.wealth.slice(0, 4),
+                    'How did a tiny island become so wealthy?',
+                  ],
+                },
+                { id: 'identity', phrasings: singaporePhrasings.identity },
+              ],
+            }),
+          ),
+        ],
+        'end_turn',
+        { input: 900, output: 700 },
+      ),
+      message(
+        [
+          thinking(),
+          text(
+            JSON.stringify({
+              stories: Object.entries(singaporePhrasings).map(([id, phrasings]) => ({
+                id,
+                phrasings,
+              })),
+            }),
+          ),
+        ],
+        'end_turn',
+        { input: 1900, output: 800 },
       ),
     ],
   };

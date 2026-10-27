@@ -137,9 +137,11 @@ Country     id, slug, name, nativeName?, region, kicker, overview, quickFacts[],
             starterStoryIds[] (3 to 5), scene: SceneSpec, sources[], provenance
 Overview    summary, geography, sourceIds[], whyItMatters[{title, text, sourceIds[]}]
 QuickFact   label, value, asOf?, sourceIds[]
-Story       id, countryId, slug, question, category, summary,
+Story       id, countryId, slug, question, paraphrases?, category, summary,
             sections[{title, text, sourceIds[]}], takeaway, scene: SceneSpec,
             next: StoryRef[] (max 3), sources[], provenance
+Paraphrases question (the wording they restate), phrasings[] (3 to 8, 120 characters each),
+            generatedBy, generatedAt, promptVersion?
 StoryRef    countryId, storyId, reason? (required when the story is in another country)
 SceneSpec   camera?, focusCountryId, highlights[{countryId, role}], placeIds[], routes[], mapNote?
 Route       id, kind: sea | land | river | flow, via: placeId[] (2 or more)
@@ -173,6 +175,10 @@ Rules:
 - Each story leads to at least one next question in the same country and one elsewhere.
   A draft may lead to a planned story in a country that has no file yet (see [pending references](#content-pipeline)); reviewed stories may not.
 - Generated content records when each source was read (`accessedAt`); content converted by hand (`generatedBy: "human"`) may omit it.
+- `paraphrases` are other ways a reader might type a story's question, used only by search and never shown.
+  They restate the question and make no claims, so they cite no sources.
+  They record the question they were written for; once the story's question changes they fail validation as stale until `npm run content:paraphrase` replaces them.
+  No phrasing may repeat the question, another phrasing, or another question in the same file.
 - Only `reviewed` content is built into production.
   In production the loaders drop drafts and every starter question, next question and trail stop that points at one; development shows drafts.
 - Locale is a directory, so a Chinese edition is a parallel `content/zh/` tree with the same IDs.
@@ -199,11 +205,13 @@ Nobody writes content JSON by hand.
 pipeline/
   config.ts        paths, default model and effort, per-request limits
   content-tree.ts  reads and writes one locale's tree on disk (content/en, or a temporary copy in tests)
-  prompts/v<n>/    versioned prompt files; the version is recorded in provenance
+  prompts/v<n>/    versioned drafting prompt files; the version is recorded in provenance
+  prompts/paraphrase/v<n>/  versioned prompts of the paraphrase step, recorded in paraphrases
   batches/         batch definitions (pilot.json) and the question plans generated for them
   generate/        plan, draft and redraft (npm run content:generate)
   validate/        every content:check rule plus source URL reachability (npm run content:verify)
   review/          list, read, approve and send back drafts (npm run content:review)
+  paraphrase/      search phrasings for each story's question (npm run content:paraphrase)
 ```
 
 ```sh
@@ -211,6 +219,7 @@ npm run content:generate -- --batch pilot      # plan, then draft every country 
 npm run content:generate -- --country CHL      # draft one country (repeat --country for more)
 npm run content:generate -- --revisions        # redraft everything review sent back
 npm run content:verify                         # content rules and source URLs
+npm run content:paraphrase -- --all            # search phrasings where missing or stale
 npm run content:review -- list                 # then show, approve, revise
 ```
 
@@ -238,15 +247,26 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    An entry never excuses a 404, 410 or dead host, never covers a whole site, and lapses after 180 days, when the page is a warning again until someone reopens it.
    It tries HEAD then GET, retries twice with backoff, limits requests per host, and caches results in `pipeline/.cache/url-status.json` (ok for 30 days, others for a day).
    `--offline` skips the network and reports cached results.
-4. **Review.**
-   `content:review -- show <country> [story]` prints the questions, sections with their sources, the map scene by place name, next questions, and validation warnings; `--check-urls` checks the file's URLs first.
+4. **Paraphrase.**
+   `content:paraphrase -- <country>...` (or `--all`) writes [paraphrases](#content-model) for every story that has none or whose question changed since they were written; `--regenerate` replaces current ones too, and `--dry-run` lists the stories without calling the API.
+   Each country is one small structured-output request (Claude Opus 5.5 at `low` effort by default, `--model` and `--effort` to change), a few countries at a time.
+   The task gives each story's question, category and reviewed text, and lists the country's other questions so phrasings stay apart from them; the response schema allows only the IDs asked for.
+   The story's text grounds the phrasings: they may use the places, people and terms it names, since readers search by those, but add nothing it does not say and take no side it does not take.
+   The response must cover every story asked for, in English, and pass every content rule for paraphrases; problems go back to the model, up to two repairs, and a country that still fails is left as it was.
+   The step writes only `paraphrases` (with the model, date and `paraphrase/v<n>` prompt version), never a story's text, sources or provenance.
+   Paraphrase edits do not reset review: they restate a reviewed question and make no claims, so there is nothing new to source-check, and review shows them so a misleading phrasing can still be caught.
+   Drafts never carry paraphrases: drafting prompts show the reference example and a story under revision without them, so they stay byte-identical to what a drafting run in progress already sent, and a redrafted story loses its old ones, so run this step after generating.
+   Its prompts are versioned apart from the drafting prompts (`CURRENT_PARAPHRASE_PROMPT_VERSION`), so changing them never touches `CURRENT_PROMPT_VERSION` or a resumable drafting run.
+   Expect a few cents per country.
+5. **Review.**
+   `content:review -- show <country> [story]` prints the questions, sections with their sources, the map scene by place name, next questions, search phrasings, and validation warnings; `--check-urls` checks the file's URLs first.
    `approve <country> [story]` sets `status: 'reviewed'`, `reviewedBy` (`--by`, default the git user name) and `reviewedAt`.
    Without a story it approves the overview; `--all` approves the overview and every story.
    It refuses while the content has a validation issue, a pending reference, a revision request or a broken source URL.
    `revise <country> [story] --notes "..."` records `provenance.revision`, and `content:generate -- --revisions` redrafts it: a story keeps its ID and the rest of the file, with the notes and the old story in the prompt.
    A whole country can be sent back only while nothing in it is reviewed.
    Changes go through notes and regeneration rather than JSON edits, so every text stays sourced.
-5. **Commit.**
+6. **Commit.**
    Reviewed JSON is committed like code; git history is the content history.
    A new country file needs nothing else: the loaders discover it.
 
@@ -471,9 +491,10 @@ Client indexes are static route handlers (`dynamic = 'force-static'`), written t
 | Index | Built by | Used by | Size (raw / gzip) |
 | --- | --- | --- | --- |
 | `/atlas/labels.json` | `buildCountryLabels` | globe labels; the globe mounts once it loads | 29 KB / 9 KB |
-| `/atlas/index.json` | `buildAtlasIndex` | question input and search, library, recent history, trail drawer, resume | 45 KB / 11 KB |
+| `/atlas/index.json` | `buildAtlasIndex` | question input and search, library, recent history, trail drawer, resume | 48 KB / 12 KB |
 
-The atlas index holds every country, every question with its path, category, summary and build-time keywords (TF-IDF over the story text), every trail with its stop paths, and the home screen's suggested questions (offered when a query is not answered).
+The atlas index holds every country, every question with its path, category, summary, build-time keywords (TF-IDF over the story text) and paraphrase words (the words of its paraphrases that the question lacks, each once, without stop words), every trail with its stop paths, and the home screen's suggested questions (offered when a query is not answered).
+Paraphrase words cost about 125 bytes per question (40 gzipped), less than half of shipping the phrasings whole, because search matches words, not sentences.
 It grows with the question bank, so it can be split by country if it gets too large to load whole.
 
 ## Discovery and navigation
@@ -488,7 +509,9 @@ The question input:
   Its shortcut label reads ⌘ K on Apple platforms and Ctrl K elsewhere; pages are prerendered without knowing the platform, so `useApplePlatform` decides after hydration and both labels share one cell, keeping the button's width stable.
 - Results appear as the reader types, from the atlas index, which loads when the input first gets focus.
   Arrow keys move through them, and Enter opens the highlighted result, which starts at the top result for each query.
-- `src/domain/search.ts` scores countries (names and native names), map identities, and questions (text, category, summary, keywords).
+- `src/domain/search.ts` scores countries (names and native names), map identities, and questions (text, paraphrase words, category, summary, keywords).
+  A matched term scores 3 anywhere in a question's words and 1 more when it is in the question or its paraphrase words, so a reader's own wording counts like the question's.
+  Paraphrases let a question phrased with none of a story's words still find it ("Why is Singapore loaded?" finds the wealth story), while the coverage rule below keeps near misses unanswered.
   Words match by prefix, so a partly typed word already finds results; a small synonym list matches whole words only, so "Why is Singapore so rich?" finds the wealth question without "port" matching "Portuguese".
 - `src/domain/ask.ts` turns those results into what the input shows.
   A query that reads like a question (a question mark or an opening question word) lists questions first; a place name, or the start of one, lists countries first.
@@ -538,7 +561,7 @@ Adding Chinese later means adding a catalog and a `content/zh/` tree, with no co
 
 - Unit tests (Vitest) for pure logic: schema rules, navigation, search, cartography, picking.
 - Content validation runs in CI on every change to `content/`.
-- Pipeline tests in `tests/pipeline/` run plan, draft, verify, review and redraft end to end on replayed model responses.
+- Pipeline tests in `tests/pipeline/` run plan, draft, verify, review, redraft and the paraphrase step on replayed model responses.
 - Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, robots.txt, the sitemap and canonical links, back and forward, trails, saving a story to your atlas, share, and the About sheet.
   A phone project runs the core loop (home, ask, story, follow), the reading panel collapsing to a strip and giving the globe its room, and share through a stubbed system share sheet at 390 by 844 with touch.
   Every page loads with the production response headers from `vercel.json`, and a Content Security Policy violation fails the test, like an uncaught error does.

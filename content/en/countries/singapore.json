@@ -132,6 +132,19 @@
       "countryId": "SGP",
       "slug": "wealth",
       "question": "How did a tiny island become so wealthy?",
+      "paraphrases": {
+        "question": "How did a tiny island become so wealthy?",
+        "phrasings": [
+          "Why is Singapore so rich?",
+          "How did Singapore get so loaded when it's such a small island?",
+          "What made Singapore one of the wealthiest places despite its size?",
+          "How did Singapore grow its economy after independence?",
+          "singapore wealth"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Economy",
       "summary": "Location opened the door. Decades of deliberate choices made it valuable.",
       "sections": [
@@ -259,6 +272,19 @@
       "countryId": "SGP",
       "slug": "shipping",
       "question": "Why is Singapore a shipping crossroads?",
+      "paraphrases": {
+        "question": "Why is Singapore a shipping crossroads?",
+        "phrasings": [
+          "Why do so many ships pass through Singapore?",
+          "How did Singapore become such a huge port?",
+          "Why is Singapore's location near the Strait of Malacca so important for trade?",
+          "why's singapore such a big transshipment hub?",
+          "singapore port shipping"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Geography",
       "summary": "The island sits beside one of the shortest sea routes between East Asia and the Indian Ocean.",
       "sections": [
@@ -347,6 +373,19 @@
       "countryId": "SGP",
       "slug": "identity",
       "question": "Why do so many Singaporeans have Chinese roots?",
+      "paraphrases": {
+        "question": "Why do so many Singaporeans have Chinese roots?",
+        "phrasings": [
+          "Why are most people in Singapore ethnically Chinese?",
+          "How did Singapore end up with a Chinese majority?",
+          "why are there so many chinese people in singapore?",
+          "Where did Singapore's Chinese population come from?",
+          "singapore chinese majority"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "People & identity",
       "summary": "Modern Singapore grew through migration, but its identity is distinctly its own.",
       "sections": [

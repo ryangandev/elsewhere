@@ -21,6 +21,7 @@
     "content:generate": "node --import tsx pipeline/generate/cli.ts",
     "content:verify": "node --import tsx pipeline/validate/cli.ts",
     "content:review": "node --import tsx pipeline/review/cli.ts",
+    "content:paraphrase": "node --import tsx pipeline/paraphrase/cli.ts",
     "test:e2e": "playwright test",
     "redirects:build": "NODE_ENV=production node --conditions=react-server --import tsx scripts/build-redirects.ts"
   },

@@ -103,6 +103,43 @@ export function findPendingReferences(files: CountryFile[]): PendingReference[] 
   );
 }
 
+/** A phrasing reduced to its words, so "Why is X rich?" and "why is x rich" compare equal. */
+export function normalizePhrasing(text: string): string {
+  return (
+    text
+      .toLowerCase()
+      .normalize('NFKC')
+      .match(/[\p{L}\p{N}]+/gu) ?? []
+  ).join(' ');
+}
+
+/**
+ * Problems with a story's phrasings that make them useless or misleading for search: a repeat
+ * of the question or of another phrasing, or another story's question in the same country.
+ * Shared by content validation and the paraphrase step, which checks a response before writing it.
+ */
+export function paraphraseProblems(story: Story, stories: Story[]): string[] {
+  const phrasings = story.paraphrases?.phrasings ?? [];
+  const problems: string[] = [];
+  const question = normalizePhrasing(story.question);
+  const others = new Map(
+    stories
+      .filter((other) => other.id !== story.id)
+      .map((other) => [normalizePhrasing(other.question), other.id]),
+  );
+  const seen = new Set<string>();
+  for (const phrasing of phrasings) {
+    const normalized = normalizePhrasing(phrasing);
+    if (normalized === question) problems.push(`"${phrasing}" repeats the question`);
+    else if (seen.has(normalized)) problems.push(`"${phrasing}" is listed twice`);
+    else if (others.has(normalized)) {
+      problems.push(`"${phrasing}" is the question of story "${others.get(normalized)}"`);
+    }
+    seen.add(normalized);
+  }
+  return problems;
+}
+
 export function validateContent(input: ContentInput): ContentIssue[] {
   const issues: ContentIssue[] = [];
   const report = (file: string, path: string, message: string) =>
@@ -238,6 +275,26 @@ export function validateContent(input: ContentInput): ContentIssue[] {
     });
   }
 
+  /**
+   * Paraphrases restate their own story's question: they were written for its current wording,
+   * and none repeats the question, another phrasing, or another question in the same file.
+   * They make no claims, so no source rules apply.
+   */
+  function checkParaphrases(file: string, path: string, story: Story, stories: Story[]) {
+    const paraphrases = story.paraphrases;
+    if (!paraphrases) return;
+    if (paraphrases.question !== story.question) {
+      report(
+        file,
+        `${path}.paraphrases.question`,
+        `Paraphrases were written for "${paraphrases.question}", not the current question; run npm run content:paraphrase -- ${story.countryId}`,
+      );
+    }
+    for (const problem of paraphraseProblems(story, stories)) {
+      report(file, `${path}.paraphrases.phrasings`, problem);
+    }
+  }
+
   for (const { file, data } of files) {
     const { country, stories } = data;
     const mapCountry = mapCountries.get(country.id);
@@ -306,6 +363,7 @@ export function validateContent(input: ContentInput): ContentIssue[] {
       );
       checkProvenance(file, path, story, story.sources);
       checkScene(file, `${path}.scene`, story.scene);
+      checkParaphrases(file, path, story, stories);
 
       story.next.forEach((ref, index) => {
         const refPath = `${path}.next[${index}]`;

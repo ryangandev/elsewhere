@@ -124,6 +124,19 @@
       "countryId": "USA",
       "slug": "dollar",
       "question": "Why does the rest of the world use dollars?",
+      "paraphrases": {
+        "question": "Why does the rest of the world use dollars?",
+        "phrasings": [
+          "Why is the US dollar the world's main reserve currency?",
+          "how come every country trades in US dollars?",
+          "What makes the American dollar so dominant in global trade?",
+          "Why do other countries borrow and invoice in dollars?",
+          "us dollar global dominance"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Money & influence",
       "summary": "A currency becomes international when many people find it useful at the same time.",
       "sections": [
@@ -215,6 +228,19 @@
       "countryId": "USA",
       "slug": "geography",
       "question": "How much did geography help?",
+      "paraphrases": {
+        "question": "How much did geography help?",
+        "phrasings": [
+          "Did geography make the United States powerful?",
+          "How much did rivers, farmland and two oceans help America grow?",
+          "was the US just lucky with its map?",
+          "What role did geography play in the rise of the United States?",
+          "us geography advantages"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Geography",
       "summary": "The map created opportunities. People and institutions determined how they were used.",
       "sections": [
@@ -293,6 +319,19 @@
       "countryId": "USA",
       "slug": "immigration",
       "question": "What does “a nation of immigrants” leave out?",
+      "paraphrases": {
+        "question": "What does “a nation of immigrants” leave out?",
+        "phrasings": [
+          "Is the United States really a nation of immigrants?",
+          "What's missing from the idea that America is a nation of immigrants?",
+          "who doesn't fit the US immigrant origin story?",
+          "How do Indigenous peoples and enslaved Africans fit the US immigrant story?",
+          "america nation of immigrants idea"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "People & identity",
       "summary": "Migration is central to the country, but it is not everyone’s origin story.",
       "sections": [

@@ -131,6 +131,19 @@
       "countryId": "IND",
       "slug": "languages",
       "question": "How can one country contain so many languages?",
+      "paraphrases": {
+        "question": "How can one country contain so many languages?",
+        "phrasings": [
+          "Why does India have so many languages?",
+          "how many languages are spoken in india anyway",
+          "Does India have a national language, or is it Hindi and English?",
+          "india language diversity",
+          "What are India's 22 scheduled languages and why so many?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "People & identity",
       "summary": "India’s diversity is built into its everyday life and political structure.",
       "sections": [
@@ -214,6 +227,19 @@
       "countryId": "IND",
       "slug": "monsoon",
       "question": "Why is the monsoon more than weather?",
+      "paraphrases": {
+        "question": "Why is the monsoon more than weather?",
+        "phrasings": [
+          "Why does the monsoon matter so much in India?",
+          "how does the monsoon affect crops and food prices in india",
+          "Why is India's summer monsoon rain such a big national deal?",
+          "india monsoon impact on economy",
+          "What happens in India when the monsoon comes late or is weak?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Geography & everyday life",
       "summary": "A seasonal shift in winds helps organize the rhythm of a country.",
       "sections": [
@@ -291,6 +317,19 @@
       "countryId": "IND",
       "slug": "technology",
       "question": "How did India become a global technology hub?",
+      "paraphrases": {
+        "question": "How did India become a global technology hub?",
+        "phrasings": [
+          "Why is India so big in software and IT?",
+          "how did india get so good at tech outsourcing",
+          "What made India a major exporter of software and business services?",
+          "india IT industry growth",
+          "Why do so many global tech companies rely on Indian workers?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
       "category": "Work & economy",
       "summary": "The familiar software story rests on skills, connections, and concentrated opportunity.",
       "sections": [

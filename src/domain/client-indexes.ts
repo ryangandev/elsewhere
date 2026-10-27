@@ -12,6 +12,7 @@ import {
 import type { AtlasIndex, CountryLabel, IndexCountry, IndexStory } from './atlas-index';
 import { countryFlag, countryName, trailView } from './page-views';
 import { destinationPath } from './paths';
+import { tokenize } from './search';
 
 /** Keywords kept per question: enough to find it, small enough for a large question bank. */
 const KEYWORDS_PER_STORY = 16;
@@ -80,6 +81,7 @@ export function buildAtlasIndex(): AtlasIndex {
     category: story.category,
     summary: story.summary,
     keywords: keywords[index].join(' '),
+    phrasings: phrasingWords(story),
   }));
 
   return {
@@ -91,6 +93,24 @@ export function buildAtlasIndex(): AtlasIndex {
       storyId,
     })),
   };
+}
+
+/**
+ * The words of a story's paraphrases that its question lacks, each once, in first-appearance
+ * order. Search matches words, not sentences, so this keeps what search needs in a fraction of
+ * the bytes. Stale paraphrases (written for an earlier question) fail validation, so they never
+ * reach a build.
+ */
+export function phrasingWords(story: Pick<Story, 'question' | 'paraphrases'>): string {
+  const question = new Set(tokenize(story.question));
+  const words = new Set<string>();
+  for (const phrasing of story.paraphrases?.phrasings ?? []) {
+    for (const word of tokenize(phrasing)) {
+      // Single letters are left from possessives ("Singapore's") and match nothing alone.
+      if (word.length > 1 && !question.has(word)) words.add(word);
+    }
+  }
+  return [...words].join(' ');
 }
 
 /** The answer text a question's keywords are drawn from. */
