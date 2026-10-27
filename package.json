@@ -20,6 +20,7 @@
     "content:check": "node --import tsx scripts/validate-content.ts",
     "content:generate": "node --import tsx pipeline/generate/cli.ts",
     "content:verify": "node --import tsx pipeline/validate/cli.ts",
+    "content:claims": "node --import tsx pipeline/claims/cli.ts",
     "content:review": "node --import tsx pipeline/review/cli.ts",
     "content:paraphrase": "node --import tsx pipeline/paraphrase/cli.ts",
     "test:e2e": "playwright test",

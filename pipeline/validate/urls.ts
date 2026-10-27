@@ -39,7 +39,7 @@ const CACHE_TTL_MS: Record<UrlState, number> = {
   unverified: DAY_MS,
 };
 
-const USER_AGENT =
+export const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 ElsewhereContentCheck/1.0';
 
 export type UrlCheckOptions = {

@@ -97,7 +97,7 @@ function setupFor(job: Job, context: RunContext): SessionSetup {
 }
 
 /** Errors that would fail every job the same way: stop the run instead of trying the rest. */
-function isFatal(error: unknown): boolean {
+export function isFatal(error: unknown): boolean {
   return (
     error instanceof MissingApiKeyError ||
     error instanceof Anthropic.AuthenticationError ||
@@ -107,7 +107,8 @@ function isFatal(error: unknown): boolean {
   );
 }
 
-const describeError = (error: unknown) => (error instanceof Error ? error.message : String(error));
+export const describeError = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
 
 /** Write a finished session's draft, or record why it failed. */
 function finish(session: DraftSession, job: Job, options: GenerateOptions): JobResult {
@@ -158,7 +159,7 @@ async function drive(
         tag: session.tag,
         request: session.request(),
       });
-      session.handle(message, false);
+      await session.handle(message, false);
     } catch (error) {
       if (isFatal(error)) throw error;
       session.fail(describeError(error));
@@ -282,7 +283,7 @@ async function runBatch(jobs: Job[], options: GenerateOptions): Promise<JobResul
     for (const { session } of running) {
       const outcome = outcomes.get(session.tag);
       if (!outcome) session.fail('missing from batch results');
-      else if (outcome.type === 'succeeded') session.handle(outcome.message, true);
+      else if (outcome.type === 'succeeded') await session.handle(outcome.message, true);
       else session.fail(`batch request ${outcome.type}: ${outcome.error}`);
     }
     persist();

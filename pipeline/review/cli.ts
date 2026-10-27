@@ -1,7 +1,7 @@
 // npm run content:review -- <command>
 //
 //   list [--all]                                 drafts waiting for review (--all: every file)
-//   show <country> [story] [--check-urls]        readable summary with validation warnings
+//   show <country> [story] [--check-urls]        readable summary with claim checks and warnings
 //   approve <country> [story] [--all] [--by me]  mark the overview, a story, or everything reviewed
 //   revise <country> [story] --notes "..."       send a draft back for regeneration
 import { parseArgs } from 'node:util';
@@ -21,16 +21,20 @@ import { countrySummary, listing } from './summary';
 const USAGE = `Usage: npm run content:review -- <command> [options]
 
   list [--all]                         countries with draft content (--all: every country file)
-  show <country> [story]               summary: questions, sections with sources, map scene,
-                                       next questions and validation warnings
+  show <country> [story]               summary: questions, sections with sources and claim check
+                                       verdicts, map scene, next questions and validation warnings
        --check-urls                    check this file's source URLs first (network)
-  approve <country> [story]            mark the overview, or one story, reviewed
+  approve <country> [story]            mark the overview, or one story, reviewed; needs a current
+                                       claim check (npm run content:claims) with nothing flagged
        --all                           with no story: the overview and every story
+       --accept-claims "<why>"         approve despite flagged claims after checking the sources
+                                       yourself; the reason is recorded on each flagged result
        --by <name>                     reviewer (default: git user.name)
   revise <country> [story]             send a draft story, or the whole draft country, back
        --notes "<what to change>"      reviewer notes the regeneration must address
        --by <name>                     reviewer (default: git user.name)
   --content-dir <dir>                  content tree (default ${DEFAULT_CONTENT_DIR})
+  --claims-dir <dir>                   claim check results (default: claims/ in the content directory)
 
 <country> is a country ID (CHL) or slug (chile). After revise, run
 npm run content:generate -- --revisions to redraft everything sent back.`;
@@ -43,12 +47,15 @@ async function main(): Promise<number> {
       'check-urls': { type: 'boolean', default: false },
       by: { type: 'string' },
       notes: { type: 'string' },
+      'accept-claims': { type: 'string' },
       'content-dir': { type: 'string', default: DEFAULT_CONTENT_DIR },
+      'claims-dir': { type: 'string' },
       help: { type: 'boolean', default: false },
     },
   });
   const [command, country, storyId] = positionals;
   const contentDir = values['content-dir'];
+  const claimsDir = values['claims-dir'];
   if (values.help || !command) {
     console.log(USAGE);
     return values.help ? 0 : 1;
@@ -92,7 +99,7 @@ async function main(): Promise<number> {
       ];
       await checkUrls(urls);
     }
-    const report = fileReport(contentDir, file);
+    const report = fileReport(contentDir, file, undefined, claimsDir);
     console.log(
       countrySummary(file, { files: parsedCountryFiles(contentDir), ...report }, storyId),
     );
@@ -100,6 +107,9 @@ async function main(): Promise<number> {
   }
 
   if (command === 'approve') {
+    if (values['accept-claims'] !== undefined && !values['accept-claims'].trim()) {
+      throw new ReviewError('Say why the flagged claims are fine with --accept-claims "...".');
+    }
     const result = approve({
       contentDir,
       country,
@@ -107,8 +117,15 @@ async function main(): Promise<number> {
       all: values.all,
       by: reviewerName(values.by),
       date: today(),
+      acceptClaims: values['accept-claims'],
+      claimsDir,
     });
-    console.log(`Approved ${result.approved.join(', ') || 'nothing'} in ${result.file}.`);
+    const accepted = result.acceptedClaims
+      ? ` Accepted ${result.acceptedClaims} flagged claim check result${result.acceptedClaims === 1 ? '' : 's'}.`
+      : '';
+    console.log(
+      `Approved ${result.approved.join(', ') || 'nothing'} in ${result.file}.${accepted}`,
+    );
     return 0;
   }
 

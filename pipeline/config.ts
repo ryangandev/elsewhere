@@ -50,6 +50,34 @@ export const DEFAULT_LIMITS: GenerationLimits = {
   maxTokens: 128000,
 };
 
+/** Claim check results, one file per country (see pipeline/claims/store.ts). */
+/** Logs of claim checks that failed; results themselves live next to the content. */
+export const CLAIMS_FAILED_DIR = 'pipeline/.cache/claims-failed';
+
+/** Reading a page closely against a text is intelligence-sensitive, like drafting. */
+export const DEFAULT_CLAIMS_EFFORT: Effort = 'high';
+
+/** Claim check sessions run at once in synchronous mode; each is one overview or story. */
+export const CLAIMS_CONCURRENCY = 4;
+
+/** Limits per claim check session: it only fetches the cited pages and submits verdicts. */
+export const CLAIM_LIMITS: GenerationLimits = {
+  webSearchesPerRequest: 0,
+  // Enough to read every cited page and retry a few that fail.
+  webFetchesPerRequest: 16,
+  repairAttempts: 2,
+  continuations: 3,
+  nudges: 2,
+  requests: 10,
+  maxTokens: 128000,
+};
+
+/**
+ * Most of a long page or PDF, so a claim far from the top can still be found. A document cut
+ * off at the limit is reported as truncated, and a claim it may have covered is inconclusive.
+ */
+export const CLAIM_FETCH_MAX_CONTENT_TOKENS = 60000;
+
 export type KnownBlockedUrl = {
   /** The day a person opened the page in a browser and saw it support the content. */
   openedOn: string;

@@ -1,8 +1,20 @@
 // Review decisions recorded in the content files themselves: approve a country overview or a story,
 // or send a draft back for regeneration with the reviewer's notes. Every change is validated
 // against the whole tree before it is written, so review can never leave the tree invalid.
+// Approval also needs a current claim check (pipeline/claims) for every cited text it covers.
 import { execFileSync } from 'node:child_process';
 import type { CountryFile, Provenance } from '../../src/content/schema';
+import {
+  acceptFlagged,
+  defaultClaimsDir,
+  claimProblems,
+  isFlagged,
+  readClaims,
+  unitStatuses,
+  type ClaimsFile,
+  type UnitStatus,
+} from '../claims/store';
+import { scopeLabel, scopeUnits, type ClaimScope } from '../claims/units';
 import {
   findPendingReferences,
   validateContent,
@@ -56,6 +68,8 @@ export type FileReport = {
   issues: ContentIssue[];
   pending: PendingReference[];
   urlStatuses: Map<string, UrlStatus>;
+  /** Saved claim check results for the country. */
+  claims: ClaimsFile;
 };
 
 const citedUrls = (file: CountryFile) => [
@@ -63,11 +77,15 @@ const citedUrls = (file: CountryFile) => [
   ...file.stories.flatMap((story) => story.sources.map((source) => source.url)),
 ];
 
-/** Validation issues, pending references and cached URL results for one file, as it would be written. */
+/**
+ * Validation issues, pending references, cached URL results and claim check results for one
+ * file, as it would be written.
+ */
 export function fileReport(
   contentDir: string,
   file: CountryFile,
   urlOptions?: UrlCheckOptions,
+  claimsDir: string = defaultClaimsDir(contentDir),
 ): FileReport {
   const path = countryFilePath(contentDir, file.country.slug);
   const issues = validateContent({
@@ -80,7 +98,12 @@ export function fileReport(
   const pending = findPendingReferences([...others, file]).filter(
     (ref) => ref.from.countryId === file.country.id,
   );
-  return { issues, pending, urlStatuses: cachedUrlStatuses(citedUrls(file), urlOptions) };
+  return {
+    issues,
+    pending,
+    urlStatuses: cachedUrlStatuses(citedUrls(file), urlOptions),
+    claims: readClaims(claimsDir, file.country),
+  };
 }
 
 const reviewed = (provenance: Provenance, by: string, date: string): Provenance => ({
@@ -101,13 +124,25 @@ export type ApproveOptions = {
   by: string;
   date: string;
   urlOptions?: UrlCheckOptions;
+  /** Claim check results (default pipeline/.cache/claims). */
+  claimsDir?: string;
+  /**
+   * Approve despite flagged claim check verdicts, after the reviewer checked the sources
+   * themselves; the reason is recorded on each flagged result. Text never checked still blocks.
+   */
+  acceptClaims?: string;
 };
 
 /**
  * Mark content reviewed. Refuses while the content has validation issues, pending references,
- * a revision request, or a source URL last seen broken: those need fixing before a human signs off.
+ * a revision request, a source URL last seen broken, or cited text without a current claim check
+ * or with a flagged one that was not accepted: those need attention before a human signs off.
  */
-export function approve(options: ApproveOptions): { file: string; approved: string[] } {
+export function approve(options: ApproveOptions): {
+  file: string;
+  approved: string[];
+  acceptedClaims: number;
+} {
   const current = loadCountry(options.contentDir, options.country);
   const approveCountry = !options.storyId;
   const storyIds = options.storyId
@@ -153,7 +188,17 @@ export function approve(options: ApproveOptions): { file: string; approved: stri
     ),
   };
 
-  const report = fileReport(options.contentDir, next, options.urlOptions);
+  const claimsDir = options.claimsDir ?? defaultClaimsDir(options.contentDir);
+  const report = fileReport(options.contentDir, next, options.urlOptions, claimsDir);
+  const scopes: ClaimScope[] = [
+    ...(approveCountry ? [{ kind: 'overview' as const }] : []),
+    ...storyIds.map((storyId) => ({ kind: 'story' as const, storyId })),
+  ];
+  const acceptReason = options.acceptClaims?.trim();
+  const claimStatuses = scopes.map((scope) => ({
+    scope,
+    statuses: unitStatuses(scopeUnits(next, scope), report.claims),
+  }));
   const touched = (path: string) =>
     (approveCountry && (path === '' || path.startsWith('country'))) ||
     storyIds.some((id) =>
@@ -172,17 +217,49 @@ export function approve(options: ApproveOptions): { file: string; approved: stri
     ...approvedUrls(next, approveCountry, storyIds)
       .filter((url) => report.urlStatuses.get(url)?.state === 'broken')
       .map((url) => `broken source URL ${url}`),
+    ...claimStatuses.flatMap(({ scope, statuses }) =>
+      claimProblems(
+        acceptReason ? statuses.filter(({ check }) => !check) : statuses,
+        scopeLabel(current.country.id, scope),
+      ),
+    ),
   ];
   if (problems.length) {
+    const unchecked = claimStatuses.some(({ statuses }) => statuses.some(({ check }) => !check));
+    const flagged = claimStatuses.some(({ statuses }) => statuses.some(isUnacceptedFlag));
+    const hints = [
+      ...(unchecked
+        ? [
+            `Check the claims first: npm run content:claims -- ${current.country.id}${options.storyId ? ` ${options.storyId}` : ''}`,
+          ]
+        : []),
+      ...(flagged && !acceptReason
+        ? [
+            'Send flagged text back with revise, or open the sources yourself and approve with --accept-claims "<why>".',
+          ]
+        : []),
+    ];
     throw new ReviewError(
-      `Cannot approve yet:\n${problems.map((problem) => `  - ${problem}`).join('\n')}`,
+      ['Cannot approve yet:', ...problems.map((problem) => `  - ${problem}`), ...hints].join('\n'),
     );
   }
+  const acceptedClaims = acceptReason
+    ? acceptFlagged(
+        claimsDir,
+        next,
+        claimStatuses.flatMap(({ statuses }) => statuses),
+        { by: options.by, on: options.date, reason: acceptReason },
+      )
+    : 0;
   return {
     file: writeCountryFile(options.contentDir, next),
     approved: entries.map((entry) => entry.label),
+    acceptedClaims,
   };
 }
+
+const isUnacceptedFlag = ({ check }: UnitStatus) =>
+  check !== undefined && isFlagged(check) && !check.accepted;
 
 const approvedUrls = (file: CountryFile, country: boolean, storyIds: string[]) => [
   ...(country ? file.country.sources.map((source) => source.url) : []),

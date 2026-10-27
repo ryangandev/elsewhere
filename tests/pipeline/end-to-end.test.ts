@@ -1,14 +1,19 @@
-// The whole pipeline on recorded responses: plan a batch, draft a country, verify it, review it,
-// send a story back, redraft it through the batch runner, and review again. No network, no key.
+// The whole pipeline on recorded responses: plan a batch, draft a country, verify it, check its
+// claims, review it, send a story back, redraft it through the batch runner, and review again.
+// No network, no key.
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages';
 import { describe, expect, it } from 'vitest';
 import { findPendingReferences } from '../../src/content/validate';
+import { checkClaims, claimsJobs } from '../../pipeline/claims/run';
+import { claimsFilePath, defaultClaimsDir, readClaims } from '../../pipeline/claims/store';
+import { CLAIM_LIMITS } from '../../pipeline/config';
 import { parsedCountryFiles, readCountryFile } from '../../pipeline/content-tree';
 import { ReplayClient } from '../../pipeline/generate/model-client';
 import { BatchFile, generatePlan, planMap } from '../../pipeline/generate/plan';
 import { generate } from '../../pipeline/generate/run';
-import { CURRENT_PROMPT_VERSION, loadPrompts } from '../../pipeline/prompts';
+import { CURRENT_PROMPT_VERSION, loadClaimsPrompts, loadPrompts } from '../../pipeline/prompts';
 import { approve, fileReport, requestRevision } from '../../pipeline/review/actions';
 import { countrySummary } from '../../pipeline/review/summary';
 import { verifyContent } from '../../pipeline/validate/verify';
@@ -30,6 +35,8 @@ describe('content pipeline, end to end on replayed responses', () => {
       const contentDir = tempContentTree();
       const cacheDir = tempDir();
       const urlOptions = { cacheFile: join(cacheDir, 'url-status.json'), fetch: okFetch };
+      // Claim results are kept with the content, in the tree's claims/ directory.
+      const claimsDir = defaultClaimsDir(contentDir);
       const client = new ReplayClient(REPLAY_DIR);
       const log: string[] = [];
 
@@ -117,9 +124,69 @@ describe('content pipeline, end to end on replayed responses', () => {
       expect(verified.pending).toEqual([]);
       expect(verified.urls.map(({ status }) => status?.state)).toEqual(['ok', 'ok', 'ok', 'ok']);
 
-      // 4. Review: approve the overview and one story, send another back.
+      // 4. Check the claims of the overview and one story against their sources.
       const review = { contentDir, by: 'Tester', date: RUN_DATE, urlOptions };
-      expect(approve({ ...review, country: 'CHL' }).approved).toEqual(['CHL']);
+      expect(() => approve({ ...review, country: 'CHL' })).toThrow(
+        /CHL Quick fact "Capital": not claim-checked[\s\S]*npm run content:claims -- CHL/,
+      );
+      const claimed = await checkClaims({
+        client,
+        context: {
+          prompts: loadClaimsPrompts(),
+          model: 'claude-opus-5-5',
+          effort: 'high',
+          limits: CLAIM_LIMITS,
+          cacheTtl: '5m',
+          date: RUN_DATE,
+          fetchPage: async () => 'Placeholder text about the geography page.',
+        },
+        jobs: claimsJobs(chile, {}, claimsDir).map((job) => ({
+          ...job,
+          scopes: job.scopes.filter(
+            (scope) => scope.kind === 'overview' || scope.storyId === 'length',
+          ),
+        })),
+        mode: 'sync',
+        claimsDir,
+        log: (line) => log.push(line),
+      });
+      expect(claimed.results.map((result) => result.outcome)).toEqual(['checked']);
+      expect(existsSync(claimsFilePath(join(contentDir, 'claims'), 'chile'))).toBe(true);
+      // Content discovery and validation ignore the claims directory.
+      expect(parsedCountryFiles(contentDir).has('CHL')).toBe(true);
+      const overviewSummary = countrySummary(chile, {
+        files: parsedCountryFiles(contentDir),
+        ...fileReport(contentDir, chile, urlOptions),
+      });
+      expect(overviewSummary).toContain(
+        '  - Capital: Fixture value [fixture-overview]\n      claim check: NOT SUPPORTED',
+      );
+      expect(overviewSummary).toContain(
+        '## Claim check\n  5 supported, 0 partly supported, 1 not supported, 1 source unreachable, 6 not checked\n  - CHL Why it matters "Fixture point two": source unreachable',
+      );
+
+      // 5. Review: flagged claims block the overview until the reviewer accepts them; approve a
+      // story whose claims are all supported, and send another back.
+      expect(() => approve({ ...review, country: 'CHL' })).toThrow(
+        /CHL Quick fact "Capital": not supported: "Capital: Fixture value"[\s\S]*--accept-claims/,
+      );
+      expect(
+        approve({ ...review, country: 'CHL', acceptClaims: 'Checked the fixture pages.' }),
+      ).toMatchObject({ approved: ['CHL'], acceptedClaims: 2 });
+      expect(
+        Object.values(readClaims(claimsDir, chile.country).checks)
+          .filter((check) => check.accepted)
+          .map((check) => [check.label, check.accepted]),
+      ).toEqual([
+        [
+          'Why it matters "Fixture point two"',
+          { by: 'Tester', on: RUN_DATE, reason: 'Checked the fixture pages.' },
+        ],
+        [
+          'Quick fact "Capital"',
+          { by: 'Tester', on: RUN_DATE, reason: 'Checked the fixture pages.' },
+        ],
+      ]);
       expect(approve({ ...review, country: 'chile', storyId: 'length' }).approved).toEqual([
         'CHL/length',
       ]);
@@ -136,7 +203,7 @@ describe('content pipeline, end to end on replayed responses', () => {
         requestedAt: RUN_DATE,
       });
 
-      // 5. Redraft the story through the batch runner; it now links to a planned country.
+      // 6. Redraft the story through the batch runner; it now links to a planned country.
       const redrafted = await generate({
         client,
         context: runContext(contentDir, planMap(plan)),
@@ -162,7 +229,7 @@ describe('content pipeline, end to end on replayed responses', () => {
         'reviewed',
       );
 
-      // 6. The link to Argentina is pending: allowed in a draft, blocks approval, shown in review.
+      // 7. The link to Argentina is pending: allowed in a draft, blocks approval, shown in review.
       const pending = findPendingReferences([...parsedCountryFiles(contentDir).values()]);
       expect(pending).toEqual([
         {
@@ -176,7 +243,10 @@ describe('content pipeline, end to end on replayed responses', () => {
       );
       const summary = countrySummary(
         revised,
-        { files: parsedCountryFiles(contentDir), ...fileReport(contentDir, revised, urlOptions) },
+        {
+          files: parsedCountryFiles(contentDir),
+          ...fileReport(contentDir, revised, urlOptions),
+        },
         'andes',
       );
       expect(summary).toContain('-> ARG/patagonia (pending: country not drafted yet)');
@@ -185,7 +255,7 @@ describe('content pipeline, end to end on replayed responses', () => {
       expect(offline.issues).toEqual([]);
       expect(offline.pending).toHaveLength(1);
 
-      // 7. Reviewed content is never overwritten without --force.
+      // 8. Reviewed content is never overwritten without --force.
       const again = await generate({
         client,
         context: runContext(contentDir, planMap(plan)),

@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { BetaContentBlock } from '@anthropic-ai/sdk/resources/beta/messages';
+import type { BetaContentBlock, BetaUsage } from '@anthropic-ai/sdk/resources/beta/messages';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CountryFile } from '../../src/content/schema';
 import { findPendingReferences, validateContent } from '../../src/content/validate';
@@ -19,7 +19,7 @@ import {
 import { cleanUrl, normalizeUrl, retrievedUrls } from '../../pipeline/generate/evidence';
 import { AnthropicModelClient, MissingApiKeyError } from '../../pipeline/generate/model-client';
 import { BatchFile, checkPlan, readBatch } from '../../pipeline/generate/plan';
-import { estimateCost, emptyUsage } from '../../pipeline/generate/usage';
+import { addUsage, estimateCost, emptyUsage } from '../../pipeline/generate/usage';
 import { render } from '../../pipeline/prompts';
 import { KNOWN_BLOCKED_URLS } from '../../pipeline/config';
 import { checkUrls, cachedUrlStatuses } from '../../pipeline/validate/urls';
@@ -310,5 +310,48 @@ describe('prompts and cost', () => {
     };
     expect(estimateCost(usage, 'claude-opus-5-5')).toBeCloseTo(4 + 2 + 0.1);
     expect(estimateCost(usage, 'unknown-model')).toBeUndefined();
+  });
+
+  it('counts cache writes from every iteration of a server tool loop', () => {
+    // Shape of a real response: the top-level breakdown covers only the first iteration.
+    const iteration = (write: number, ttl: '5m' | '1h') => ({
+      type: 'message',
+      input_tokens: 2,
+      output_tokens: 100,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: write,
+      cache_creation: {
+        ephemeral_5m_input_tokens: ttl === '5m' ? write : 0,
+        ephemeral_1h_input_tokens: ttl === '1h' ? write : 0,
+      },
+    });
+    const total = emptyUsage();
+    addUsage(
+      total,
+      {
+        input_tokens: 4,
+        output_tokens: 200,
+        cache_read_input_tokens: 3812,
+        cache_creation_input_tokens: 149444,
+        cache_creation: { ephemeral_5m_input_tokens: 3812, ephemeral_1h_input_tokens: 0 },
+        iterations: [iteration(3812, '5m'), iteration(145632, '5m')],
+      } as unknown as BetaUsage,
+      false,
+    );
+    expect(total).toMatchObject({ cacheWrite5mTokens: 149444, cacheWrite1hTokens: 0 });
+
+    const batch = emptyUsage();
+    addUsage(
+      batch,
+      {
+        input_tokens: 4,
+        output_tokens: 200,
+        cache_creation_input_tokens: 5000,
+        cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 1000 },
+        iterations: [iteration(1000, '1h'), iteration(4000, '1h')],
+      } as unknown as BetaUsage,
+      true,
+    );
+    expect(batch).toMatchObject({ cacheWrite5mTokens: 0, cacheWrite1hTokens: 5000 });
   });
 });

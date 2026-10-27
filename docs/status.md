@@ -11,7 +11,7 @@ The globe workstream (step 4) replaced the prototype globe with the controller i
 The content workstream (step 3) added the schema, the English edition in `content/en/` (files are discovered, not registered), and the gazetteer with sea passages.
 Pages read only `content/en/` through server-only loaders, hand the shell serializable view models, and the browser loads two build-time indexes instead of content modules.
 URLs use readable slugs; prototype query URLs get permanent redirects from `vercel.json`.
-The content pipeline workstream (step 5) added generation, verification and review commands in `pipeline/`; no content has been generated with them yet.
+The content pipeline workstream (step 5) added generation, verification, claim check and review commands in `pipeline/`; no content has been generated with them yet.
 The question-first experience (step 6) made the home a question input with suggested questions from `content/en/home.json`, shared with Cmd K.
 Search also matches paraphrases of each question, written offline by `npm run content:paraphrase`, so a question in a reader's own words finds its story; every story has them.
 Step 7 has started: Playwright e2e tests cover the core loop on desktop and phone, and a visual polish pass covered every surface at 1440, 1024 and 390 pixels wide.
@@ -31,7 +31,11 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
   2. Check the country list and reasons in `pipeline/batches/pilot.json`.
   3. Run `npm run content:generate -- --batch pilot --plan-only`, then read and edit `pipeline/batches/pilot.plan.json` (about $1).
   4. Run `npm run content:generate -- --batch pilot` (about $20 to $60; add `--mode batch` for roughly half the token cost and a slower run).
-  5. Run `npm run content:verify` and `npm run content:paraphrase -- --all` (a few cents per country), then review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back.
+  5. Run `npm run content:verify`, then `npm run content:claims -- --drafts` to check the drafted text against its sources (roughly $1 to $3 a country, more when a source is a long PDF).
+  6. Run `npm run content:paraphrase -- --all` to write search phrasings for the new stories (a few cents per country).
+  7. Review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back.
+     Approval needs a current claim check with nothing flagged; after opening a flagged source yourself, `approve --accept-claims "<why>"` records why it is fine.
+     Commit `content/en/claims/` together with the reviewed country files.
 
 - Deployment: the repository is ready for Vercel; only the project itself is missing.
   The site needs no environment variables: content is generated offline and committed, so the API key never goes to Vercel or CI.
@@ -45,8 +49,15 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
 
 ## Known content pipeline issues
 
-- Some Singapore claims cite only the National Library Board article "Looking back at 700 years of Singapore" (`nlb-singapore-history`), which does not state them: the "Capital" and "Currency" quick facts, and "housing" in the wealth story's "Build what the world needs" step (the MAS economic history now covers the rest of that step).
-  The other nine hand-converted countries have not been checked claim by claim against their sources; do that before they are treated like pipeline-reviewed content.
+- The claim check flags most of the hand-converted text it has seen (2026-10-26, a scratch copy of `content/en`, nothing changed).
+  Singapore: 12 of 14 units flagged.
+  The "Capital" and "Currency" quick facts cite only `nlb-singapore-history`, which states neither; "housing" in "Build what the world needs" is the one part of that step neither source states; "Move up the value chain" cites an MND written answer whose text only appears with scripts, so it cannot be read; both shipping sections ask more of the MPA page than it says.
+  Japan: 11 of 13 units flagged, including the "Capital" and "Language" quick facts and "The less visible strengths", which the statistics handbook does not state.
+  Most flags are true facts cited to a page that does not say them, so the fix is usually a better source rather than different text.
+  The other eight hand-converted countries have not been checked; run `npm run content:claims -- --all` before they are treated like pipeline-reviewed content.
+- Claim check follow-ups:
+  `--mode batch` has no `--resume`, so a round in flight is lost when a run stops (results already saved stay, and the next run checks only what is still due).
+  The server-side fetch's size cap does not apply to PDFs, so a long statistics PDF costs its full length on every read (Japan's 475k-token handbook is about $2.40 a read); consider a local text extract or a page range for large PDFs.
 - The search phrasings of the ten hand-converted countries were written by `npm run content:paraphrase` on 2026-10-26 and checked by the agent that ran it (every name and number appears in its story's text); Ryan has not read them yet.
   They show in `npm run content:review -- show <country>`.
 
