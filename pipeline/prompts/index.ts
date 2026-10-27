@@ -41,6 +41,22 @@ export function loadPrompts(version: string = CURRENT_PROMPT_VERSION): PromptSet
   return loadPromptFiles(version, NAMES);
 }
 
+/**
+ * Agent drafting (pipeline/agent) has its own version line, agent-v<n>, recorded in a draft's
+ * provenance like any drafting version. A Claude Code subagent researches with its web search and
+ * the pipeline's fetch command instead of the API's server tools, so the research and submission
+ * instructions differ; every content, tone and sourcing rule is copied unchanged from the drafting
+ * version it started from (agent-v1 from v3). It holds only the prompts agent drafting uses.
+ */
+export const CURRENT_AGENT_PROMPT_VERSION = 'agent-v1';
+
+const AGENT_NAMES = ['system', 'link-targets', 'draft-country', 'repair'] as const;
+export type AgentPromptSet = { version: string } & Record<(typeof AGENT_NAMES)[number], string>;
+
+export function loadAgentPrompts(version: string = CURRENT_AGENT_PROMPT_VERSION): AgentPromptSet {
+  return loadPromptFiles(version, AGENT_NAMES);
+}
+
 export const CURRENT_CLAIMS_PROMPT_VERSION = 'claims-v1';
 
 const CLAIMS_NAMES = ['system', 'task', 'repair', 'nudge'] as const;

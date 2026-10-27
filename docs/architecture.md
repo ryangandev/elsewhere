@@ -211,18 +211,21 @@ pipeline/
   prompts/v<n>/    versioned drafting prompt files; the version is recorded in provenance
   prompts/paraphrase/v<n>/  versioned prompts of the paraphrase step, recorded in paraphrases
   prompts/claims-v<n>/  versioned claim check prompts, on their own version line
+  prompts/agent-v<n>/   versioned agent drafting prompts, on their own version line
   batches/         batch definitions (pilot.json) and the question plans generated for them
   generate/        plan, draft and redraft (npm run content:generate)
   validate/        every content:check rule plus source URL reachability (npm run content:verify)
   claims/          check text against the sources it cites (npm run content:claims)
   review/          list, read, approve and send back drafts (npm run content:review)
   paraphrase/      search phrasings for each story's question (npm run content:paraphrase)
+  agent/           commands a Claude Code subagent drafts a country with (npm run content:agent)
 ```
 
 ```sh
 npm run content:generate -- --batch pilot      # plan, then draft every country in the batch
 npm run content:generate -- --country CHL      # draft one country (repeat --country for more)
 npm run content:generate -- --revisions        # redraft everything review sent back
+npm run content:agent -- start CHL             # or let a Claude Code subagent draft Chile
 npm run content:verify                         # content rules and source URLs
 npm run content:claims -- CHL                  # check Chile's text against its sources
 npm run content:paraphrase -- --all            # search phrasings where missing or stale
@@ -237,6 +240,7 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Planned story IDs are permanent: drafts must keep them, and next questions in other countries link to them.
 2. **Draft.**
    Each country is one conversation with Claude Opus 5.5 (`--model` to change) with adaptive thinking at `high` effort (`--effort`).
+   [Agent drafting](#agent-drafting) does the same work in a Claude Code subagent instead, with the same checks.
    Research uses the server-side web search and web fetch tools.
    Places come from the gazetteer: the system prompt lists every water body and country, the task lists cities and regions in and near the country, and a `find_places` tool searches the rest.
    The draft is submitted through a tool (`submit_draft`) whose schema carries every constraint, then parsed with zod and checked with every `content:check` rule inside the current tree.
@@ -312,7 +316,7 @@ Cost controls:
   `--resume --mode sync` collects the round in flight, then finishes each conversation one request at a time, for when batch rounds queue for hours.
   Synchronous runs use server-side fallback models when a request is refused; batch runs cannot.
 - Every job prints its token usage, searches and estimated cost, and the run prints the total.
-  Expect roughly $1 to $3 per country in synchronous mode (about 300k input tokens, mostly cache reads, 80k cache writes, 25k output tokens and 15 searches), so $20 to $60 for the pilot; batch mode about halves the token part.
+  Measured on the pilot at `max` effort in synchronous mode, a country cost about $9 (from about $7.30 to $12), with cache writes counted from every iteration of a server tool loop; that is about $180 for a 20-country batch, less at `high` effort, and batch mode about halves the token part.
 - A claim check costs what its fetched pages cost to read.
   Measured at `high` effort: Singapore (14 units, 13 fetches, a 125k-token statistics PDF among them) about $2.50 with one conversation per overview and story, and Japan (13 units) about $9.70, because each of its four conversations read the same 475k-token statistics handbook PDF; one conversation per country reads it once, an estimated $2.40 (not yet measured).
   Its limits in `pipeline/config.ts`: 16 fetches per request with at most 60k tokens of text each, 2 repairs, 2 reminders, 3 continuations and 10 requests per conversation, 4 countries at a time.
@@ -375,6 +379,44 @@ What can go wrong:
 - The claim check is a model reading pages, so it can miss a statement or misread one.
   Quotes from PDFs are not checked, and a page that needs scripts to show its text, or that blocks both fetchers, comes back unreachable and needs a person.
   A flag means "open this source", not "this is false": most flags on the hand-converted countries are true facts cited to a page that does not state them.
+
+### Agent drafting
+
+`npm run content:agent` lets a Claude Code subagent draft a country in place of an API conversation, so drafting is paid by a Claude subscription instead of API credit.
+The subagent researches and writes; the pipeline keeps every guarantee of the API path and makes the evidence rule stricter.
+`.claude/agents/content-drafter.md` defines the subagent: Opus, with Bash, Read, Write, Edit, Glob, Grep and WebSearch, and without WebFetch.
+Ask Claude Code to run it for a country; one subagent drafts one country, and several can run at once.
+
+```sh
+npm run content:agent -- start CHL [--content-dir <dir>] [--model <id>] [--date YYYY-MM-DD] [--regenerate] [--fresh]
+npm run content:agent -- fetch CHL "<url>" [--offset <n>] [--find <words>] [--refresh]
+npm run content:agent -- places CHL [--query <name>] [--country <map ID>] [--near <place ID>]
+npm run content:agent -- submit CHL [<draft.json>]
+npm run content:agent -- status CHL
+```
+
+- `start` creates `pipeline/.cache/agent/<country>/` with `session.json` (country, content directory, model, prompt version, date, and a log of submissions) and `brief.md`, the subagent's complete instructions.
+  The brief is the system prompt, the reference example, the shared gazetteer, the link targets and the country task, built by the same functions as the API task, followed by the JSON Schema of the submission.
+  Its prompts are their own version line, `pipeline/prompts/agent-v<n>/`: agent-v1 is v3 with the research, tool and submission instructions rewritten for these commands, and every content, tone and sourcing rule unchanged.
+  A draft records `promptVersion: "agent-v1"` and the session's model (`claude-opus-5-5` by default) as `generatedBy`, so agent drafts can be told apart from API drafts.
+  Running `start` again continues an unfinished session with its evidence and rebuilds the brief; `--fresh` discards the session first.
+  It refuses a file with reviewed content, and an existing draft that review did not send back unless `--regenerate` is given.
+- `fetch` reads a page from the editor's computer with `fetchPage` in `pipeline/claims/local-fetch.ts`: HTML and plain text as the server returns them, without scripts, and PDFs by their text layer with a `[Page n]` line before each page.
+  PDFs are read with unpdf, a maintained packaging of Mozilla's pdf.js for Node with no dependencies of its own.
+  Each page becomes an evidence record in `evidence/`: the requested and final URLs, both normalized, the HTTP status, the content type, the time, the SHA-256 of the text, and the text, up to 2 million characters from at most 40 MB.
+  It prints 20,000 characters at a time (Claude Code shows up to 30,000 characters of a command's output), with `--offset` for another part and `--find` to list where words appear; later reads come from the stored copy unless `--refresh` is given.
+  A page that answers with an error status, a bot challenge, no text without scripts, a type other than HTML, plain text or PDF, or no answer within a minute stores nothing, so it cannot be cited.
+- `places` searches the gazetteer like the API path's `find_places` tool.
+- `submit` parses, assembles and checks the draft with the same function as the API path's `submit_draft`: every `content:check` rule and every rule the pipeline adds.
+  The retrieved URLs it checks sources against are those of the session's evidence records whose text still matches its hash; a record that does not, or that `fetch` did not write, is a problem of its own and never counts.
+  Problems come back as a numbered list with exit code 1, and the subagent fixes them and submits again; the subagent's own budget bounds the repairs.
+  Every submission is kept in `submissions/<n>.json`.
+  A passing draft is written to the session's content directory by the same writer as the API path, after the same refusals as `start`.
+- `status` lists the fetched pages and the submissions.
+
+The evidence rule is stricter than the API path's: a cited URL must have been read through `fetch` in the session, so a search result never counts, and neither does WebFetch, which returns a model's summary instead of the page.
+The subagent could in principle write the files the commands own; the hash catches an edited record, and the claim check, which reads every cited source again through the API, is the independent audit before review, as it is for API drafts.
+Agent drafting writes whole countries, including one that review sent back as a whole; a single story sent back is redrafted with `content:generate -- --revisions`.
 
 ## Globe
 
@@ -596,7 +638,7 @@ Adding Chinese later means adding a catalog and a `content/zh/` tree, with no co
 
 - Unit tests (Vitest) for pure logic: schema rules, navigation, search, cartography, picking.
 - Content validation runs in CI on every change to `content/`.
-- Pipeline tests in `tests/pipeline/` run plan, draft, verify, review, redraft and the paraphrase step on replayed model responses.
+- Pipeline tests in `tests/pipeline/` run plan, draft, verify, review, redraft and the paraphrase step on replayed model responses, and agent drafting against stubbed page fetches.
 - Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, robots.txt, the sitemap and canonical links, back and forward, trails, saving a story to your atlas, share, and the About sheet.
   A phone project runs the core loop (home, ask, story, follow), the reading panel collapsing to a strip and giving the globe its room, and share through a stubbed system share sheet at 390 by 844 with touch.
   Every page loads with the production response headers from `vercel.json`, and a Content Security Policy violation fails the test, like an uncaught error does.

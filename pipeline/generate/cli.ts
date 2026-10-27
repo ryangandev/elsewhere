@@ -1,10 +1,8 @@
 // npm run content:generate -- --batch pilot | --country CHL [--country EGY] | --revisions
 // See docs/architecture.md#content-pipeline for the workflow and every option.
-import { readdirSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { findPendingReferences } from '../../src/content/validate';
 import {
-  BATCHES_DIR,
   DEFAULT_CONTENT_DIR,
   DEFAULT_EFFORT,
   DEFAULT_LIMITS,
@@ -16,14 +14,13 @@ import {
 } from '../config';
 import { landIndex, parsedCountryFiles, requireMapCountry } from '../content-tree';
 import { loadPrompts } from '../prompts';
-import type { Plan } from './check';
 import {
   AnthropicModelClient,
   RecordingClient,
   ReplayClient,
   type ModelClient,
 } from './model-client';
-import { generatePlan, planMap, readBatch, readPlan, writePlan } from './plan';
+import { allPlans, generatePlan, readBatch, readPlan, writePlan } from './plan';
 import { generate, type Job } from './run';
 import { renderLinkTargets, type RunContext } from './tasks';
 import { formatUsage } from './usage';
@@ -52,17 +49,6 @@ Options:
 `;
 
 const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
-
-/** Every plan file in pipeline/batches, merged: a country keeps the first plan that has it. */
-function allPlans(): Plan {
-  const plan: Plan = new Map();
-  for (const name of readdirSync(BATCHES_DIR).filter((entry) => entry.endsWith('.plan.json'))) {
-    for (const [countryId, stories] of planMap(readPlan(name.replace(/\.plan\.json$/, '')))) {
-      if (!plan.has(countryId)) plan.set(countryId, stories);
-    }
-  }
-  return plan;
-}
 
 function revisionJobs(contentDir: string): Job[] {
   const jobs: Job[] = [];

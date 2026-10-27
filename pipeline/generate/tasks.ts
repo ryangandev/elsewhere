@@ -1,5 +1,7 @@
 // Build drafting sessions: the shared (cached) system prompt and tools, and the per-task
-// first turn for drafting a whole country or revising one story.
+// first turn for drafting a whole country or revising one story. The prompt texts and the
+// submission check are also used by agent drafting (pipeline/agent), which hands the same
+// instructions to a Claude Code subagent and checks its submission the same way.
 import { readFileSync } from 'node:fs';
 import type {
   BetaTextBlockParam,
@@ -18,13 +20,10 @@ import { CountryDraft, StoryDraft, toStrictJsonSchema, toToolJsonSchema } from '
 import { candidateListing, findPlaces, sharedListing } from './gazetteer-context';
 import type { SessionSetup, Submission } from './session';
 
-export type RunContext = {
+/** What a country draft's prompts and checks need, whoever drafts it. */
+export type DraftingContext = {
   contentDir: string;
-  prompts: PromptSet;
-  model: string;
-  effort: Effort;
-  limits: GenerationLimits;
-  cacheTtl: '5m' | '1h';
+  prompts: Pick<PromptSet, 'version' | 'system' | 'link-targets' | 'draft-country'>;
   /** The day of the run: generatedAt and every source's accessedAt. */
   date: string;
   plan: Plan;
@@ -32,6 +31,15 @@ export type RunContext = {
   linkTargets: string;
   storyCount: { min: number; max: number };
   land?: LandIndex;
+};
+
+/** A drafting run through the Claude API. */
+export type RunContext = DraftingContext & {
+  prompts: PromptSet;
+  model: string;
+  effort: Effort;
+  limits: GenerationLimits;
+  cacheTtl: '5m' | '1h';
 };
 
 const FindPlacesInput = z.strictObject({
@@ -90,25 +98,41 @@ export function withoutParaphrases<T>(value: T): T {
   );
 }
 
-/** The system prompt every drafting request shares: instructions, the reference example, and the shared gazetteer. */
-export function sharedSystem(context: RunContext): BetaTextBlockParam[] {
+/**
+ * The instructions every drafting task shares: the system prompt, the reference example, and the
+ * shared gazetteer. `schemaName` says where the submission's shape is given.
+ */
+export function sharedSystemText(
+  prompts: Pick<PromptSet, 'system'>,
+  schemaName = 'the tool schema',
+): string {
   const reference = `${JSON.stringify(
     withoutParaphrases(JSON.parse(readFileSync(REFERENCE_COUNTRY_FILE, 'utf8'))),
     null,
     2,
   )}\n`;
-  const text = [
-    render(context.prompts.system, {}),
+  return [
+    render(prompts.system, {}),
     '# Reference example',
-    'A reviewed country file in the content format. It shows the quality bar, length, and tone. Your submission uses the tool schema, which leaves out the fields the pipeline fills in.',
+    `A reviewed country file in the content format. It shows the quality bar, length, and tone. Your submission uses ${schemaName}, which leaves out the fields the pipeline fills in.`,
     '```json',
     reference.trimEnd(),
     '```',
     '# Shared gazetteer',
     sharedListing(),
   ].join('\n\n');
+}
+
+/** The system prompt every drafting request shares, as one cached block. */
+export function sharedSystem(context: RunContext): BetaTextBlockParam[] {
   const ttl = context.cacheTtl === '1h' ? { ttl: '1h' as const } : {};
-  return [{ type: 'text', text, cache_control: { type: 'ephemeral', ...ttl } }];
+  return [
+    {
+      type: 'text',
+      text: sharedSystemText(context.prompts),
+      cache_control: { type: 'ephemeral', ...ttl },
+    },
+  ];
 }
 
 /** Every story a next question may point to: existing files plus the run's plan. */
@@ -158,11 +182,15 @@ function zodIssues(error: z.ZodError): string[] {
   );
 }
 
+export function linkTargetsText(context: DraftingContext): string {
+  return render(context.prompts['link-targets'], { linkTargets: context.linkTargets });
+}
+
 function linkTargetsBlock(context: RunContext): BetaTextBlockParam {
   const ttl = context.cacheTtl === '1h' ? { ttl: '1h' as const } : {};
   return {
     type: 'text',
-    text: render(context.prompts['link-targets'], { linkTargets: context.linkTargets }),
+    text: linkTargetsText(context),
     cache_control: { type: 'ephemeral', ...ttl },
   };
 }
@@ -189,16 +217,19 @@ function baseSetup(context: RunContext, tag: string, submitTool: string) {
   };
 }
 
-/** Draft (or redraft) a whole country. */
-export function countrySession(
-  context: RunContext,
+/**
+ * The values of a country task template: the country, the plan, links from elsewhere, the
+ * editor's notes on a previous draft, and the places around it.
+ */
+export function countryTaskValues(
+  context: DraftingContext,
   countryId: string,
   existing?: CountryFile,
-): SessionSetup {
+): Record<string, string | number> {
   const mapCountry = requireMapCountry(countryId);
   const planned = context.plan.get(countryId);
   const { min, max } = context.storyCount;
-  const task = render(context.prompts['draft-country'], {
+  return {
     countryName: existing?.country.name ?? mapCountry.name,
     countryId,
     mapName: mapCountry.name,
@@ -213,7 +244,52 @@ export function countrySession(
       : `No plan for this country. Choose ${min} to ${max} questions yourself.`,
     inboundReferences: inboundReferences(context.contentDir, countryId),
     candidatePlaces: candidateListing(countryId),
+  };
+}
+
+/**
+ * Parse, assemble and check a country draft. `evidence` holds the normalized URLs the drafter
+ * retrieved; `evidenceRule` tells it, in a problem, which pages it may cite.
+ */
+export function submitCountryDraft(
+  context: DraftingContext,
+  countryId: string,
+  input: unknown,
+  options: { model: string; evidence: Set<string>; evidenceRule?: string },
+): Submission {
+  const parsed = CountryDraft.safeParse(input);
+  if (!parsed.success) return { ok: false, issues: zodIssues(parsed.error), draft: input };
+  const file = assembleCountry(parsed.data, {
+    countryId,
+    slug: requireMapCountry(countryId).slug,
+    model: options.model,
+    date: context.date,
+    promptVersion: context.prompts.version,
   });
+  const issues = checkCandidate({
+    contentDir: context.contentDir,
+    candidate: file,
+    scope: 'country',
+    plan: context.plan,
+    submittedSources: parsed.data.sources,
+    evidence: options.evidence,
+    evidenceRule: options.evidenceRule,
+    storyCount: context.storyCount,
+    land: context.land,
+  });
+  return issues.length ? { ok: false, issues, draft: input } : { ok: true, file };
+}
+
+/** Draft (or redraft) a whole country. */
+export function countrySession(
+  context: RunContext,
+  countryId: string,
+  existing?: CountryFile,
+): SessionSetup {
+  const task = render(
+    context.prompts['draft-country'],
+    countryTaskValues(context, countryId, existing),
+  );
   return {
     ...baseSetup(context, countryId, 'submit_draft'),
     tools: tools(context.limits, {
@@ -223,28 +299,8 @@ export function countrySession(
       schema: CountryDraft,
     }),
     task: [linkTargetsBlock(context), { type: 'text', text: task }],
-    submit: (input, { model, evidence }): Submission => {
-      const parsed = CountryDraft.safeParse(input);
-      if (!parsed.success) return { ok: false, issues: zodIssues(parsed.error), draft: input };
-      const file = assembleCountry(parsed.data, {
-        countryId,
-        slug: mapCountry.slug,
-        model,
-        date: context.date,
-        promptVersion: context.prompts.version,
-      });
-      const issues = checkCandidate({
-        contentDir: context.contentDir,
-        candidate: file,
-        scope: 'country',
-        plan: context.plan,
-        submittedSources: parsed.data.sources,
-        evidence,
-        storyCount: context.storyCount,
-        land: context.land,
-      });
-      return issues.length ? { ok: false, issues, draft: input } : { ok: true, file };
-    },
+    submit: (input, { model, evidence }) =>
+      submitCountryDraft(context, countryId, input, { model, evidence }),
   };
 }
 
