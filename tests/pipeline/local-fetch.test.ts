@@ -192,3 +192,29 @@ describe('server errors', () => {
     expect(once.calls).toHaveLength(1);
   });
 });
+
+describe('bot challenges', () => {
+  /** The proof-of-work page Anubis served for hal.ird.fr with a 200, abridged. */
+  const anubis = (apostrophe: string) =>
+    `<!doctype html><html><head><title>Making sure you${apostrophe}re not a bot!</title></head><body><h1>Making sure you${apostrophe}re not a bot!</h1><p>Loading...</p><p>You are seeing this because the administrator of this website has set up Anubis to protect the server against the scourge of AI companies aggressively scraping websites.</p><p>Anubis uses a proof-of-work scheme, so the load is small for one visitor and large for a scraper.</p></body></html>`;
+  const serve = (body: string) =>
+    (async () =>
+      new Response(body, {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      })) as typeof fetch;
+
+  it('refuses an Anubis page with a straight or a curly apostrophe', async () => {
+    for (const apostrophe of ["'", '’']) {
+      await expect(
+        fetchPage('https://hal.ird.fr/ird-00000000', { fetch: serve(anubis(apostrophe)) }),
+      ).rejects.toThrow('the server answered with a bot challenge instead of the page');
+    }
+  });
+
+  it('still reads a long article that mentions the phrases', async () => {
+    const article = `<p>Anubis was the Egyptian god of the dead; a site that has set up Anubis to protect the server is making sure you're not a bot. ${'Background on the cult of Anubis. '.repeat(100)}</p>`;
+    const page = await fetchPage('https://example.org/anubis', { fetch: serve(article) });
+    expect(page.text).toContain('Egyptian god of the dead');
+  });
+});

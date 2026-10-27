@@ -458,6 +458,8 @@ npm run content:agent -- status CHL
   The links are kept in the evidence record (at most 5,000 per page) and are not covered by the hash, since they are only a way to find pages; a record stored before links were kept asks for `--refresh`.
   PDFs and plain text have no links.
   A page that answers with an error status, a bot challenge, no text without scripts, a type other than HTML, plain text or PDF, or no answer within a minute stores nothing, so it cannot be cited.
+  A bot challenge is a page of at most 3,000 characters with a phrase of the interstitial pages of Cloudflare, Akamai, Imperva or Anubis (`BOT_CHALLENGE` in `pipeline/claims/local-fetch.ts`), whatever its status: hal.ird.fr answered 200 with an Anubis proof-of-work page ("Making sure you're not a bot!", with either apostrophe), which was stored as a citable page before Anubis was on the list.
+  A longer page that mentions such a phrase is read, so an article about captchas is not refused.
   A server error (5xx) is tried again after 5, 20 and 60 seconds, or after the server's `Retry-After` when that is a minute or less, because usgs.gov answered 504 for longer than subagents kept retrying by hand; any other status, such as the 403 that Britannica, EITI and Wiley answer, is final at once, since asking again would not change it.
   A network failure reports its cause along with "fetch failed" (Node keeps the real reason in `error.cause`), such as a redirect loop, a certificate for another host name, `ECONNRESET` or an unknown host, so a page that will never load is told apart from one that may load later.
   The claim check's `fetch_page` tool shares this reason.
