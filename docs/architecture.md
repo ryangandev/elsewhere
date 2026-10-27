@@ -391,11 +391,11 @@ Ask Claude Code to run it for a country; one subagent drafts one country, and se
 npm run content:agent -- start CHL [--content-dir <dir>] [--model <id>] [--date YYYY-MM-DD] [--regenerate] [--fresh]
 npm run content:agent -- fetch CHL "<url>" [--offset <n>] [--find <words>] [--refresh]
 npm run content:agent -- places CHL [--query <name>] [--country <map ID>] [--near <place ID>]
-npm run content:agent -- submit CHL [<draft.json>]
+npm run content:agent -- submit CHL [<draft.json>] [--dry-run]
 npm run content:agent -- status CHL
 ```
 
-- `start` creates `pipeline/.cache/agent/<country>/` with `session.json` (country, content directory, model, prompt version, date, and a log of submissions) and `brief.md`, the subagent's complete instructions.
+- `start` creates `pipeline/.cache/agent/<country>/` with `session.json` (country, content directory, model, prompt version, date, and logs of submissions and failed fetches) and `brief.md`, the subagent's complete instructions.
   The brief is the system prompt, the reference example, the shared gazetteer, the link targets and the country task, built by the same functions as the API task, followed by the JSON Schema of the submission.
   Its prompts are their own version line, `pipeline/prompts/agent-v<n>/`: agent-v1 is v3 with the research, tool and submission instructions rewritten for these commands, and every content, tone and sourcing rule unchanged.
   A draft records `promptVersion: "agent-v1"` and the session's model (`claude-opus-5-5` by default) as `generatedBy`, so agent drafts can be told apart from API drafts.
@@ -406,13 +406,19 @@ npm run content:agent -- status CHL
   Each page becomes an evidence record in `evidence/`: the requested and final URLs, both normalized, the HTTP status, the content type, the time, the SHA-256 of the text, and the text, up to 2 million characters from at most 40 MB.
   It prints 20,000 characters at a time (Claude Code shows up to 30,000 characters of a command's output), with `--offset` for another part and `--find` to list where words appear; later reads come from the stored copy unless `--refresh` is given.
   A page that answers with an error status, a bot challenge, no text without scripts, a type other than HTML, plain text or PDF, or no answer within a minute stores nothing, so it cannot be cited.
+  A network failure reports its cause along with "fetch failed" (Node keeps the real reason in `error.cause`), such as a redirect loop, a certificate for another host name, `ECONNRESET` or an unknown host, so a page that will never load is told apart from one that may load later.
+  The claim check's `fetch_page` tool shares this reason.
+  Every failed fetch is recorded in `session.json` with its URL, time and reason, and `status` lists it, so a drafter sees which pages failed and why.
+  A failed fetch is only a note: it is never evidence, and a cited page still needs a stored record.
 - `places` searches the gazetteer like the API path's `find_places` tool.
 - `submit` parses, assembles and checks the draft with the same function as the API path's `submit_draft`: every `content:check` rule and every rule the pipeline adds.
   The retrieved URLs it checks sources against are those of the session's evidence records whose text still matches its hash; a record that does not, or that `fetch` did not write, is a problem of its own and never counts.
   Problems come back as a numbered list with exit code 1, and the subagent fixes them and submits again; the subagent's own budget bounds the repairs.
   Every submission is kept in `submissions/<n>.json`.
   A passing draft is written to the session's content directory by the same writer as the API path, after the same refusals as `start`.
-- `status` lists the fetched pages and the submissions.
+  `submit --dry-run` runs the same refusals and checks and prints the same problems, or says the draft would pass with its story, source and pending reference counts.
+  It writes nothing to the content tree, keeps no submission, changes nothing in the session and never finishes it, so a drafter can check a draft (for example its map routes) before submitting.
+- `status` lists the fetched pages, the failed fetches and the submissions.
 
 The evidence rule is stricter than the API path's: a cited URL must have been read through `fetch` in the session, so a search result never counts, and neither does WebFetch, which returns a model's summary instead of the page.
 The subagent could in principle write the files the commands own; the hash catches an edited record, and the claim check, which reads every cited source again through the API, is the independent audit before review, as it is for API drafts.

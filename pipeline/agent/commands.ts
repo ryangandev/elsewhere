@@ -134,6 +134,7 @@ export function start(options: StartOptions, deps: AgentDeps): number {
     regenerate: options.regenerate,
     startedAt: previous?.startedAt ?? now(),
     submissions: previous?.submissions ?? [],
+    failedFetches: previous?.failedFetches ?? [],
   });
   writeFileSync(briefFile(dir), brief);
 
@@ -227,7 +228,7 @@ export async function fetchCommand(options: FetchOptions, deps: AgentDeps): Prom
   const { root, now } = context(deps);
   const countryId = requireMapCountry(options.countryId).id;
   const dir = sessionDir(root, countryId);
-  readSession(dir, countryId);
+  const session = readSession(dir, countryId);
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(options.url);
@@ -266,6 +267,8 @@ export async function fetchCommand(options: FetchOptions, deps: AgentDeps): Prom
           : error instanceof Error
             ? error.message
             : String(error);
+      session.failedFetches.push({ url: options.url, attemptedAt: now(), reason });
+      writeSession(dir, session);
       deps.out(
         `Could not read ${options.url}: ${reason}. Nothing was stored, so it cannot be cited; choose another source.`,
       );
@@ -304,11 +307,14 @@ export type SubmitOptions = {
   countryId: string;
   /** Default: draft.json in the session directory. */
   file?: string;
+  /** Run every check and print the result, but record and write nothing. */
+  dryRun?: boolean;
 };
 
 /**
  * Check a draft with every rule the API path applies, with only fetched pages as evidence, and
- * write the country file when it passes. Every submission is kept in the session.
+ * write the country file when it passes. Every submission is kept in the session. A dry run
+ * does the same checks and changes nothing, so it never finishes the session.
  */
 export function submit(options: SubmitOptions, deps: AgentDeps): number {
   const { root, now, plan } = context(deps);
@@ -334,8 +340,10 @@ export function submit(options: SubmitOptions, deps: AgentDeps): number {
   const raw = readFileSync(file, 'utf8');
   const ordinal = session.submissions.length + 1;
   const kept = join(submissionsDir(dir), `${ordinal}.json`);
-  mkdirSync(submissionsDir(dir), { recursive: true });
-  writeFileSync(kept, raw);
+  if (!options.dryRun) {
+    mkdirSync(submissionsDir(dir), { recursive: true });
+    writeFileSync(kept, raw);
+  }
 
   const { records, problems } = loadEvidence(dir);
   const evidence = new Set(records.flatMap(({ record }) => record.normalizedUrls));
@@ -366,29 +374,44 @@ export function submit(options: SubmitOptions, deps: AgentDeps): number {
         );
   if (submission && !submission.ok) issues.push(...submission.issues);
 
-  session.submissions.push({ file: kept, submittedAt: now(), issues });
+  if (!options.dryRun) {
+    session.submissions.push({ file: kept, submittedAt: now(), issues });
+  }
   if (issues.length || !submission?.ok) {
-    writeSession(dir, session);
-    deps.out(`Submission ${ordinal} (kept in ${kept}) has ${issues.length} problems.`);
+    if (options.dryRun) {
+      deps.out(`Dry run: the draft has ${issues.length} problems. Nothing was recorded.`);
+    } else {
+      writeSession(dir, session);
+      deps.out(`Submission ${ordinal} (kept in ${kept}) has ${issues.length} problems.`);
+    }
     deps.out(renderRepair(prompts, issues, file));
     return 1;
   }
 
-  const written = writeCountryFile(session.contentDir, submission.file);
-  session.written = { file: written, writtenAt: now() };
-  writeSession(dir, session);
   const { stories } = submission.file;
   const sources = new Set(
     [submission.file.country, ...stories].flatMap((entry) =>
       entry.sources.map((source) => source.url),
     ),
   );
-  const pending = findPendingReferences([
-    ...parsedCountryFiles(session.contentDir).values(),
-  ]).filter((ref) => ref.from.countryId === country.id);
-  deps.out(
-    `Submission ${ordinal} passed. Wrote ${written} (draft, ${session.promptVersion}, ${session.model}).`,
+  // The tree as it is or would be after the write, so a dry run reports the same references.
+  const files = parsedCountryFiles(session.contentDir);
+  files.set(country.id, submission.file);
+  const pending = findPendingReferences([...files.values()]).filter(
+    (ref) => ref.from.countryId === country.id,
   );
+  if (options.dryRun) {
+    deps.out(
+      `Dry run: the draft would pass. Nothing was written; run ${command(`submit ${country.id}`)} to submit it.`,
+    );
+  } else {
+    const written = writeCountryFile(session.contentDir, submission.file);
+    session.written = { file: written, writtenAt: now() };
+    writeSession(dir, session);
+    deps.out(
+      `Submission ${ordinal} passed. Wrote ${written} (draft, ${session.promptVersion}, ${session.model}).`,
+    );
+  }
   deps.out(
     `${stories.length} stories, ${sources.size} sources, ${pending.length} pending references${pending.length ? ':' : '.'}`,
   );
@@ -397,9 +420,11 @@ export function submit(options: SubmitOptions, deps: AgentDeps): number {
       `  ${ref.from.countryId}/${ref.from.storyId} -> ${ref.to.countryId}/${ref.to.storyId}`,
     );
   }
-  deps.out(
-    `Next, for the editor: npm run content:verify, npm run content:claims -- ${country.id}, then npm run content:review -- show ${country.id}.`,
-  );
+  if (!options.dryRun) {
+    deps.out(
+      `Next, for the editor: npm run content:verify, npm run content:claims -- ${country.id}, then npm run content:review -- show ${country.id}.`,
+    );
+  }
   return 0;
 }
 
@@ -419,6 +444,10 @@ export function status(options: { countryId: string }, deps: AgentDeps): number 
     deps.out(`  ${record.requestedUrl} (${describeRecord(record)})`);
   }
   for (const problem of problems) deps.out(`  Unusable: ${problem}`);
+  deps.out(`Failed fetches: ${session.failedFetches.length || 'none'}`);
+  for (const { url, attemptedAt, reason } of session.failedFetches) {
+    deps.out(`  ${url} (${attemptedAt}): ${reason}`);
+  }
   const last = session.submissions.at(-1);
   deps.out(
     last
