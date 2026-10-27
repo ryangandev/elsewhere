@@ -360,6 +360,36 @@ describe('agent fetch command', () => {
     );
   });
 
+  it('decodes pages that do not declare their charset in the header', async () => {
+    // "Constitución" as windows-1252 bytes, as Argentina's InfoLEG serves it with no charset.
+    const latin1 = (text: string) => new Uint8Array(Buffer.from(text, 'latin1'));
+    const body = (head: string) =>
+      latin1(
+        `<html><head>${head}<title>t</title></head><body><p>Constitución Nacional</p></body></html>`,
+      );
+    const utf8 = new Uint8Array(
+      Buffer.from('<html><body><p>Constitución Nacional</p></body></html>', 'utf8'),
+    );
+    const { stub } = stubFetch({
+      'https://infoleg.example/plain': { type: 'text/html', body: body('') },
+      'https://infoleg.example/meta': {
+        type: 'text/html',
+        body: body('<meta charset="iso-8859-1">'),
+      },
+      'https://infoleg.example/equiv': {
+        type: 'text/html',
+        body: body('<meta http-equiv="Content-Type" content="text/html; charset=windows-1252">'),
+      },
+      'https://infoleg.example/utf8': { type: 'text/html', body: utf8 },
+      'https://infoleg.example/header': { type: 'text/html; charset=utf-8', body: utf8 },
+    });
+    for (const path of ['plain', 'meta', 'equiv', 'utf8', 'header']) {
+      const page = await fetchPage(`https://infoleg.example/${path}`, { fetch: stub });
+      expect(page.text, path).toContain('Constitución Nacional');
+      expect(page.text, path).not.toContain('�');
+    }
+  });
+
   it('leaves the claim check reading HTML and plain text only', async () => {
     const { stub } = stubFetch(pages);
     await expect(fetchPage(PDF_URL, { fetch: stub })).rejects.toThrow(
