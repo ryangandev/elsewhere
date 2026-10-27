@@ -112,13 +112,37 @@ export function fetchedTexts(content: BetaContentBlock[]): Map<string, string> {
 const QUOTE_MARKS = /["'`´‘’‚‛“”„‟′″‴‵‶‷«»‹›＂＇]/g;
 /** Hyphens, dashes and minus signs. */
 const DASHES = /[\u2010-\u2015\u2212\u2e3a\u2e3b\ufe58\ufe63]/g;
-/** Characters that take no space: zero-width spaces and joiners, the word joiner, the byte order mark, soft hyphens. */
-const INVISIBLE = /[\u00ad\u200b-\u200d\u2060\ufeff]/g;
+/**
+ * Characters that take no space: zero-width spaces and joiners, the word joiner, the byte order
+ * mark, soft hyphens, and private-use characters, which PDFs use for symbol glyphs that have no
+ * Unicode meaning and which a terminal shows as nothing.
+ */
+const INVISIBLE =
+  /[\u00ad\u200b-\u200d\u2060\ufeff\ue000-\uf8ff\u{f0000}-\u{ffffd}\u{100000}-\u{10fffd}]/gu;
+
+/**
+ * What some PDFs give for the "fi" and "fl" ligatures: their fonts map those glyphs to U+0000 (a
+ * NUL), so "official" comes out as "of", NUL, "cial" and the two letters are lost. In page text it
+ * stands for "fi" or "fl" and nothing else (see partPattern).
+ */
+const LOST_LIGATURE = '\u0000';
+/**
+ * Marks a hyphen at the end of a line between two letters ("subduc-" then "tion"), which may be a
+ * typesetter's break inside one word or the hyphen of a compound; a quote may give the word
+ * joined or with the hyphen. It is a noncharacter, and any in the input is dropped, so only a
+ * line break can make one.
+ */
+const LINE_END_HYPHEN = '﷐';
+/** The line pdfToText puts before each page of a PDF; it is not the page's text. */
+const PAGE_MARKER = /^\[Page \d+\]$/gm;
 
 /**
  * Text as quotes are compared: what changes between a page and a faithful copy of its words is
  * folded away, and the words themselves are kept.
  *
+ * - The "[Page n]" lines of a PDF's text go, so a quote can run on across a page break.
+ * - A soft hyphen at the end of a line joins the word; a hyphen between letters at the end of a
+ *   line becomes LINE_END_HYPHEN, which matches a hyphen or nothing.
  * - Escapes a model sometimes writes in place of a character (`\u2212`, `\"`) are decoded.
  * - Unicode compatibility forms are folded (NFKC): non-breaking and other Unicode spaces, the
  *   ellipsis character as "...", ligatures, full-width forms.
@@ -127,12 +151,18 @@ const INVISIBLE = /[\u00ad\u200b-\u200d\u2060\ufeff]/g;
  * - Every quotation mark and apostrophe is one mark, kept only between letters or digits, where it
  *   is part of a word ("world’s"); elsewhere it only marks a quotation, which a quote may add or drop.
  * - Hyphens, dashes and minus signs are one dash, without spaces around it.
- * - Case does not matter, and any run of whitespace is one space.
+ * - Case does not matter, any run of whitespace is one space, and there is no space before a
+ *   closing punctuation mark or after an opening bracket, so "projection , named" (as some
+ *   pages set it) reads "projection, named".
  */
 export function normalizeForMatch(text: string): string {
   return text
     .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/\\(["'\\/])/g, '$1')
+    .replaceAll(LINE_END_HYPHEN, '')
+    .replace(PAGE_MARKER, '')
+    .replace(/­[^\S\n]*\n\s*/g, '')
+    .replace(/(?<=\p{L})[-‐][^\S\n]*\n\s*(?=\p{L})/gu, LINE_END_HYPHEN)
     .replace(QUOTE_MARKS, "'")
     .normalize('NFKC')
     .replace(INVISIBLE, '')
@@ -145,15 +175,18 @@ export function normalizeForMatch(text: string): string {
     .replace(/\.\s*\.\s*\./g, '...')
     .toLowerCase()
     .replace(/\s+/g, ' ')
+    .replace(/ (?=[,.;:!?%)\]}])|(?<=[([{]) /g, '')
     .trim();
 }
 
 /**
  * The parts of a quote that must appear in order: "..." (or "[...]") stands for a gap, and
- * punctuation at the edges of a part does not count.
+ * punctuation at the edges of a part does not count. A hyphen the quote copied from the end of a
+ * line is an ordinary hyphen.
  */
 function quoteParts(quote: string): string[] {
   return normalizeForMatch(quote)
+    .replaceAll(LINE_END_HYPHEN, '-')
     .split(/\s*[[(]?\.\.\.[\])]?\s*/)
     .map((part) => part.replace(/^[\s.,;:!?]+|[\s.,;:!?]+$/g, ''))
     .filter(Boolean);
@@ -171,16 +204,70 @@ function quoteParts(quote: string): string[] {
 export const QUOTE_MAX_GAP = 300;
 
 /**
+ * Most words a quote may have. The prompts and the schema ask for quotes of "under 30 words":
+ * evidence is a pointer to where a page states a claim, not a copy of the page.
+ */
+export const QUOTE_MAX_WORDS = 29;
+
+/** The words of a quote: runs without spaces that hold a letter or digit, so "..." and "-" do not count. */
+export const quoteWords = (quote: string) =>
+  quote.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
+
+/**
  * found: the parts appear in order with every gap within the bound. too_far_apart: they appear in
  * order, but only with a gap wider than the bound. missing: they do not appear in order.
  */
 export type QuoteMatch = 'found' | 'too_far_apart' | 'missing';
 
-/** Every position where `part` starts in `page`, in order, overlapping ones included. */
-function occurrences(page: string, part: string): number[] {
-  const starts: number[] = [];
-  for (let at = page.indexOf(part); at >= 0; at = page.indexOf(part, at + 1)) starts.push(at);
-  return starts;
+/** Where a part of a quote appears in a page: from `start` up to `end`. */
+type Span = { start: number; end: number };
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const isLetter = (char: string | undefined) => char !== undefined && /\p{L}/u.test(char);
+
+/**
+ * A pattern for a part of a quote on a page with lost ligatures or line-end hyphens: the page's
+ * LOST_LIGATURE matches "fi" or "fl" in the quote, and its LINE_END_HYPHEN matches a hyphen or
+ * nothing between two letters. Everything else must be exactly as in the quote.
+ */
+function partPattern(part: string, ligatures: boolean, hyphens: boolean): RegExp {
+  const chars = [...part];
+  let source = '';
+  for (let index = 0; index < chars.length; index += 1) {
+    const char = chars[index];
+    const next = chars[index + 1];
+    if (ligatures && char === 'f' && (next === 'i' || next === 'l')) {
+      source += `(?:f${hyphens ? `${LINE_END_HYPHEN}?` : ''}${next}|${LOST_LIGATURE})`;
+      index += 1;
+    } else if (hyphens && char === '-') {
+      source += `[-${LINE_END_HYPHEN}]`;
+    } else {
+      source += escapeRegExp(char);
+    }
+    if (hyphens && isLetter(chars[index]) && isLetter(chars[index + 1])) {
+      source += `${LINE_END_HYPHEN}?`;
+    }
+  }
+  return new RegExp(source, 'gu');
+}
+
+/** Every place where `part` appears in `page`, in order, overlapping ones included. */
+function occurrences(page: string, part: string): Span[] {
+  const spans: Span[] = [];
+  const ligatures = page.includes(LOST_LIGATURE);
+  const hyphens = page.includes(LINE_END_HYPHEN);
+  if (!ligatures && !hyphens) {
+    for (let at = page.indexOf(part); at >= 0; at = page.indexOf(part, at + 1)) {
+      spans.push({ start: at, end: at + part.length });
+    }
+    return spans;
+  }
+  const pattern = partPattern(part, ligatures, hyphens);
+  for (let match = pattern.exec(page); match; match = pattern.exec(page)) {
+    spans.push({ start: match.index, end: match.index + match[0].length });
+    pattern.lastIndex = match.index + 1;
+  }
+  return spans;
 }
 
 /**
@@ -192,24 +279,55 @@ function occurrences(page: string, part: string): number[] {
 function matchNormalized(quote: string, page: string, maxGap: number): QuoteMatch {
   const parts = quoteParts(quote);
   if (!parts.length) return 'missing';
-  let ends = occurrences(page, parts[0]).map((at) => at + parts[0].length);
+  let ends = occurrences(page, parts[0]).map((span) => span.end);
   if (!ends.length) return 'missing';
   // The earliest end of the parts in order with any gaps, which tells too far apart from missing.
   let anyGap = ends[0];
   for (const part of parts.slice(1)) {
-    const starts = occurrences(page, part);
+    const spans = occurrences(page, part);
     const next: number[] = [];
     let index = 0;
-    for (const start of starts) {
+    for (const { start, end } of spans) {
       while (index < ends.length && ends[index] < start - maxGap) index += 1;
-      if (index < ends.length && ends[index] <= start) next.push(start + part.length);
+      if (index < ends.length && ends[index] <= start) next.push(end);
     }
     ends = next;
-    const loose = starts.find((start) => start >= anyGap);
+    const loose = spans.find((span) => span.start >= anyGap);
     if (loose === undefined) return 'missing';
-    anyGap = loose + part.length;
+    anyGap = loose.end;
   }
   return ends.length ? 'found' : 'too_far_apart';
+}
+
+/** How much of the page around a mismatch a problem shows, in normalized characters. */
+const MISMATCH_CONTEXT = 60;
+
+/**
+ * Where a quote that is missing from a page parts from it, for the problem sent back: the first
+ * part of the quote that does not appear, the longest beginning of it that does, and what the
+ * page has after that beginning. Shown as normalized text, the form quotes are compared in.
+ */
+function describeMismatch(quote: string, page: string): string {
+  const parts = quoteParts(quote);
+  const missing = parts.find((part) => !occurrences(page, part).length);
+  if (!missing) return 'each of its parts is on the page, but not in this order';
+  // Whether a beginning appears only grows shorter with it, so the longest one is a binary search.
+  let low = 0;
+  let high = missing.length;
+  while (low < high) {
+    const length = Math.ceil((low + high) / 2);
+    if (occurrences(page, missing.slice(0, length)).length) low = length;
+    else high = length - 1;
+  }
+  const prefix = missing.slice(0, low);
+  if (prefix.trim().length < 3) return `nothing on the page starts like "${missing.slice(0, 40)}"`;
+  const span = occurrences(page, prefix)[0];
+  const shown = (text: string) =>
+    text.replaceAll(LINE_END_HYPHEN, '-').replaceAll(LOST_LIGATURE, '?');
+  const before =
+    prefix.length > MISMATCH_CONTEXT ? `...${prefix.slice(-MISMATCH_CONTEXT)}` : prefix;
+  const after = page.slice(span.end, span.end + MISMATCH_CONTEXT);
+  return `the page matches it as far as "${shown(before)}", then has "${shown(after)}" where the quote has "${missing.slice(low, low + 30)}" (shown as compared: lowercase, with spacing, quotation marks and dashes folded)`;
 }
 
 /** Match a quote against a page's text, compared as normalizeForMatch describes. */
@@ -245,6 +363,11 @@ export type VerdictContext = {
    * as given.
    */
   missingText?: (url: string) => string;
+  /**
+   * When given, added to the problem of a quote missing from a page's text, for example how that
+   * text compares with the copy the quote was read from.
+   */
+  textNote?: (url: string) => string | undefined;
 };
 
 /**
@@ -373,6 +496,13 @@ export function checkVerdicts(input: unknown, context: VerdictContext): VerdictR
         );
         continue;
       }
+      const words = quoteWords(item.quote);
+      if (words > QUOTE_MAX_WORDS) {
+        unitIssues.push(
+          `${at}: the quote "${item.quote}" has ${words} words; a quote must be under ${QUOTE_MAX_WORDS + 1} words, so quote only the words that state the claim, or give each part as its own quote`,
+        );
+        continue;
+      }
       const url = declared.get(item.sourceId)!.url;
       const pages = pagesOf(url);
       if (!pages && context.missingText) {
@@ -382,11 +512,12 @@ export function checkVerdicts(input: unknown, context: VerdictContext): VerdictR
         continue;
       }
       const matches = pages?.map((page) => matchNormalized(item.quote, page, QUOTE_MAX_GAP));
-      if (matches && !matches.includes('found')) {
+      if (pages && matches && !matches.includes('found')) {
+        const note = context.textNote?.(url);
         unitIssues.push(
           matches.includes('too_far_apart')
             ? `${at}: the parts of the quote "${item.quote}" are more than ${QUOTE_MAX_GAP} characters apart in ${textFrom} ${url}; a "..." may skip only a few words within one passage, so quote one passage or give each part as its own quote`
-            : `${at}: the quote "${item.quote}" is not in ${textFrom} ${url}; copy the words exactly (use "..." for a gap) or leave the quote out`,
+            : `${at}: the quote "${item.quote}" is not in ${textFrom} ${url}: ${describeMismatch(item.quote, pages[0])}. Copy the words exactly (use "..." for a gap) or leave the quote out.${note ? ` ${note}` : ''}`,
         );
       }
     }

@@ -29,6 +29,11 @@ const FetchLog = z.strictObject({
 const LiveFetch = z.strictObject({
   url: z.string(),
   fetchedAt: z.string(),
+  /**
+   * The length of the text quotes were matched against; null when the fetch failed, and absent
+   * from submissions logged before it was recorded.
+   */
+  characters: z.number().int().nullable().optional(),
   /** The SHA-256 of the text quotes were matched against; null when the fetch failed. */
   sha256: z.string().nullable(),
   error: z.string().nullable(),

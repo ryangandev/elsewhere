@@ -2,6 +2,7 @@
 // The commands a Claude Code drafting subagent (.claude/agents/content-drafter.md) runs. See
 // docs/architecture.md#agent-drafting.
 import { parseArgs, type ParseArgsConfig } from 'node:util';
+import { ignoreClosedOutput } from '../closed-output';
 import { DEFAULT_CONTENT_DIR, DEFAULT_MODEL, today } from '../config';
 import { fetchCommand, places, start, status, submit, type AgentDeps } from './commands';
 
@@ -16,7 +17,8 @@ Commands:
     --fresh               discard an existing session first
   fetch <country> <url>   read a page on this computer, keep it as evidence, print a part
     --offset <n>          print the part starting at character n
-    --find <words>        list where the words appear instead
+    --find <words>        list where the words appear instead (20 at a time; with --offset,
+                          those from character n on)
     --links               list the page's links (text | URL) instead; --offset counts links
     --refresh             fetch again even when the page is stored
   places <country>        search the gazetteer
@@ -130,6 +132,8 @@ async function main(): Promise<number> {
   }
 }
 
+// A subagent may pipe a fetch into head.
+ignoreClosedOutput();
 main().then(
   (code) => process.exit(code),
   (error: unknown) => {

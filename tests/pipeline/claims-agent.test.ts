@@ -24,6 +24,7 @@ import {
   submissionsDir,
   verdictFile,
 } from '../../pipeline/claims-agent/session';
+import { SERVER_ERROR_RETRIES_MS } from '../../pipeline/agent/reading';
 import { findPageRecord } from '../../pipeline/agent/session';
 import { htmlToText } from '../../pipeline/claims/local-fetch';
 import { claimsJobs, jobUnits } from '../../pipeline/claims/plan';
@@ -35,11 +36,14 @@ import {
   recordChecks,
 } from '../../pipeline/claims/store';
 import { allScopes, scopeUnits, storyUnits } from '../../pipeline/claims/units';
-import { QUOTE_MAX_GAP } from '../../pipeline/claims/verdicts';
+import { QUOTE_MAX_GAP, QUOTE_MAX_WORDS } from '../../pipeline/claims/verdicts';
 import { writeCountryFile } from '../../pipeline/content-tree';
 import { assembleCountry } from '../../pipeline/generate/assemble';
 import { CountryDraft } from '../../pipeline/generate/draft-schema';
-import { CURRENT_CLAIMS_AGENT_PROMPT_VERSION } from '../../pipeline/prompts';
+import {
+  CURRENT_CLAIMS_AGENT_PROMPT_VERSION,
+  loadClaimsAgentPrompts,
+} from '../../pipeline/prompts';
 import { approve } from '../../pipeline/review/actions';
 import { chileDraft } from './fixtures/build-replay';
 import { RUN_DATE, minimalPdf, tempContentTree, tempDir } from './helpers';
@@ -223,11 +227,23 @@ describe('agent claim check sessions', () => {
       const system = readFileSync(`pipeline/prompts/${version}/system.md`, 'utf8');
       return system.slice(system.indexOf('# Verdicts'));
     };
-    expect(verdicts(CURRENT_CLAIMS_AGENT_PROMPT_VERSION)).toBe(verdicts('claims-v1'));
-    const system = readFileSync('pipeline/prompts/claims-agent-v1/system.md', 'utf8');
     const original = readFileSync('pipeline/prompts/claims-v1/system.md', 'utf8');
     const head = (text: string) => text.slice(0, text.indexOf('# How to work'));
-    expect(head(system)).toBe(head(original));
+    for (const version of ['claims-agent-v1', CURRENT_CLAIMS_AGENT_PROMPT_VERSION]) {
+      expect(verdicts(version)).toBe(verdicts('claims-v1'));
+      const system = readFileSync(`pipeline/prompts/${version}/system.md`, 'utf8');
+      expect(head(system)).toBe(head(original));
+    }
+    // claims-agent-v1 stays loadable for the results and sessions that recorded it.
+    expect(loadClaimsAgentPrompts('claims-agent-v1').version).toBe('claims-agent-v1');
+  });
+
+  it('states the limits the quote check enforces', () => {
+    const system = loadClaimsAgentPrompts().system;
+    expect(system).toContain(`at most ${QUOTE_MAX_GAP} characters between one part and the next`);
+    expect(system).toContain(`A quote must be under ${QUOTE_MAX_WORDS + 1} words`);
+    expect(system).toContain('`--offset`');
+    expect(system).toContain('never save the output to a file');
   });
 
   it('splits a country into sessions that share no units and together cover every due unit', () => {
@@ -332,7 +348,9 @@ describe('agent claim check submissions', () => {
     const live = stubFetch(livePages());
     expect(await submit({ sessionId: 'CHL-length' }, deps(live.stub))).toBe(0);
     expect(live.requested).toEqual([GEOGRAPHY]);
-    expect(text()).toMatch(/Saved 2 verdicts[\s\S]*The session is done/);
+    expect(text()).toMatch(
+      /same text as the reading copy[\s\S]*Units checked: 2\. 2 passed and are saved to .* \(2 supported, 0 partly supported, 0 not supported, 0 source unreachable\); 0 failed\.[\s\S]*The session is done/,
+    );
 
     const pageText = htmlToText(html(`${SECTION_ONE} ${SECTION_TWO}`));
     const units = storyUnits(chileFile().stories[0]);
@@ -349,7 +367,7 @@ describe('agent claim check submissions', () => {
       checkedAt: '2026-10-27',
       model: 'claude-opus-5-5',
       effort: 'default',
-      promptVersion: 'claims-agent-v1',
+      promptVersion: CURRENT_CLAIMS_AGENT_PROMPT_VERSION,
       verification: {
         pages: [
           {
@@ -380,12 +398,18 @@ describe('agent claim check submissions', () => {
       'verification',
     ]);
     expect(describeCheck(checks[units[0].key]).join('\n')).toContain(
-      `claim check: supported (2026-10-27, claude-opus-5-5, claims-agent-v1)`,
+      `claim check: supported (2026-10-27, claude-opus-5-5, ${CURRENT_CLAIMS_AGENT_PROMPT_VERSION})`,
     );
     const session = readSession(dir, 'CHL-length');
     expect(session.passed).toEqual(['length-section-1', 'length-section-2']);
     expect(session.submissions[0].liveFetches).toEqual([
-      { url: GEOGRAPHY, fetchedAt: NOW.toISOString(), sha256: sha256(pageText), error: null },
+      {
+        url: GEOGRAPHY,
+        fetchedAt: NOW.toISOString(),
+        characters: pageText.length,
+        sha256: sha256(pageText),
+        error: null,
+      },
     ]);
     expect(existsSync(join(submissionsDir(dir), '1.json'))).toBe(true);
   });
@@ -414,6 +438,13 @@ describe('agent claim check submissions', () => {
     const output = text();
     expect(output).toContain(
       `verdicts.length-section-2: the quote "Chile has the longest coastline in the world" is not in the page as fetched live at submission from ${GEOGRAPHY}`,
+    );
+    // What the live fetch returned is told apart from the copy the quote was read from.
+    const liveText = htmlToText(html(SECTION_ONE));
+    const comparison = `${liveText.length} characters, not the text of the reading copy fetched ${NOW.toISOString()} (${forged.length} characters)`;
+    expect(output).toContain(`Fetched live to verify quotes: ${GEOGRAPHY} (${comparison})`);
+    expect(output).toContain(
+      `The live page is not the text you read: ${comparison}. If the quote is in your reading copy, the live fetch returned something else; submit again, or fetch with --refresh to see what the page returns now.`,
     );
     expect(output).toMatch(/1 unit still to check:\n {2}length-section-2/);
     expect(Object.keys(readClaims(claimsDir, { id: 'CHL', slug: 'chile' }).checks)).toEqual([
@@ -475,7 +506,9 @@ describe('agent claim check submissions', () => {
     ]);
     expect(await submit({ sessionId: 'CHL-length' }, deps(stubFetch(livePages()).stub))).toBe(1);
     const output = text();
-    expect(output).toContain('Saved 1 verdict');
+    expect(output).toMatch(
+      /Units checked: 2\. 1 passed and is saved to .*; 1 failed and is listed below\./,
+    );
     expect(output).toContain(
       'verdicts.length-section-2: "a phrase the unit does not have" is not in the unit text',
     );
@@ -547,6 +580,32 @@ describe('agent claim check submissions', () => {
       ['source_unreachable', { pages: [] }],
       ['source_unreachable', { pages: [] }],
     ]);
+    text();
+    expect(status({ target: 'CHL-length' }, deps())).toBe(0);
+    expect(text()).toContain(
+      'Submissions: 2; the last saved 2 units and had 0 problems, with 0 live fetches.',
+    );
+  });
+
+  it('tries a page again after a server error before verifying its quotes', async () => {
+    const { dir, deps, text } = await lengthSession();
+    writeVerdicts(dir, [
+      supported('length-section-1', SECTION_ONE),
+      supported('length-section-2', SECTION_TWO),
+    ]);
+    const live = stubFetch(livePages());
+    let answered = 0;
+    const flaky = (async (input: string | URL | Request) =>
+      (answered += 1) === 1
+        ? new Response('Gateway Timeout', { status: 504 })
+        : live.stub(input)) as typeof fetch;
+    const waits: number[] = [];
+    const sleep = async (ms: number) => {
+      waits.push(ms);
+    };
+    expect(await submit({ sessionId: 'CHL-length' }, { ...deps(flaky), sleep })).toBe(0);
+    expect(waits).toEqual([SERVER_ERROR_RETRIES_MS[0]]);
+    expect(text()).toContain('Units checked: 2. 2 passed');
   });
 
   it('never verifies a quote against a page that is not the cited page', async () => {
@@ -601,7 +660,9 @@ describe('agent claim check submissions', () => {
     const live = stubFetch(livePages());
     expect(await submit({ sessionId: 'CHL-length', dryRun: true }, deps(live.stub))).toBe(0);
     expect(live.requested).toEqual([GEOGRAPHY]);
-    expect(text()).toMatch(/Dry run[\s\S]*Would save 2 verdicts[\s\S]*Every unit would pass/);
+    expect(text()).toMatch(
+      /Dry run[\s\S]*Units checked: 2\. 2 would pass and be saved to .*; 0 fail\.[\s\S]*Every unit would pass/,
+    );
     expect(existsSync(claimsFilePath(claimsDir, 'chile'))).toBe(false);
     expect(existsSync(submissionsDir(dir))).toBe(false);
     expect(readFileSync(join(dir, 'session.json'), 'utf8')).toBe(before);
@@ -666,7 +727,7 @@ describe('review of agent results', () => {
       readClaims(defaultClaimsDir(contentDir), { id: 'CHL', slug: 'chile' }).checks,
     ).find((check) => check.accepted)!;
     expect(accepted).toMatchObject({
-      promptVersion: 'claims-agent-v1',
+      promptVersion: CURRENT_CLAIMS_AGENT_PROMPT_VERSION,
       accepted: { by: 'Tester', reason: 'Read the page myself.' },
     });
     expect(accepted.verification!.pages).toHaveLength(1);

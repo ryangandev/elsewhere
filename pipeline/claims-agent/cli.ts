@@ -2,6 +2,7 @@
 // The commands a Claude Code claim checking subagent (.claude/agents/claim-checker.md) runs. See
 // docs/architecture.md#agent-claim-check.
 import { parseArgs, type ParseArgsConfig } from 'node:util';
+import { ignoreClosedOutput } from '../closed-output';
 import { CLAIM_SOURCES_PER_SESSION, DEFAULT_CONTENT_DIR, DEFAULT_MODEL } from '../config';
 import { fetchCommand, start, status, submit, type ClaimsAgentDeps } from './commands';
 
@@ -22,7 +23,8 @@ Commands:
     --fresh                 discard every existing session of the country first
   fetch <session> <url>     read one of the session's cited pages and print a part
     --offset <n>            print the part starting at character n
-    --find <words>          list where the words appear instead
+    --find <words>          list where the words appear instead (20 at a time; with
+                            --offset, those from character n on)
     --refresh               fetch again even when a reading copy is stored
   submit <session> [file]   check the verdict file (default verdicts.json in the session),
                             verify every quote against a live fetch, save what passes
@@ -126,6 +128,8 @@ async function main(): Promise<number> {
   }
 }
 
+// A subagent may pipe a fetch into head.
+ignoreClosedOutput();
 main().then(
   (code) => process.exit(code),
   (error: unknown) => {

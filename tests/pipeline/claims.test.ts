@@ -35,6 +35,7 @@ import {
   matchQuote,
   normalizeForMatch,
   QUOTE_MAX_GAP,
+  QUOTE_MAX_WORDS,
   quoteInText,
 } from '../../pipeline/claims/verdicts';
 import { CLAIM_FETCH_RETRIES, CLAIM_LIMITS } from '../../pipeline/config';
@@ -216,13 +217,57 @@ describe('verdict validation', () => {
     quoted.verdicts[1].evidence = [{ sourceId: 'fixture-geography', quote: 'Chile is long' }];
     const result = checkVerdicts(quoted, { units, sources, fetched, texts: withPage, stamp });
     const issue =
-      'verdicts.length-section-2: the quote "Chile is long" is not in the text fetched from https://example.org/elsewhere-fixture/chile/geography; copy the words exactly (use "..." for a gap) or leave the quote out';
+      'verdicts.length-section-2: the quote "Chile is long" is not in the text fetched from https://example.org/elsewhere-fixture/chile/geography: the page matches it as far as "chile", then has "-from the atacama to patagonia." where the quote has " is long" (shown as compared: lowercase, with spacing, quotation marks and dashes folded). Copy the words exactly (use "..." for a gap) or leave the quote out.';
     expect(result.issues).toEqual([issue]);
     // The unit with the good quote passes on its own; the other one fails with its reason.
     expect(Object.keys(result.checks)).toEqual([units[0].key]);
     expect(result.failures).toEqual(new Map([['length-section-2', [issue]]]));
     // Without the page's text (a PDF), quotes are taken as given.
     expect(checkVerdicts(quoted, { units, sources, fetched, texts, stamp }).ok).toBe(true);
+  });
+
+  it(`refuses a quote of more than ${QUOTE_MAX_WORDS} words, as the prompts ask`, () => {
+    const words = (count: number) =>
+      Array.from({ length: count }, (_, index) => `word${index}`).join(' ');
+    const page = `${words(40)}.`;
+    const withPage = new Map([['example.org/elsewhere-fixture/chile/geography', [page]]]);
+    const quoted = structuredClone(valid);
+    quoted.verdicts[0].evidence = [
+      { sourceId: 'fixture-geography', quote: `${words(QUOTE_MAX_WORDS)}` },
+    ];
+    // "..." and a lone dash are not words.
+    quoted.verdicts[1].evidence = [
+      { sourceId: 'fixture-geography', quote: `${words(QUOTE_MAX_WORDS + 1)} - ...` },
+    ];
+    const result = checkVerdicts(quoted, { units, sources, fetched, texts: withPage, stamp });
+    expect(result.issues).toEqual([
+      `verdicts.length-section-2: the quote "${words(QUOTE_MAX_WORDS + 1)} - ..." has 30 words; a quote must be under 30 words, so quote only the words that state the claim, or give each part as its own quote`,
+    ]);
+    expect(Object.keys(result.checks)).toEqual([units[0].key]);
+  });
+
+  it('says how far a missing quote matches the page and what the page has instead', () => {
+    const page = 'The Andes run the length of Chile, about 4,300 km from north to south.';
+    const withPage = new Map([['example.org/elsewhere-fixture/chile/geography', [page]]]);
+    const quoted = structuredClone(valid);
+    quoted.verdicts[0].evidence = [
+      { sourceId: 'fixture-geography', quote: 'the length of Chile, about 4,600 km' },
+    ];
+    quoted.verdicts[1].evidence = [
+      { sourceId: 'fixture-geography', quote: 'north to south ... The Andes run' },
+    ];
+    const result = checkVerdicts(quoted, {
+      units,
+      sources,
+      fetched,
+      texts: withPage,
+      stamp,
+      textNote: () => 'The live page differs from the reading copy.',
+    });
+    expect(result.issues).toEqual([
+      'verdicts.length-section-1: the quote "the length of Chile, about 4,600 km" is not in the text fetched from https://example.org/elsewhere-fixture/chile/geography: the page matches it as far as "the length of chile, about 4,", then has "300 km from north to south." where the quote has "600 km" (shown as compared: lowercase, with spacing, quotation marks and dashes folded). Copy the words exactly (use "..." for a gap) or leave the quote out. The live page differs from the reading copy.',
+      'verdicts.length-section-2: the quote "north to south ... The Andes run" is not in the text fetched from https://example.org/elsewhere-fixture/chile/geography: each of its parts is on the page, but not in this order. Copy the words exactly (use "..." for a gap) or leave the quote out. The live page differs from the reading copy.',
+    ]);
   });
 
   it('says when the parts of a quote are too far apart', () => {
@@ -355,6 +400,64 @@ describe('quotes', () => {
     expect(normalizeForMatch('It’s “Ring  of Fire” – 1,500 volcanoes…')).toBe(
       "it's ring of fire-1,500 volcanoes...",
     );
+  });
+
+  // Panama's constitution maps its "fi" and "fl" ligature glyphs to U+0000.
+  it('read a ligature a PDF lost as "fi" or "fl", and as nothing else', () => {
+    const page =
+      'Public of\u0000cials shall \u0000rst salute the national \u0000ag with ef\u0000ciency.';
+    expect(quoteInText('Public officials shall first salute the national flag', page)).toBe(true);
+    expect(quoteInText('with efficiency', page)).toBe(true);
+    expect(quoteInText('Public ofcials', page)).toBe(false);
+    expect(quoteInText('Public offcials', page)).toBe(false);
+    expect(quoteInText('the national frag', page)).toBe(false);
+    expect(quoteInText('the national flags', page)).toBe(false);
+    // A page with the letters needs them in the quote, as before.
+    expect(quoteInText('public ofcials', 'Public officials')).toBe(false);
+  });
+
+  it('read a hyphen at a line break as a break inside a word or a compound hyphen', () => {
+    const page =
+      'beneath South America by subduc-\ntion along the Andes, which main- \n  tains a long-\nterm uplift';
+    expect(quoteInText('by subduction along the Andes, which maintains', page)).toBe(true);
+    expect(quoteInText('by subduc-tion along the Andes', page)).toBe(true);
+    expect(quoteInText('a long-term uplift', page)).toBe(true);
+    expect(quoteInText('a longterm uplift', page)).toBe(true);
+    expect(quoteInText('by subduc tion', page)).toBe(false);
+    // Off a line break a hyphen is a hyphen, and a space is a space.
+    expect(quoteInText('a longterm uplift', 'a long-term uplift')).toBe(false);
+    expect(quoteInText('by subduction', 'by subduc- tion')).toBe(false);
+    expect(quoteInText('by subduction', 'by subduc tion')).toBe(false);
+    // Only between letters: a range of years stays a range.
+    expect(quoteInText('from 19902000', 'from 1990-\n2000')).toBe(false);
+    expect(quoteInText('from 1990-2000', 'from 1990-\n2000')).toBe(true);
+    // A soft hyphen at a line break joins the word.
+    expect(quoteInText('by subduction', 'by subduc­\ntion')).toBe(true);
+    // A quote copied across the break keeps its hyphen.
+    expect(quoteInText('by subduc-\ntion along', page)).toBe(true);
+  });
+
+  it('skip the page marker of a PDF, so a quote runs on across a page break', () => {
+    const page =
+      'decided to submit the dispute to the\n\n[Page 18]\nPermanent Court of Arbitration';
+    expect(quoteInText('to submit the dispute to the Permanent Court of Arbitration', page)).toBe(
+      true,
+    );
+    expect(quoteInText('the [Page 18] Permanent Court', page)).toBe(false);
+  });
+
+  it('ignore a space before punctuation, on either side, without joining words', () => {
+    const page = 'the Mercator projection , named after Gerardus Mercator ( 1512 – 1594 ) ; it';
+    expect(quoteInText('Mercator projection, named after', page)).toBe(true);
+    expect(quoteInText('Gerardus Mercator (1512-1594); it', page)).toBe(true);
+    expect(quoteInText('Mercator projection , named', 'Mercator projection, named')).toBe(true);
+    expect(quoteInText('Mercator projection named', page)).toBe(false);
+    expect(quoteInText('projectionnamed', page)).toBe(false);
+  });
+
+  it('ignore private-use characters, which PDFs use for symbol glyphs', () => {
+    expect(quoteInText('the capital, Alma-Ata', 'the capital, Alma-Ata')).toBe(true);
+    expect(quoteInText('the capital, Alma-Ata', 'the capital, Alma-\u{f0000}Ata')).toBe(true);
   });
 });
 

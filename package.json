@@ -56,6 +56,7 @@
     "@types/three": "^0.180.0",
     "@vercel/routing-utils": "^6.6.0",
     "d3-geo": "^3.1.1",
+    "entities": "^8.1.0",
     "eslint": "9.39.4",
     "eslint-config-next": "^16.4.3",
     "mapshaper": "^0.7.68",

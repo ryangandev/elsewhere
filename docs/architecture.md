@@ -276,10 +276,18 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Every quote must also appear in the text the conversation was given for its source (a web fetch served as text, or `fetch_page`'s text).
    Both sides are normalized before matching (`normalizeForMatch` in `pipeline/claims/verdicts.ts`), so only the words and numbers must agree.
    Literal `\uXXXX` and backslash escapes the model sometimes writes are decoded; every quotation mark and apostrophe variant is folded, and kept only inside a word (`it's`), so a quote may add or drop the quotation marks around a phrase.
-   Unicode compatibility forms are folded (no-break and narrow spaces, `…`, superscripts), soft hyphens and zero-width characters are dropped, every dash and the minus sign become a hyphen with no space around it, and case and whitespace are ignored.
+   Unicode compatibility forms are folded (no-break and narrow spaces, `…`, superscripts), soft hyphens, zero-width characters and private-use characters are dropped, every dash and the minus sign become a hyphen with no space around it, and case and whitespace are ignored.
+   Private-use characters have no standard meaning; a PDF font may draw a symbol with one (a Gawecki paper has U+F0AB in its text), and a quote copied from a display leaves it out.
+   A space before closing punctuation (`, . ; : ! ? % ) ] }`) or after an opening bracket is dropped on both sides, since some pages write "1990 , and" and a quote that drops the space is the same words.
    Web fetch serves pages as Markdown, so link targets, emphasis marks and table pipes are dropped too: a quote of "Capital: Moscow" matches `Capital: [Moscow](https://...)`.
    "..." (or "[...]") marks a gap: the pieces must appear in order, with at most `QUOTE_MAX_GAP` (300) normalized characters, about 50 words, between consecutive pieces, so a quote cannot stitch together words from distant passages of a page; a quote whose pieces are farther apart goes back with that reason.
    On the recorded runs of nine countries the widest gap in a matching quote was 30 characters.
+   Three rules apply only to the marks the local fetcher leaves in a PDF's text (see the `fetch` command in [Agent drafting](#agent-drafting)), so they change nothing on a page without them.
+   A `[Page n]` line on a line of its own is skipped, so a quote may run across a page break.
+   A word hyphenated at a line break (a letter, a hyphen, a line break, a letter) matches the quote with the hyphen or without it, since the text cannot tell "govern-ment" from "self-government".
+   A NUL, which some PDFs give for the "fi" and "fl" ligatures, matches "fi" or "fl" in the quote.
+   A quote must be under 30 words (`QUOTE_MAX_WORDS`, 29, counting the runs that hold a letter or digit), as the prompts and the schema have always asked, and a longer one goes back with the request to quote only the words that state the claim.
+   A quote that is not on the page goes back with where it parts from the page: the longest start of its first missing piece that is on the page, what the page has next and what the quote has instead, shown as compared (lowercase, with spacing, quotation marks and dashes folded); or that each piece is on the page but not in that order; or that nothing on the page starts like it.
    A PDF comes back from the server as a document whose text the pipeline does not extract, so quotes from a PDF are not checked.
    On the recorded Singapore and Japan runs, 38 of the 39 checkable quotes matched; the other was a description of a table row, which the check now sends back.
    On the recorded United Kingdom, Russia and Netherlands runs, the Markdown and quotation mark folding removed 16 rejections, each a real match, and introduced none; all three now pass on replay.
@@ -402,6 +410,7 @@ What can go wrong:
 - The claim check is a model reading pages, so it can miss a statement or misread one.
   Quotes from PDFs are not checked, and a page that needs scripts to show its text, or that blocks both fetchers, comes back unreachable and needs a person.
   Quote matching ignores case, quotation marks, dashes and Markdown, so a quote can differ from the page in those and still pass; its words and numbers must match exactly.
+  In a PDF's text a NUL matches either "fi" or "fl", so a quote could read "flat" where the page has "fiat"; the letters around it must still match, and the subagent is asked to write the real word.
   A flag means "open this source", not "this is false": most flags on the hand-converted countries are true facts cited to a page that does not state them.
 
 ### Agent drafting
@@ -430,15 +439,26 @@ npm run content:agent -- status CHL
   It refuses a file with reviewed content, and an existing draft that review did not send back unless `--regenerate` is given.
 - `fetch` reads a page from the editor's computer with `fetchPage` in `pipeline/claims/local-fetch.ts`: HTML and plain text as the server returns them, without scripts, and PDFs by their text layer with a `[Page n]` line before each page.
   PDFs are read with unpdf, a maintained packaging of Mozilla's pdf.js for Node with no dependencies of its own.
+  pdf.js runs at verbosity 0 (errors only), so its font warnings ("TT: undefined function") never mix with a command's output.
+  Some PDFs draw their text twice, as a second text layer or to fake bold (Nunn and Qian's paper draws every line twice), and read in drawing order each line runs into a copy of itself.
+  A run of text is dropped as a copy when it lies on the same baseline, in the same size, within the stretch of longer runs it overlaps, and its letters are among theirs, since two different texts are never drawn over each other; the copies are not always split into runs the same way, so longer runs are kept first.
+  Running headers and footers are kept once: a line among the first or last three of at least two in five pages (and at least three pages) that is the same on each, or differs only by the page number, stays where it first appears and is dropped from the pages after.
+  No text is lost that way, and a sentence that runs on from one page to the next reads on with only the `[Page n]` line between, which the quote matcher skips; a table's "Total 1,204" and "Total 1,388" are different lines and both stay.
+  Some PDFs map the "fi" and "fl" ligature glyphs to U+0000 in their own ToUnicode table (Panama's constitution from constituteproject.org does), so "official" comes out as "of", a NUL and "cial"; the letters cannot be recovered from the file, so the text keeps the NUL and the quote matcher reads it as "fi" or "fl".
+  HTML character references are decoded once with the `entities` package, which knows every named reference HTML defines ("&eacute;" was left as it was before); a page that escapes its text twice ("&amp;eacute;") shows "&eacute;", as it does in a browser.
   Text is decoded in the charset the Content-Type header names, else the one an HTML page declares in a `<meta charset>` or `http-equiv` tag in its first 2 KB, else UTF-8; a page that declares nothing and is not valid UTF-8 is read as windows-1252, which older government sites such as Argentina's InfoLEG serve without saying so.
   Each page becomes an evidence record in `evidence/`: the requested and final URLs, both normalized, the HTTP status, the content type, the time, the SHA-256 of the text, and the text, up to 2 million characters from at most 40 MB.
   It prints 20,000 characters at a time (Claude Code shows up to 30,000 characters of a command's output), with `--offset` for another part and `--find` to list where words appear; later reads come from the stored copy unless `--refresh` is given.
+  Reading a long page part by part with `--offset` is the way to read all of it; there is nothing to save elsewhere, and the stored copy makes each part instant.
+  `--find` searches for the words literally, ignoring case, and says how many times they appear; it lists 20 at a time, each with about 150 characters on either side shown with line breaks and runs of spaces as one space, and ends with the command for the next 20, where `--offset` is the character to search from.
+  The commands ignore a closed output pipe, so `fetch ... | head` ends quietly instead of with an `EPIPE` error.
   `--links` lists the page's links instead of its text, because the text leaves them out and a drafter otherwise resorts to curl to find a statistics table PDF or a primary source.
   Each line is the anchor text and the absolute URL, `text | URL`, in page order and once per URL (fragments are dropped, an empty anchor takes the text of a later link to the same URL, and links to the page itself, `mailto:` and `javascript:` are left out).
   It pages like the text, 20,000 characters at a time, but `--offset` then counts links, so a part never ends in the middle of a URL.
   The links are kept in the evidence record (at most 5,000 per page) and are not covered by the hash, since they are only a way to find pages; a record stored before links were kept asks for `--refresh`.
   PDFs and plain text have no links.
   A page that answers with an error status, a bot challenge, no text without scripts, a type other than HTML, plain text or PDF, or no answer within a minute stores nothing, so it cannot be cited.
+  A server error (5xx) is tried again after 5, 20 and 60 seconds, or after the server's `Retry-After` when that is a minute or less, because usgs.gov answered 504 for longer than subagents kept retrying by hand; any other status, such as the 403 that Britannica, EITI and Wiley answer, is final at once, since asking again would not change it.
   A network failure reports its cause along with "fetch failed" (Node keeps the real reason in `error.cause`), such as a redirect loop, a certificate for another host name, `ECONNRESET` or an unknown host, so a page that will never load is told apart from one that may load later.
   The claim check's `fetch_page` tool shares this reason.
   Every failed fetch is recorded in `session.json` with its URL, time and reason, and `status` lists it, so a drafter sees which pages failed and why.
@@ -485,8 +505,9 @@ npm run content:claims-agent -- status <session or country>
   Planning every part from one reading of the claims file is what keeps parts apart: if each subagent planned its own part, a result saved in between would shift the packing.
   It refuses while an unfinished session of the country holds a unit it would hand out; such a session can be continued by another subagent, or discarded with `--fresh`.
   Each session has `session.json` (the units by ID and key, the sources, model, effort, prompt version, fetches and submissions) and `brief.md`.
-  The brief is the claims-agent-v1 system prompt and task, rendered from the same values as the API task (`claimsTaskValues` in `pipeline/claims/session.ts`), followed by the commands and the JSON Schema of the verdict file, which is the schema of the API path's `submit_verdicts` tool.
+  The brief is the claims-agent-v2 system prompt and task, rendered from the same values as the API task (`claimsTaskValues` in `pipeline/claims/session.ts`), followed by the commands and the JSON Schema of the verdict file, which is the schema of the API path's `submit_verdicts` tool.
   Its prompts are their own version line, `pipeline/prompts/claims-agent-v<n>/`: claims-agent-v1 is claims-v1 with the reading and submission instructions rewritten for these commands, and every judging rule unchanged (a test compares the two from `# Verdicts` on).
+  claims-agent-v2 adds what the quote check ignores and what it enforces (the 300-character gap, quotes under 30 words, PDF line-end hyphens, lost ligatures and page breaks), how `--find` pages its matches, and to read a long page with `--offset` instead of saving it; claims-agent-v1 stays as it was for the results that recorded it, and a session keeps the version it started with.
 - `fetch` reads one of the session's cited URLs (compared normalized; any other URL is refused) with the same fetcher and limits as agent drafting: HTML, plain text, and PDFs by their text layer, printed 20,000 characters at a time, with `--offset` and `--find`.
   It keeps a reading copy in `pages/`, so reading the next part does not fetch the page again, and logs every fetch and failure in `session.json`; the copy is never used to verify anything.
   It warns when the page is probably not the cited one, by agent drafting's page check (`pipeline/agent/page-check.ts`: a stub, or a redirect to a login or home page).
@@ -499,12 +520,14 @@ npm run content:claims-agent -- status <session or country>
   The subagent fixes them and submits again; a unit that passed may stay in the file, and a new verdict replaces its saved one only if the new one passes.
   A subagent may also stop with units left not checked, which stay due for the next session.
   A submission is refused when a unit's text or sources changed since `start`, because its verdict would no longer apply.
-  Every verdict file is kept in `submissions/<n>.json`, and the session logs each submission's saved units, problems and live fetches.
+  It prints one line per live fetch with the length of the text and whether it is the text of the reading copy, and a summary of how many units were checked, how many passed and were saved, and how many failed.
+  When a quote is not on the live page and the live text differs from the reading copy, the problem says so, with both lengths and the time of the copy, so a page that served the subagent one text and the live fetch another is told apart from a miscopied quote; the reading copy explains a failure and never verifies a quote.
+  Every verdict file is kept in `submissions/<n>.json`, and the session logs each submission's saved units, problems and live fetches (URL, time, length and SHA-256 of the text, or the error).
   `--dry-run` runs the same checks and live fetches, and saves, keeps and logs nothing.
 - `status` lists the units checked and still due (with the last problems), the fetched and unfetched sources, the failed fetches and the submissions; given a country, every session of it.
 
 An agent result is an API result with three differences.
-Its `promptVersion` is `claims-agent-v1`, and its `effort` is what `start` recorded ("default", the subagent's own, unless given); `model` is the subagent's model (`claude-opus-5-5` by default, `--model` to change).
+Its `promptVersion` is `claims-agent-v2` (`claims-agent-v1` on earlier results), and its `effort` is what `start` recorded ("default", the subagent's own, unless given); `model` is the subagent's model (`claude-opus-5-5` by default, `--model` to change).
 An extra `verification` field lists, for each source the unit quotes, the URL, the final URL, the time of the live fetch, and the length and SHA-256 of the text its quotes were matched against; it is empty when the verdict quotes nothing.
 `content:review -- show` prints both kinds the same way, adding the prompt version and the live fetch to an agent result, and `approve` gates on them identically: a missing or flagged result blocks approval until the text is revised or the flag accepted with `--accept-claims`.
 

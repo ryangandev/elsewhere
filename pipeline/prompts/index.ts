@@ -78,9 +78,13 @@ export function loadClaimsPrompts(
  * recorded on each result it saves. A Claude Code subagent reads the cited pages through the
  * pipeline's fetch command and writes a verdict file instead of calling the API's tools, so the
  * reading and submission instructions differ; every judging rule is copied unchanged from the
- * claim check version it started from (claims-agent-v1 from claims-v1).
+ * claim check version it started from (claims-agent-v1 from claims-v1). claims-agent-v1 stays as
+ * it was for the results that recorded it. claims-agent-v2 says what the quote check ignores and
+ * what it enforces (the 300-character gap, quotes under 30 words, PDF line-end hyphens, lost
+ * ligatures and page breaks), how --find pages its matches, and to read long pages with --offset
+ * instead of saving them.
  */
-export const CURRENT_CLAIMS_AGENT_PROMPT_VERSION = 'claims-agent-v1';
+export const CURRENT_CLAIMS_AGENT_PROMPT_VERSION = 'claims-agent-v2';
 
 const CLAIMS_AGENT_NAMES = ['system', 'task', 'repair'] as const;
 export type ClaimsAgentPromptSet = { version: string } & Record<
