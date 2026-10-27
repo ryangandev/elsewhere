@@ -23,6 +23,7 @@ import {
   sessionDir,
 } from '../../pipeline/agent/session';
 import { extractLinks, fetchPage } from '../../pipeline/claims/local-fetch';
+import { parseArgsOnce } from '../../pipeline/cli-args';
 import { DEFAULT_MODEL } from '../../pipeline/config';
 import { countryFilePath, readCountryFile } from '../../pipeline/content-tree';
 import { allPlans } from '../../pipeline/generate/plan';
@@ -884,7 +885,9 @@ describe('agent-v2 prompts', () => {
 describe('agent places command', () => {
   it('searches several names in one call, headed by each query', () => {
     const { deps, output } = setup();
-    expect(places({ countryId: 'CHL', queries: ['santiago', 'punta arenas'] }, deps)).toBe(0);
+    expect(
+      places({ countryId: 'CHL', queries: ['santiago', 'punta arenas'], countries: [] }, deps),
+    ).toBe(0);
     const printed = output();
     expect(printed).toMatch(/^## santiago\n[^\n]*Santiago \| city in CHL/m);
     expect(printed).toMatch(/^## punta arenas\n[^\n]*Punta Arenas/m);
@@ -892,9 +895,50 @@ describe('agent places command', () => {
 
   it('prints a single query, or none, without a heading', () => {
     const { deps, output } = setup();
-    expect(places({ countryId: 'CHL', queries: ['santiago'] }, deps)).toBe(0);
+    expect(places({ countryId: 'CHL', queries: ['santiago'], countries: [] }, deps)).toBe(0);
     expect(output()).not.toContain('##');
-    expect(places({ countryId: 'CHL', queries: [], country: 'CHL' }, deps)).toBe(0);
+    expect(places({ countryId: 'CHL', queries: [], countries: ['CHL'] }, deps)).toBe(0);
     expect(output()).toContain('| city in CHL |');
+  });
+
+  it('searches places in any of several countries', () => {
+    const { deps, output } = setup();
+    const near = (countries: string[]) => {
+      expect(places({ countryId: 'CHL', queries: [], countries, near: 'santiago' }, deps)).toBe(0);
+      return output();
+    };
+    const both = near(['CHL', 'arg']);
+    expect(both).toContain('| city in CHL |');
+    expect(both).toContain('| city in ARG |');
+    expect(both).not.toMatch(/\| (city|region) in (?!CHL|ARG)/);
+    expect(near(['ARG'])).not.toContain('in CHL');
+    expect(() => near(['XXX'])).toThrow('Unknown map country "XXX"');
+  });
+});
+
+describe('command-line options', () => {
+  const options = {
+    country: { type: 'string', multiple: true },
+    near: { type: 'string' },
+    'dry-run': { type: 'boolean' },
+  } as const;
+  const parse = (args: string[]) => parseArgsOnce({ args, options, allowPositionals: true });
+
+  it('keeps every value of a repeatable option', () => {
+    expect(parse(['NGA', '--country', 'NGA', '--country', 'CMR']).values.country).toEqual([
+      'NGA',
+      'CMR',
+    ]);
+  });
+
+  it('refuses an option that takes one value given twice, instead of keeping the last', () => {
+    expect(() => parse(['NGA', '--near', 'lagos', '--near', 'abuja'])).toThrow(
+      '--near was given more than once',
+    );
+    expect(() => parse(['NGA', '--dry-run', '--dry-run'])).toThrow('--dry-run was given');
+    expect(parse(['NGA', '--near', 'lagos', '--dry-run']).values).toEqual({
+      near: 'lagos',
+      'dry-run': true,
+    });
   });
 });

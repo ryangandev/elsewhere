@@ -1,7 +1,8 @@
 // npm run content:claims-agent -- <command> ...
 // The commands a Claude Code claim checking subagent (.claude/agents/claim-checker.md) runs. See
 // docs/architecture.md#agent-claim-check.
-import { parseArgs, type ParseArgsConfig } from 'node:util';
+import type { ParseArgsConfig } from 'node:util';
+import { parseArgsOnce } from '../cli-args';
 import { ignoreClosedOutput } from '../closed-output';
 import { CLAIM_SOURCES_PER_SESSION, DEFAULT_CONTENT_DIR, DEFAULT_MODEL } from '../config';
 import { fetchCommand, start, status, submit, type ClaimsAgentDeps } from './commands';
@@ -68,7 +69,7 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return name && name !== '--help' && name !== 'help' ? 1 : 0;
   }
-  const { values, positionals } = parseArgs({
+  const { values, positionals } = parseArgsOnce({
     args: rest,
     options: OPTIONS[name],
     allowPositionals: true,

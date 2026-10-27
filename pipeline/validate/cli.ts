@@ -1,11 +1,11 @@
 // npm run content:verify [-- --offline] [--country CHL] [--refresh] [--content-dir <dir>]
 // Exits non-zero on content issues or broken source URLs; unverified URLs are warnings.
-import { parseArgs } from 'node:util';
+import { parseArgsOnce } from '../cli-args';
 import { DEFAULT_CONTENT_DIR } from '../config';
 import { verifyContent } from './verify';
 
 async function main(): Promise<number> {
-  const { values } = parseArgs({
+  const { values } = parseArgsOnce({
     options: {
       offline: { type: 'boolean', default: false },
       refresh: { type: 'boolean', default: false },

@@ -112,7 +112,8 @@ export function candidateListing(countryId: string): string {
 
 export type FindPlacesInput = {
   query: string | null;
-  countryId: string | null;
+  /** One map country, or several for places in any of them (the agent places command). */
+  countryId: string | readonly string[] | null;
   near: string | null;
 };
 
@@ -128,9 +129,9 @@ export function findPlaces(input: FindPlacesInput, limit = 25): string {
   const near = input.near ? places.find((place) => place.id === input.near) : undefined;
   if (input.near && !near) return `Unknown place "${input.near}". Search by name first.`;
   const query = input.query ? fold(input.query.trim()) : '';
-  const countryId = input.countryId?.toUpperCase();
+  const countryIds = new Set([input.countryId ?? []].flat().map((id) => id.toUpperCase()));
   const matches = places
-    .filter((place) => !countryId || place.countryId === countryId)
+    .filter((place) => !countryIds.size || countryIds.has(place.countryId ?? ''))
     .filter(
       (place) =>
         !query || fold(place.name).includes(query) || place.id.includes(query.replace(/\s+/g, '-')),

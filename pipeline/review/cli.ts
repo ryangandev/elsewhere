@@ -4,7 +4,7 @@
 //   show <country> [story] [--check-urls]        readable summary with claim checks and warnings
 //   approve <country> [story] [--all] [--by me]  mark the overview, a story, or everything reviewed
 //   revise <country> [story] --notes "..."       send a draft back for regeneration
-import { parseArgs } from 'node:util';
+import { parseArgsOnce } from '../cli-args';
 import { DEFAULT_CONTENT_DIR, today } from '../config';
 import { parsedCountryFiles, countryFilePath } from '../content-tree';
 import { checkUrls } from '../validate/urls';
@@ -40,7 +40,7 @@ const USAGE = `Usage: npm run content:review -- <command> [options]
 npm run content:generate -- --revisions to redraft everything sent back.`;
 
 async function main(): Promise<number> {
-  const { values, positionals } = parseArgs({
+  const { values, positionals } = parseArgsOnce({
     allowPositionals: true,
     options: {
       all: { type: 'boolean', default: false },

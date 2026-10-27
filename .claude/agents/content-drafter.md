@@ -27,7 +27,7 @@ Run every command from the repository root.
    Prefer sources the fetch command can read: national statistics offices, government and parliament pages, international organizations, museums, archives, libraries, open pages of academic publishers and reputable news.
    If a page cannot be fetched, choose another source.
    If the command warns that a page is probably not the page you asked for (a login page, a site's home page or almost no text), do not cite it: submit rejects it.
-4. Choose map places only from the brief's gazetteer listings and `npm run content:agent -- places <ID> --query "<name>"`; repeat `--query` to search several names in one call.
+4. Choose map places only from the brief's gazetteer listings and `npm run content:agent -- places <ID> --query "<name>"`; repeat `--query` to search several names in one call, and repeat `--country` for places in any of several countries.
 5. Write the draft as JSON to `pipeline/.cache/agent/<ID>/draft.json`, following the submission schema in the brief.
    Optionally run `npm run content:agent -- submit <ID> --dry-run` first, for example to check map routes: it runs every check and prints the problems, but writes nothing and does not count as a submission.
 6. Run `npm run content:agent -- submit <ID>`.

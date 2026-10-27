@@ -423,7 +423,7 @@ Ask Claude Code to run it for a country; one subagent drafts one country, and se
 ```sh
 npm run content:agent -- start CHL [--content-dir <dir>] [--model <id>] [--date YYYY-MM-DD] [--regenerate] [--fresh]
 npm run content:agent -- fetch CHL "<url>" [--offset <n>] [--find <words> | --links] [--refresh]
-npm run content:agent -- places CHL [--query <name>]... [--country <map ID>] [--near <place ID>]
+npm run content:agent -- places CHL [--query <name>]... [--country <map ID>]... [--near <place ID>]
 npm run content:agent -- submit CHL [<draft.json>] [--dry-run]
 npm run content:agent -- status CHL
 ```
@@ -472,6 +472,8 @@ npm run content:agent -- status CHL
   The flag is computed from the stored record each time, never saved, so the warning and the rejection agree (`pipeline/agent/page-check.ts`).
 - `places` searches the gazetteer like the API path's `find_places` tool.
   `--query` may be repeated to search several names in one call, each result headed by its query.
+  `--country` may be repeated too, for places in any of the listed countries (the cities on both sides of a border, sorted with `--near`), since a drafter who repeated it expected that.
+  Every pipeline command refuses an option that takes one value when it is given twice (`parseArgsOnce` in `pipeline/cli-args.ts`): Node's `parseArgs` keeps only the last value, so `places NGA --country A --country B` once searched only B without saying so.
   The commands import nothing that loads the Anthropic SDK (`replaceConflict` lives in `pipeline/generate/replace.ts` for that reason), which keeps a call under a second; importing `pipeline/generate/run.ts` made every call take several.
 - `submit` parses, assembles and checks the draft with the same function as the API path's `submit_draft`: every `content:check` rule and every rule the pipeline adds.
   The retrieved URLs it checks sources against are those of the session's evidence records whose text still matches its hash; a record that does not, or that `fetch` did not write, is a problem of its own and never counts.

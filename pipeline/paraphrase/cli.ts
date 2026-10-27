@@ -1,6 +1,6 @@
 // npm run content:paraphrase -- <country>... | --all
 // See docs/architecture.md#content-pipeline for what paraphrases are and when to run this.
-import { parseArgs } from 'node:util';
+import { parseArgsOnce } from '../cli-args';
 import { DEFAULT_CONTENT_DIR, DEFAULT_MODEL, loadLocalEnv, today, type Effort } from '../config';
 import {
   AnthropicModelClient,
@@ -36,7 +36,7 @@ Writes search phrasings for stories that have none or whose question changed.
 const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
 async function main(): Promise<number> {
-  const { values, positionals } = parseArgs({
+  const { values, positionals } = parseArgsOnce({
     allowPositionals: true,
     options: {
       all: { type: 'boolean', default: false },

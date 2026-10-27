@@ -245,15 +245,23 @@ export type PlacesOptions = {
   countryId: string;
   /** Names to search for; with several, each result is headed by its query. */
   queries: string[];
-  country?: string;
+  /** Only places in these map countries (in any of them); none means everywhere. */
+  countries: string[];
   near?: string;
 };
 
 export function places(options: PlacesOptions, deps: AgentDeps): number {
   requireMapCountry(options.countryId);
+  const countries = options.countries.map((id) => requireMapCountry(id).id);
   for (const query of options.queries.length ? options.queries : [null]) {
     if (options.queries.length > 1) deps.out(`## ${query}`);
-    deps.out(findPlaces({ query, countryId: options.country ?? null, near: options.near ?? null }));
+    deps.out(
+      findPlaces({
+        query,
+        countryId: countries.length ? countries : null,
+        near: options.near ?? null,
+      }),
+    );
   }
   return 0;
 }

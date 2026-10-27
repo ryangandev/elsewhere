@@ -1,7 +1,8 @@
 // npm run content:agent -- <command> <country> [options]
 // The commands a Claude Code drafting subagent (.claude/agents/content-drafter.md) runs. See
 // docs/architecture.md#agent-drafting.
-import { parseArgs, type ParseArgsConfig } from 'node:util';
+import type { ParseArgsConfig } from 'node:util';
+import { parseArgsOnce } from '../cli-args';
 import { ignoreClosedOutput } from '../closed-output';
 import { DEFAULT_CONTENT_DIR, DEFAULT_MODEL, today } from '../config';
 import { fetchCommand, places, start, status, submit, type AgentDeps } from './commands';
@@ -23,7 +24,7 @@ Commands:
     --refresh             fetch again even when the page is stored
   places <country>        search the gazetteer
     --query <name>        part of a place name; repeat it to search several names at once
-    --country <id>        only places in this map country
+    --country <id>        only places in this map country; repeat it for places in any of several
     --near <place id>     sort by distance from this place
   submit <country> [file] check the draft (default draft.json in the session) and write it
     --dry-run             run the same checks but write and record nothing
@@ -48,7 +49,7 @@ const OPTIONS: Record<string, Options> = {
   },
   places: {
     query: { type: 'string', multiple: true },
-    country: { type: 'string' },
+    country: { type: 'string', multiple: true },
     near: { type: 'string' },
   },
   submit: { 'dry-run': { type: 'boolean', default: false } },
@@ -70,7 +71,7 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return name && name !== '--help' && name !== 'help' ? 1 : 0;
   }
-  const { values, positionals } = parseArgs({
+  const { values, positionals } = parseArgsOnce({
     args: rest,
     options: OPTIONS[name],
     allowPositionals: true,
@@ -120,7 +121,7 @@ async function main(): Promise<number> {
         {
           countryId,
           queries: (values.query as string[] | undefined) ?? [],
-          country: string('country'),
+          countries: (values.country as string[] | undefined) ?? [],
           near: string('near'),
         },
         deps,

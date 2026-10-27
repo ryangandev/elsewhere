@@ -1,6 +1,6 @@
 // npm run content:generate -- --batch pilot | --country CHL [--country EGY] | --revisions
 // See docs/architecture.md#content-pipeline for the workflow and every option.
-import { parseArgs } from 'node:util';
+import { parseArgsOnce } from '../cli-args';
 import { findPendingReferences } from '../../src/content/validate';
 import {
   DEFAULT_CONTENT_DIR,
@@ -67,7 +67,7 @@ function revisionJobs(contentDir: string): Job[] {
 }
 
 async function main(): Promise<number> {
-  const { values } = parseArgs({
+  const { values } = parseArgsOnce({
     options: {
       batch: { type: 'string' },
       country: { type: 'string', multiple: true },
