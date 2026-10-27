@@ -54,6 +54,8 @@ export type AgentDeps = {
   plan?: Plan;
   /** Page fetches; tests pass a stub. */
   fetch?: typeof fetch;
+  /** Waits between fetch attempts after a server error; tests pass one that returns at once. */
+  sleep?: (ms: number) => Promise<void>;
   now?: () => Date;
   out: (line: string) => void;
 };
@@ -150,7 +152,7 @@ export function start(options: StartOptions, deps: AgentDeps): number {
 export type FetchOptions = {
   countryId: string;
   url: string;
-  /** First character to print. */
+  /** First character to print, or with `find` to look from. */
   offset: number;
   /** Instead of a chunk, list where these words appear. */
   find?: string;
@@ -200,7 +202,7 @@ export async function fetchCommand(options: FetchOptions, deps: AgentDeps): Prom
     deps.out(`${options.url} (stored copy in ${stored.file})`);
   } else {
     try {
-      stored = saveEvidence(dir, await fetchForReading(options.url, deps.fetch), now());
+      stored = saveEvidence(dir, await fetchForReading(options.url, deps), now());
     } catch (error) {
       const reason = fetchFailure(error);
       session.failedFetches.push({ url: options.url, attemptedAt: now(), reason });
@@ -230,8 +232,12 @@ export async function fetchCommand(options: FetchOptions, deps: AgentDeps): Prom
   if (options.links) {
     return printLinks(record, options.offset, (offset) => read(offset, true), deps.out);
   }
+  const more = (from: number) =>
+    command(
+      `fetch ${options.countryId} "${options.url}" --find "${options.find}" --offset ${from}`,
+    );
   return options.find
-    ? printMatches(record, options.find, read('<n>'), deps.out)
+    ? printMatches(record, options.find, options.offset, read('<n>'), more, deps.out)
     : printChunk(record, options.offset, read, deps.out);
 }
 

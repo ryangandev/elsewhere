@@ -449,12 +449,16 @@ npm run content:agent -- status CHL
   Text is decoded in the charset the Content-Type header names, else the one an HTML page declares in a `<meta charset>` or `http-equiv` tag in its first 2 KB, else UTF-8; a page that declares nothing and is not valid UTF-8 is read as windows-1252, which older government sites such as Argentina's InfoLEG serve without saying so.
   Each page becomes an evidence record in `evidence/`: the requested and final URLs, both normalized, the HTTP status, the content type, the time, the SHA-256 of the text, and the text, up to 2 million characters from at most 40 MB.
   It prints 20,000 characters at a time (Claude Code shows up to 30,000 characters of a command's output), with `--offset` for another part and `--find` to list where words appear; later reads come from the stored copy unless `--refresh` is given.
+  Reading a long page part by part with `--offset` is the way to read all of it; there is nothing to save elsewhere, and the stored copy makes each part instant.
+  `--find` searches for the words literally, ignoring case, and says how many times they appear; it lists 20 at a time, each with about 150 characters on either side shown with line breaks and runs of spaces as one space, and ends with the command for the next 20, where `--offset` is the character to search from.
+  The commands ignore a closed output pipe, so `fetch ... | head` ends quietly instead of with an `EPIPE` error.
   `--links` lists the page's links instead of its text, because the text leaves them out and a drafter otherwise resorts to curl to find a statistics table PDF or a primary source.
   Each line is the anchor text and the absolute URL, `text | URL`, in page order and once per URL (fragments are dropped, an empty anchor takes the text of a later link to the same URL, and links to the page itself, `mailto:` and `javascript:` are left out).
   It pages like the text, 20,000 characters at a time, but `--offset` then counts links, so a part never ends in the middle of a URL.
   The links are kept in the evidence record (at most 5,000 per page) and are not covered by the hash, since they are only a way to find pages; a record stored before links were kept asks for `--refresh`.
   PDFs and plain text have no links.
   A page that answers with an error status, a bot challenge, no text without scripts, a type other than HTML, plain text or PDF, or no answer within a minute stores nothing, so it cannot be cited.
+  A server error (5xx) is tried again after 5, 20 and 60 seconds, or after the server's `Retry-After` when that is a minute or less, because usgs.gov answered 504 for longer than subagents kept retrying by hand; any other status, such as the 403 that Britannica, EITI and Wiley answer, is final at once, since asking again would not change it.
   A network failure reports its cause along with "fetch failed" (Node keeps the real reason in `error.cause`), such as a redirect loop, a certificate for another host name, `ECONNRESET` or an unknown host, so a page that will never load is told apart from one that may load later.
   The claim check's `fetch_page` tool shares this reason.
   Every failed fetch is recorded in `session.json` with its URL, time and reason, and `status` lists it, so a drafter sees which pages failed and why.
@@ -515,7 +519,9 @@ npm run content:claims-agent -- status <session or country>
   The subagent fixes them and submits again; a unit that passed may stay in the file, and a new verdict replaces its saved one only if the new one passes.
   A subagent may also stop with units left not checked, which stay due for the next session.
   A submission is refused when a unit's text or sources changed since `start`, because its verdict would no longer apply.
-  Every verdict file is kept in `submissions/<n>.json`, and the session logs each submission's saved units, problems and live fetches.
+  It prints one line per live fetch with the length of the text and whether it is the text of the reading copy, and a summary of how many units were checked, how many passed and were saved, and how many failed.
+  When a quote is not on the live page and the live text differs from the reading copy, the problem says so, with both lengths and the time of the copy, so a page that served the subagent one text and the live fetch another is told apart from a miscopied quote; the reading copy explains a failure and never verifies a quote.
+  Every verdict file is kept in `submissions/<n>.json`, and the session logs each submission's saved units, problems and live fetches (URL, time, length and SHA-256 of the text, or the error).
   `--dry-run` runs the same checks and live fetches, and saves, keeps and logs nothing.
 - `status` lists the units checked and still due (with the last problems), the fetched and unfetched sources, the failed fetches and the submissions; given a country, every session of it.
 

@@ -276,6 +276,35 @@ describe('agent fetch command', () => {
     expect(requested.filter((url) => url === 'https://example.org/long')).toHaveLength(1);
   });
 
+  it('says how many times words appear and lists the rest from an offset', async () => {
+    const MANY = 'https://example.org/many';
+    const sentence = 'Copper is mined here.\n';
+    const { begin, read, output } = setup({
+      pages: { ...pages, [MANY]: { type: 'text/plain', body: sentence.repeat(25) } },
+    });
+    begin();
+    output();
+    expect(await read(MANY, { find: 'copper' })).toBe(0);
+    const first = output();
+    expect(first).toContain(
+      '"copper" appears 25 times in the text; matches 1 to 20. Each excerpt shows line breaks and runs of spaces as one space.',
+    );
+    expect(first).toContain('- offset 418: ...');
+    expect(first).not.toContain('- offset 440:');
+    expect(first).toContain(
+      `Next matches: npm run content:agent -- fetch CHL "${MANY}" --find "copper" --offset 419`,
+    );
+    expect(await read(MANY, { find: 'copper', offset: 419 })).toBe(0);
+    const rest = output();
+    expect(rest).toContain('matches 21 to 25, from character 419 on.');
+    expect(rest).toContain('- offset 440: ...');
+    expect(rest).not.toContain('Next matches');
+    expect(await read(MANY, { find: 'copper', offset: 540 })).toBe(0);
+    expect(output()).toContain(
+      '"copper" appears 25 times in the text, but not from character 540 on.',
+    );
+  });
+
   it('says why a request failed at the network level, and records the attempt', async () => {
     const refused = new AggregateError([Object.assign(new Error(''), { code: 'ECONNREFUSED' })]);
     const failures = {

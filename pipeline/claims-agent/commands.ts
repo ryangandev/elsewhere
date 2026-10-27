@@ -65,6 +65,8 @@ export type ClaimsAgentDeps = {
   root?: string;
   /** Page fetches, for the fetch command and for live verification; tests pass a stub. */
   fetch?: typeof fetch;
+  /** Waits between fetch attempts after a server error; tests pass one that returns at once. */
+  sleep?: (ms: number) => Promise<void>;
   now?: () => Date;
   out: (line: string) => void;
 };
@@ -74,7 +76,9 @@ const LIVE_FETCH_CONCURRENCY = 4;
 
 const command = (args: string) => `npm run content:claims-agent -- ${args}`;
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
-const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
+/** "1 unit", "2 units"; words that do not take a plain "s" give their plural ("live fetches"). */
+const plural = (count: number, word: string, many = `${word}s`) =>
+  `${count} ${count === 1 ? word : many}`;
 
 function context(deps: ClaimsAgentDeps) {
   return {
@@ -205,7 +209,7 @@ export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
 export type FetchOptions = {
   sessionId: string;
   url: string;
-  /** First character to print. */
+  /** First character to print, or with `find` to look from. */
   offset: number;
   /** Instead of a chunk, list where these words appear. */
   find?: string;
@@ -244,7 +248,7 @@ export async function fetchCommand(options: FetchOptions, deps: ClaimsAgentDeps)
     deps.out(`${source.url} (reading copy in ${stored.file})`);
   } else {
     try {
-      stored = savePageRecord(pagesDir(dir), await fetchForReading(source.url, deps.fetch), now());
+      stored = savePageRecord(pagesDir(dir), await fetchForReading(source.url, deps), now());
     } catch (error) {
       const reason = fetchFailure(error);
       session.failedFetches.push({ url: source.url, attemptedAt: now(), reason });
@@ -279,8 +283,12 @@ export async function fetchCommand(options: FetchOptions, deps: ClaimsAgentDeps)
   }
   const read = (offset: number | string) =>
     command(`fetch ${options.sessionId} "${options.url}" --offset ${offset}`);
+  const more = (from: number) =>
+    command(
+      `fetch ${options.sessionId} "${options.url}" --find "${options.find}" --offset ${from}`,
+    );
   return options.find
-    ? printMatches(record, options.find, read('<n>'), deps.out)
+    ? printMatches(record, options.find, options.offset, read('<n>'), more, deps.out)
     : printChunk(record, options.offset, read, deps.out);
 }
 
@@ -298,7 +306,7 @@ async function fetchLive(
     for (let url = queue.shift(); url !== undefined; url = queue.shift()) {
       const fetchedAt = now();
       try {
-        const page = await fetchForReading(url, deps.fetch);
+        const page = await fetchForReading(url, deps);
         // A login page, a redirect to the home page or a stub is not the cited page, so nothing
         // on it can verify a quote, even text that happens to match.
         const notCited = notTheRequestedPage({ requestedUrl: url, ...page });
@@ -315,6 +323,22 @@ async function fetchLive(
   };
   await Promise.all(Array.from({ length: LIVE_FETCH_CONCURRENCY }, worker));
   return pages;
+}
+
+/** How a live page compares with the reading copy of the same URL, for a person or a subagent. */
+type LiveComparison = { same: boolean; description: string };
+
+function compareWithReadingCopy(page: FetchedPage, dir: string, url: string): LiveComparison {
+  const characters = `${page.text.length.toLocaleString('en-US')} characters`;
+  const copy = findPageRecord(pagesDir(dir), url)?.record;
+  if (!copy) return { same: false, description: `${characters}; there is no reading copy` };
+  if (copy.sha256 === sha256(page.text)) {
+    return { same: true, description: `${characters}, the same text as the reading copy` };
+  }
+  return {
+    same: false,
+    description: `${characters}, not the text of the reading copy fetched ${copy.fetchedAt} (${copy.characters.toLocaleString('en-US')} characters)`,
+  };
 }
 
 export type SubmitOptions = {
@@ -411,6 +435,14 @@ export async function submit(options: SubmitOptions, deps: ClaimsAgentDeps): Pro
   const live = await fetchLive([...quoted.values()], deps, now);
   const texts = new Map<string, string[]>();
   for (const [url, { page }] of live) if (page) texts.set(url, [page.text]);
+  // How each live page compares with the reading copy the subagent quoted from, so a quote that
+  // fails because the live fetch returned something else is told apart from a miscopied quote.
+  // The reading copy only explains a failure; it never verifies a quote.
+  const comparisons = new Map<string, LiveComparison>();
+  for (const [key, url] of quoted) {
+    const page = live.get(key)?.page;
+    if (page) comparisons.set(key, compareWithReadingCopy(page, dir, url));
+  }
 
   const result: VerdictResult = invalid
     ? { ok: false, checks: {}, failures: new Map(), issues: [invalid] }
@@ -436,6 +468,12 @@ export async function submit(options: SubmitOptions, deps: ClaimsAgentDeps): Pro
           const failed = live.get(normalizeUrl(url))?.error;
           return `the live fetch of ${url} at submission failed (${failed ?? 'not fetched'}), and a quote counts only when it is on the live page. Fetch the page again to see whether it loads; if it cannot be read, mark the source unreachable with the reason and judge the unit without it.`;
         },
+        textNote: (url) => {
+          const comparison = comparisons.get(normalizeUrl(url));
+          return comparison && !comparison.same
+            ? `The live page is not the text you read: ${comparison.description}. If the quote is in your reading copy, the live fetch returned something else; submit again, or fetch with --refresh to see what the page returns now.`
+            : undefined;
+        },
       });
 
   // Every quote of a passing verdict matched live text, so each of its sources has a live page.
@@ -460,7 +498,13 @@ export async function submit(options: SubmitOptions, deps: ClaimsAgentDeps): Pro
   const savedIds = checked.filter((unit) => checks[unit.key]).map((unit) => unit.id);
   const liveFetches: LiveFetch[] = [...quoted].map(([key, url]) => {
     const { fetchedAt, page, error } = live.get(key)!;
-    return { url, fetchedAt, sha256: page ? sha256(page.text) : null, error: error ?? null };
+    return {
+      url,
+      fetchedAt,
+      characters: page ? page.text.length : null,
+      sha256: page ? sha256(page.text) : null,
+      error: error ?? null,
+    };
   });
   const passed = [...new Set([...session.passed, ...savedIds])];
   const due = session.units.filter((unit) => !passed.includes(unit.id));
@@ -485,17 +529,24 @@ export async function submit(options: SubmitOptions, deps: ClaimsAgentDeps): Pro
     deps.out(
       entry.error
         ? `  Live fetch failed: ${entry.url}: ${entry.error}`
-        : `  Fetched live to verify quotes: ${entry.url}`,
+        : `  Fetched live to verify quotes: ${entry.url} (${comparisons.get(normalizeUrl(entry.url))!.description})`,
     );
   }
   const statuses = checked
     .filter((unit) => checks[unit.key])
     .map((unit) => ({ unit, check: checks[unit.key] }));
-  if (savedIds.length) {
-    deps.out(
-      `${options.dryRun ? 'Would save' : 'Saved'} ${plural(savedIds.length, 'verdict')} to ${session.claimsDir}: ${formatCounts(countVerdicts(statuses)).replace(/, 0 not checked$/, '')}.`,
-    );
-  }
+  // One line that says how many units passed and how many failed, so a count of saved verdicts
+  // is never read as the whole submission.
+  const failing = checked.length - savedIds.length;
+  const passing = options.dryRun
+    ? `${savedIds.length} would pass and be saved`
+    : `${savedIds.length} passed and ${savedIds.length === 1 ? 'is' : 'are'} saved`;
+  const counts = savedIds.length
+    ? ` to ${session.claimsDir} (${formatCounts(countVerdicts(statuses)).replace(/, 0 not checked$/, '')})`
+    : '';
+  deps.out(
+    `Units checked: ${checked.length}. ${passing}${counts}; ${failing} ${options.dryRun ? (failing === 1 ? 'fails' : 'fail') : 'failed'}${failing ? ' and ' + (failing === 1 ? 'is' : 'are') + ' listed below' : ''}.`,
+  );
   if (result.issues.length) deps.out(renderRepair(prompts, result.issues, path));
   if (!due.length) {
     deps.out(
@@ -557,7 +608,7 @@ function describeSession(
   }
   const failedLive = last.liveFetches.filter((entry) => entry.error);
   deps.out(
-    `Submissions: ${session.submissions.length}; the last saved ${plural(last.saved.length, 'unit')} and had ${plural(last.issues.length, 'problem')}, with ${plural(last.liveFetches.length, 'live fetch')}${failedLive.length ? ` (${failedLive.length} failed)` : ''}.`,
+    `Submissions: ${session.submissions.length}; the last saved ${plural(last.saved.length, 'unit')} and had ${plural(last.issues.length, 'problem')}, with ${plural(last.liveFetches.length, 'live fetch', 'live fetches')}${failedLive.length ? ` (${failedLive.length} failed)` : ''}.`,
   );
 }
 

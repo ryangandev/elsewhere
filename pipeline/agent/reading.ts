@@ -15,18 +15,36 @@ export const CHUNK_CHARACTERS = 20_000;
 export const MAX_PAGE_CHARACTERS = 2_000_000;
 const MAX_FETCH_BYTES = 40_000_000;
 const FETCH_TIMEOUT_MS = 60_000;
+/**
+ * Waits before trying again after a server error (5xx). The 504s seen from usgs.gov lasted longer
+ * than a subagent's own retries within a minute, so the attempts span about a minute and a half;
+ * a page that answers at once never waits.
+ */
+export const SERVER_ERROR_RETRIES_MS = [5_000, 20_000, 60_000];
 const MAX_FIND_MATCHES = 20;
 
 const number = (value: number) => value.toLocaleString('en-US');
 
+export type ReadingFetchOptions = {
+  /** The fetch implementation; tests pass a stub. */
+  fetch?: typeof fetch;
+  /** Waits between attempts after a server error; tests pass one that returns at once. */
+  sleep?: (ms: number) => Promise<void>;
+};
+
 /** Fetch a page on this computer with PDFs on, or throw with the reason it could not be read. */
-export const fetchForReading = (url: string, fetchImpl?: typeof fetch): Promise<FetchedPage> =>
+export const fetchForReading = (
+  url: string,
+  options: ReadingFetchOptions = {},
+): Promise<FetchedPage> =>
   fetchPage(url, {
     pdf: true,
     maxCharacters: MAX_PAGE_CHARACTERS,
     maxBytes: MAX_FETCH_BYTES,
     timeoutMs: FETCH_TIMEOUT_MS,
-    fetch: fetchImpl,
+    serverErrorRetriesMs: SERVER_ERROR_RETRIES_MS,
+    sleep: options.sleep,
+    fetch: options.fetch,
   });
 
 /** Why a fetch failed, for a person or a subagent. */
@@ -107,37 +125,55 @@ export function printLinks(
   return 0;
 }
 
-/** List where `find` appears, with some text around each place; `around` reads from an offset. */
+/**
+ * List where `find` appears (ignoring case), at most MAX_FIND_MATCHES at a time from character
+ * `from` on, with some text around each place and how many there are in all. `around` reads from
+ * an offset; `more` lists the matches from an offset on.
+ */
 export function printMatches(
   record: EvidenceRecord,
   find: string,
+  from: number,
   around: string,
+  more: (from: number) => string,
   out: (line: string) => void,
 ): number {
-  const needle = find.toLowerCase();
-  const haystack = record.text.toLowerCase();
-  const offsets: number[] = [];
-  let index = haystack.indexOf(needle);
-  while (index !== -1 && offsets.length <= MAX_FIND_MATCHES) {
-    offsets.push(index);
-    index = haystack.indexOf(needle, index + needle.length);
+  const { text } = record;
+  if (from < 0 || (from > 0 && from >= text.length)) {
+    out(`--offset must be between 0 and ${number(Math.max(0, text.length - 1))}.`);
+    return 1;
   }
-  if (!offsets.length) {
-    out(`"${find}" does not appear in the text. Try another word or spelling.`);
+  const needle = find.toLowerCase();
+  const haystack = text.toLowerCase();
+  const offsets: number[] = [];
+  for (
+    let at = haystack.indexOf(needle);
+    at !== -1;
+    at = haystack.indexOf(needle, at + needle.length)
+  ) {
+    offsets.push(at);
+  }
+  const first = offsets.findIndex((offset) => offset >= from);
+  if (first === -1) {
+    out(
+      offsets.length
+        ? `"${find}" appears ${offsets.length === 1 ? 'once' : `${number(offsets.length)} times`} in the text, but not from character ${number(from)} on. List them all by leaving out --offset.`
+        : `"${find}" does not appear in the text. Try another word or spelling, or a shorter part of a word.`,
+    );
     return 0;
   }
-  const shown = offsets.slice(0, MAX_FIND_MATCHES);
+  const shown = offsets.slice(first, first + MAX_FIND_MATCHES);
+  const last = first + shown.length;
   out(
-    offsets.length > shown.length
-      ? `"${find}" appears more than ${shown.length} times; the first ${shown.length}:`
-      : `"${find}" appears ${shown.length} ${shown.length === 1 ? 'time' : 'times'}:`,
+    `"${find}" appears ${offsets.length === 1 ? 'once' : `${number(offsets.length)} times`} in the text${offsets.length > 1 ? `; matches ${first + 1} to ${last}` : ''}${from > 0 ? `, from character ${number(from)} on` : ''}. Each excerpt shows line breaks and runs of spaces as one space.`,
   );
   for (const offset of shown) {
-    const text = record.text
+    const excerpt = text
       .slice(Math.max(0, offset - 150), offset + needle.length + 150)
       .replace(/\s+/g, ' ');
-    out(`- offset ${offset}: ...${text}...`);
+    out(`- offset ${offset}: ...${excerpt}...`);
   }
+  if (last < offsets.length) out(`Next matches: ${more(shown.at(-1)! + 1)}`);
   out(`Read around a match with ${around}`);
   return 0;
 }

@@ -24,6 +24,7 @@ import {
   submissionsDir,
   verdictFile,
 } from '../../pipeline/claims-agent/session';
+import { SERVER_ERROR_RETRIES_MS } from '../../pipeline/agent/reading';
 import { findPageRecord } from '../../pipeline/agent/session';
 import { htmlToText } from '../../pipeline/claims/local-fetch';
 import { claimsJobs, jobUnits } from '../../pipeline/claims/plan';
@@ -332,7 +333,9 @@ describe('agent claim check submissions', () => {
     const live = stubFetch(livePages());
     expect(await submit({ sessionId: 'CHL-length' }, deps(live.stub))).toBe(0);
     expect(live.requested).toEqual([GEOGRAPHY]);
-    expect(text()).toMatch(/Saved 2 verdicts[\s\S]*The session is done/);
+    expect(text()).toMatch(
+      /same text as the reading copy[\s\S]*Units checked: 2\. 2 passed and are saved to .* \(2 supported, 0 partly supported, 0 not supported, 0 source unreachable\); 0 failed\.[\s\S]*The session is done/,
+    );
 
     const pageText = htmlToText(html(`${SECTION_ONE} ${SECTION_TWO}`));
     const units = storyUnits(chileFile().stories[0]);
@@ -385,7 +388,13 @@ describe('agent claim check submissions', () => {
     const session = readSession(dir, 'CHL-length');
     expect(session.passed).toEqual(['length-section-1', 'length-section-2']);
     expect(session.submissions[0].liveFetches).toEqual([
-      { url: GEOGRAPHY, fetchedAt: NOW.toISOString(), sha256: sha256(pageText), error: null },
+      {
+        url: GEOGRAPHY,
+        fetchedAt: NOW.toISOString(),
+        characters: pageText.length,
+        sha256: sha256(pageText),
+        error: null,
+      },
     ]);
     expect(existsSync(join(submissionsDir(dir), '1.json'))).toBe(true);
   });
@@ -414,6 +423,13 @@ describe('agent claim check submissions', () => {
     const output = text();
     expect(output).toContain(
       `verdicts.length-section-2: the quote "Chile has the longest coastline in the world" is not in the page as fetched live at submission from ${GEOGRAPHY}`,
+    );
+    // What the live fetch returned is told apart from the copy the quote was read from.
+    const liveText = htmlToText(html(SECTION_ONE));
+    const comparison = `${liveText.length} characters, not the text of the reading copy fetched ${NOW.toISOString()} (${forged.length} characters)`;
+    expect(output).toContain(`Fetched live to verify quotes: ${GEOGRAPHY} (${comparison})`);
+    expect(output).toContain(
+      `The live page is not the text you read: ${comparison}. If the quote is in your reading copy, the live fetch returned something else; submit again, or fetch with --refresh to see what the page returns now.`,
     );
     expect(output).toMatch(/1 unit still to check:\n {2}length-section-2/);
     expect(Object.keys(readClaims(claimsDir, { id: 'CHL', slug: 'chile' }).checks)).toEqual([
@@ -475,7 +491,9 @@ describe('agent claim check submissions', () => {
     ]);
     expect(await submit({ sessionId: 'CHL-length' }, deps(stubFetch(livePages()).stub))).toBe(1);
     const output = text();
-    expect(output).toContain('Saved 1 verdict');
+    expect(output).toMatch(
+      /Units checked: 2\. 1 passed and is saved to .*; 1 failed and is listed below\./,
+    );
     expect(output).toContain(
       'verdicts.length-section-2: "a phrase the unit does not have" is not in the unit text',
     );
@@ -547,6 +565,32 @@ describe('agent claim check submissions', () => {
       ['source_unreachable', { pages: [] }],
       ['source_unreachable', { pages: [] }],
     ]);
+    text();
+    expect(status({ target: 'CHL-length' }, deps())).toBe(0);
+    expect(text()).toContain(
+      'Submissions: 2; the last saved 2 units and had 0 problems, with 0 live fetches.',
+    );
+  });
+
+  it('tries a page again after a server error before verifying its quotes', async () => {
+    const { dir, deps, text } = await lengthSession();
+    writeVerdicts(dir, [
+      supported('length-section-1', SECTION_ONE),
+      supported('length-section-2', SECTION_TWO),
+    ]);
+    const live = stubFetch(livePages());
+    let answered = 0;
+    const flaky = (async (input: string | URL | Request) =>
+      (answered += 1) === 1
+        ? new Response('Gateway Timeout', { status: 504 })
+        : live.stub(input)) as typeof fetch;
+    const waits: number[] = [];
+    const sleep = async (ms: number) => {
+      waits.push(ms);
+    };
+    expect(await submit({ sessionId: 'CHL-length' }, { ...deps(flaky), sleep })).toBe(0);
+    expect(waits).toEqual([SERVER_ERROR_RETRIES_MS[0]]);
+    expect(text()).toContain('Units checked: 2. 2 passed');
   });
 
   it('never verifies a quote against a page that is not the cited page', async () => {
@@ -601,7 +645,9 @@ describe('agent claim check submissions', () => {
     const live = stubFetch(livePages());
     expect(await submit({ sessionId: 'CHL-length', dryRun: true }, deps(live.stub))).toBe(0);
     expect(live.requested).toEqual([GEOGRAPHY]);
-    expect(text()).toMatch(/Dry run[\s\S]*Would save 2 verdicts[\s\S]*Every unit would pass/);
+    expect(text()).toMatch(
+      /Dry run[\s\S]*Units checked: 2\. 2 would pass and be saved to .*; 0 fail\.[\s\S]*Every unit would pass/,
+    );
     expect(existsSync(claimsFilePath(claimsDir, 'chile'))).toBe(false);
     expect(existsSync(submissionsDir(dir))).toBe(false);
     expect(readFileSync(join(dir, 'session.json'), 'utf8')).toBe(before);
