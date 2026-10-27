@@ -22,6 +22,7 @@ import {
   printChunk,
   printMatches,
 } from '../agent/reading';
+import { notTheRequestedPage } from '../agent/page-check';
 import { evidenceIntact, findPageRecord, savePageRecord } from '../agent/session';
 import type { FetchedPage } from '../claims/local-fetch';
 import { claimsJobs, jobUnits } from '../claims/plan';
@@ -270,6 +271,12 @@ export async function fetchCommand(options: FetchOptions, deps: ClaimsAgentDeps)
   const { record } = stored;
   deps.out(describeRecord(record));
   if (record.finalUrl !== record.requestedUrl) deps.out(`Redirected to ${record.finalUrl}.`);
+  const notCited = notTheRequestedPage(record);
+  if (notCited) {
+    deps.out(
+      `WARNING: this is probably not the cited page: ${notCited}. A quote from it fails at submit. Try --refresh once; if the cited page still cannot be read, mark ${source.id} unreachable with this reason.`,
+    );
+  }
   const read = (offset: number | string) =>
     command(`fetch ${options.sessionId} "${options.url}" --offset ${offset}`);
   return options.find
@@ -291,7 +298,16 @@ async function fetchLive(
     for (let url = queue.shift(); url !== undefined; url = queue.shift()) {
       const fetchedAt = now();
       try {
-        pages.set(normalizeUrl(url), { fetchedAt, page: await fetchForReading(url, deps.fetch) });
+        const page = await fetchForReading(url, deps.fetch);
+        // A login page, a redirect to the home page or a stub is not the cited page, so nothing
+        // on it can verify a quote, even text that happens to match.
+        const notCited = notTheRequestedPage({ requestedUrl: url, ...page });
+        pages.set(
+          normalizeUrl(url),
+          notCited
+            ? { fetchedAt, error: `it is probably not the cited page: ${notCited}` }
+            : { fetchedAt, page },
+        );
       } catch (error) {
         pages.set(normalizeUrl(url), { fetchedAt, error: fetchFailure(error) });
       }

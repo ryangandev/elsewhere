@@ -21,6 +21,7 @@ Run every command from the repository root.
 2. Read the session's brief, `pipeline/.cache/claims-agent/<session>/brief.md`, completely before anything else.
    It holds the judging rules, the units, the sources, the commands and the verdict file's schema, and it overrides anything here on how to judge.
 3. Read every cited source with `npm run content:claims-agent -- fetch <session> "<url>"`, paging with `--offset` and searching with `--find`, until you have read what each unit needs.
+   If it warns that a page is probably not the cited page (a stub, or a redirect to a login or home page), try `--refresh` once; if the warning stays, mark that source unreachable with the reason, since no quote from such a page can pass.
 4. Judge every unit strictly as the brief says, against its own cited sources only.
    Copy every quote word for word from the fetch command's output.
 5. Write the verdict file to `pipeline/.cache/claims-agent/<session>/verdicts.json`.

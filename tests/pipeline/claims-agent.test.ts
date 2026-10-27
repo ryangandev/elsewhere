@@ -52,10 +52,20 @@ const GEOGRAPHY = fixtureUrl('geography');
 const SECTION_ONE = 'Placeholder text about length, part one for the pipeline tests.';
 const SECTION_TWO = 'Placeholder text about length, part two for the pipeline tests.';
 
-type Page = { type: string; body: string | Uint8Array<ArrayBuffer>; status?: number };
+type Page = {
+  type: string;
+  body: string | Uint8Array<ArrayBuffer>;
+  status?: number;
+  finalUrl?: string;
+};
+
+/** Enough words that a fixture page reads as a whole page, not a stub (see page-check.ts). */
+const PADDING = 'This fixture page has more words so that it reads as a whole page. '
+  .repeat(5)
+  .trim();
 
 const html = (text: string) =>
-  `<!doctype html><html><head><title>Fixture</title></head><body><p>${text}</p></body></html>`;
+  `<!doctype html><html><head><title>Fixture</title></head><body><p>${text}</p><p>${PADDING}</p></body></html>`;
 
 /** A fetch stub serving pages by URL; anything else is a 404. It records every request. */
 function stubFetch(pages: Record<string, Page>, failures: Record<string, Error> = {}) {
@@ -70,7 +80,7 @@ function stubFetch(pages: Record<string, Page>, failures: Record<string, Error> 
       status: page.status ?? 200,
       headers: { 'content-type': page.type },
     });
-    Object.defineProperty(response, 'url', { value: url });
+    Object.defineProperty(response, 'url', { value: page.finalUrl ?? url });
     return response;
   }) as typeof fetch;
   return { stub, requested };
@@ -427,7 +437,7 @@ describe('agent claim check submissions', () => {
 
   it('verifies quotes from a PDF source against its live text layer', async () => {
     const pdf = minimalPdf([
-      ['Fixture statistics'],
+      ['Fixture statistics', ...PADDING.split('. ')],
       ['Placeholder text about length, part one', 'for the pipeline tests.', SECTION_TWO],
     ]);
     const pages = { ...livePages(), [GEOGRAPHY]: { type: 'application/pdf', body: pdf } };
@@ -537,6 +547,48 @@ describe('agent claim check submissions', () => {
       ['source_unreachable', { pages: [] }],
       ['source_unreachable', { pages: [] }],
     ]);
+  });
+
+  it('never verifies a quote against a page that is not the cited page', async () => {
+    // The cited URL now redirects to the site's home page, which happens to repeat the text.
+    const home = 'https://example.org/';
+    const moved = {
+      ...livePages(),
+      [GEOGRAPHY]: {
+        type: 'text/html',
+        body: html(`${SECTION_ONE} ${SECTION_TWO}`),
+        finalUrl: home,
+      },
+    };
+    const { dir, deps, claimsDir, text } = await lengthSession();
+    const reading = stubFetch(moved);
+    expect(
+      await fetchCommand(
+        { sessionId: 'CHL-length', url: GEOGRAPHY, offset: 0, refresh: true },
+        deps(reading.stub),
+      ),
+    ).toBe(0);
+    expect(text()).toContain(
+      "WARNING: this is probably not the cited page: it redirected to the site's home page",
+    );
+    writeVerdicts(dir, [
+      supported('length-section-1', SECTION_ONE),
+      supported('length-section-2', SECTION_TWO),
+    ]);
+    expect(await submit({ sessionId: 'CHL-length' }, deps(stubFetch(moved).stub))).toBe(1);
+    expect(text()).toContain(
+      `the live fetch of ${GEOGRAPHY} at submission failed (it is probably not the cited page: it redirected to the site's home page (${home}))`,
+    );
+    expect(existsSync(claimsFilePath(claimsDir, 'chile'))).toBe(false);
+
+    // A page too short to be the page is refused the same way.
+    const stub = {
+      ...livePages(),
+      [GEOGRAPHY]: { type: 'text/html', body: `<p>${SECTION_ONE}</p>` },
+    };
+    writeVerdicts(dir, [supported('length-section-1', SECTION_ONE)]);
+    expect(await submit({ sessionId: 'CHL-length' }, deps(stubFetch(stub).stub))).toBe(1);
+    expect(text()).toContain('too short to be the page');
   });
 
   it('--dry-run runs every check and the live fetch but writes nothing', async () => {
