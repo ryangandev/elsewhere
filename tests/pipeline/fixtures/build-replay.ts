@@ -8,7 +8,7 @@
 //
 //   node --import tsx tests/pipeline/fixtures/build-replay.ts
 //
-// tests/pipeline/fixtures.test.ts checks the committed files match this script.
+// tests/pipeline/units.test.ts checks the committed files match this script.
 import { mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
