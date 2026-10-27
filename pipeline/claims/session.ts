@@ -7,7 +7,12 @@
 import type { BetaTool, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta/messages';
 import { z } from 'zod';
 import type { CountryFile } from '../../src/content/schema';
-import { CLAIM_FETCH_MAX_CONTENT_TOKENS, type Effort, type GenerationLimits } from '../config';
+import {
+  CLAIM_FETCH_MAX_CONTENT_TOKENS,
+  CLAIM_FETCH_RETRIES,
+  type Effort,
+  type GenerationLimits,
+} from '../config';
 import { toStrictJsonSchema } from '../generate/draft-schema';
 import { normalizeUrl } from '../generate/evidence';
 import type { SessionSetup } from '../generate/session';
@@ -111,6 +116,13 @@ export function claimSession(
   const units = scopes.flatMap((scope) => scopeUnits(file, scope));
   const sources = citedSources(units);
   const sourceUrls = new Map(sources.map((source) => [normalizeUrl(source.url), source.url]));
+  const limits: GenerationLimits = {
+    ...context.limits,
+    webFetchesPerRequest: Math.max(
+      context.limits.webFetchesPerRequest,
+      sources.length + CLAIM_FETCH_RETRIES,
+    ),
+  };
   /** Source pages fetch_page read, which count as fetched like web_fetch results. */
   const fetchedLocally = new Set<string>();
   /**
@@ -134,7 +146,7 @@ export function claimSession(
     tag: claimsTag(file.country.id, scopes),
     model: context.model,
     effort: context.effort,
-    limits: context.limits,
+    limits,
     cacheTtl: context.cacheTtl,
     system: [
       {
@@ -143,7 +155,7 @@ export function claimSession(
         cache_control: { type: 'ephemeral', ...ttl },
       },
     ],
-    tools: tools(context.limits),
+    tools: tools(limits),
     task: [{ type: 'text', text: task }],
     submitTool: SUBMIT_TOOL,
     repairMessage: (issues) =>

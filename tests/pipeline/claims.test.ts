@@ -27,7 +27,7 @@ import {
   fetchedUrls,
   quoteInText,
 } from '../../pipeline/claims/verdicts';
-import { CLAIM_LIMITS } from '../../pipeline/config';
+import { CLAIM_FETCH_RETRIES, CLAIM_LIMITS } from '../../pipeline/config';
 import { readCountryFile, writeCountryFile } from '../../pipeline/content-tree';
 import { assembleCountry } from '../../pipeline/generate/assemble';
 import { CountryDraft } from '../../pipeline/generate/draft-schema';
@@ -344,6 +344,26 @@ describe('local page fetches', () => {
 });
 
 describe('claim check sessions', () => {
+  it('allow one fetch per cited page plus retries when the task cites more pages than the minimum', () => {
+    const file = chileFile();
+    const sources = new Set(
+      [file.country, ...file.stories].flatMap((entry) => entry.sources.map((source) => source.id)),
+    ).size;
+    const setup = claimSession(
+      { ...context(), limits: { ...CLAIM_LIMITS, webFetchesPerRequest: 1 } },
+      file,
+      [
+        { kind: 'overview' },
+        ...file.stories.map((story) => ({ kind: 'story' as const, storyId: story.id })),
+      ],
+    );
+    expect(setup.limits.webFetchesPerRequest).toBe(sources + CLAIM_FETCH_RETRIES);
+    expect(setup.tools[0]).toMatchObject({
+      name: 'web_fetch',
+      max_uses: sources + CLAIM_FETCH_RETRIES,
+    });
+  });
+
   it('check a country in one conversation with the basic web fetch, the local fallback and a strict verdict tool', () => {
     const setup = claimSession(context(), chileFile(), [
       { kind: 'overview' },

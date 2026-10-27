@@ -315,7 +315,7 @@ Cost controls:
   Expect roughly $1 to $3 per country in synchronous mode (about 300k input tokens, mostly cache reads, 80k cache writes, 25k output tokens and 15 searches), so $20 to $60 for the pilot; batch mode about halves the token part.
 - A claim check costs what its fetched pages cost to read.
   Measured at `high` effort: Singapore (14 units, 13 fetches, a 125k-token statistics PDF among them) about $2.50 with one conversation per overview and story, and Japan (13 units) about $9.70, because each of its four conversations read the same 475k-token statistics handbook PDF; one conversation per country reads it once, an estimated $2.40 (not yet measured).
-  Its limits in `pipeline/config.ts`: 16 fetches per request with at most 60k tokens of text each, 2 repairs, 2 reminders, 3 continuations and 10 requests per conversation, 4 countries at a time.
+  Its limits in `pipeline/config.ts`: one fetch per cited page plus 4 retries per request (at least 16), with at most 60k tokens of text each, 2 repairs, 2 reminders, 3 continuations and 10 requests per conversation, 4 countries at a time.
   PDFs ignore the 60k cap, so a long statistics PDF can cost far more than a web page.
 
 The API key comes from `ANTHROPIC_API_KEY` in the git-ignored `.env.local` (copy `.env.example`); without it a real run stops before doing any work and says so.

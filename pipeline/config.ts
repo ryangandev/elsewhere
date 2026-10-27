@@ -63,7 +63,8 @@ export const CLAIMS_CONCURRENCY = 4;
 /** Limits per claim check session: it only fetches the cited pages and submits verdicts. */
 export const CLAIM_LIMITS: GenerationLimits = {
   webSearchesPerRequest: 0,
-  // Enough to read every cited page and retry a few that fail.
+  // The least a session gets: a session whose task cites more pages gets one fetch per page plus
+  // CLAIM_FETCH_RETRIES, so no cited page goes unread because the limit ran out.
   webFetchesPerRequest: 16,
   repairAttempts: 2,
   continuations: 3,
@@ -71,6 +72,9 @@ export const CLAIM_LIMITS: GenerationLimits = {
   requests: 10,
   maxTokens: 128000,
 };
+
+/** Fetches beyond one per cited page, for pages whose first fetch fails. */
+export const CLAIM_FETCH_RETRIES = 4;
 
 /**
  * Most of a long page or PDF, so a claim far from the top can still be found. A document cut
