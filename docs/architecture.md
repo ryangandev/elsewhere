@@ -228,6 +228,7 @@ npm run content:generate -- --batch pilot      # plan, then draft every country 
 npm run content:generate -- --country CHL      # draft one country (repeat --country for more)
 npm run content:generate -- --revisions        # redraft everything review sent back
 npm run content:agent -- start CHL             # or let a Claude Code subagent draft Chile
+npm run content:agent -- start CHL --revisions # or redraft Chile's sent-back stories in one
 npm run content:verify                         # content rules and source URLs
 npm run content:claims -- CHL                  # check Chile's text against its sources
 npm run content:claims-agent -- start CHL      # or let a Claude Code subagent check it
@@ -325,7 +326,9 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    A flagged unit either goes back through `revise`, or Ryan opens the sources, finds the claim stated (for example on a page the check could not read), and approves with `--accept-claims "<why>"`, which records who accepted it, when and why on that result in `content/en/claims/`, so the decision is committed with the approval.
    `--accept-claims` never excuses a unit that has no current check.
    An acceptance belongs to the exact text and sources, so it lapses when either changes.
-   `revise <country> [story] --notes "..."` records `provenance.revision`, and `content:generate -- --revisions` redrafts it: a story keeps its ID and the rest of the file, with the notes and the old story in the prompt.
+   `revise <country> [story] --notes "..."` records `provenance.revision`, and there are two ways to redraft it.
+   `content:generate -- --revisions` redrafts everything sent back through the API: a story keeps its ID and the rest of the file, with the notes and the old story in the prompt.
+   [Agent drafting](#agent-drafting) does the same in a Claude Code subagent: `content:agent -- start <country> --revisions` for a country's sent-back stories, with the same checks and the stricter evidence rule, and `content:agent -- start <country>` for a whole country sent back.
    A whole country can be sent back only while nothing in it is reviewed.
    Changes go through notes and regeneration rather than JSON edits, so every text stays sourced.
 7. **Commit.**
@@ -422,8 +425,9 @@ Ask Claude Code to run it for a country; one subagent drafts one country, and se
 
 ```sh
 npm run content:agent -- start CHL [--content-dir <dir>] [--model <id>] [--date YYYY-MM-DD] [--regenerate] [--fresh]
+npm run content:agent -- start CHL --revisions [--content-dir <dir>] [--model <id>] [--date YYYY-MM-DD] [--fresh]
 npm run content:agent -- fetch CHL "<url>" [--offset <n>] [--find <words> | --links] [--refresh]
-npm run content:agent -- places CHL [--query <name>]... [--country <map ID>] [--near <place ID>]
+npm run content:agent -- places CHL [--query <name>]... [--country <map ID>]... [--near <place ID>]
 npm run content:agent -- submit CHL [<draft.json>] [--dry-run]
 npm run content:agent -- status CHL
 ```
@@ -435,8 +439,9 @@ npm run content:agent -- status CHL
   It adds three instructions: read pages only through the fetch command and never with curl, wget or another HTTP tool, use `--links` to find documents, and never put personal information (names, email addresses, domains) in any request.
   agent-v1 stays as it was for the ten drafts that recorded it; a session keeps the prompt version it started with.
   A draft records `promptVersion: "agent-v2"` and the session's model (`claude-opus-5-5` by default) as `generatedBy`, so agent drafts can be told apart from API drafts.
-  Running `start` again continues an unfinished session with its evidence and rebuilds the brief; `--fresh` discards the session first.
+  Running `start` again continues an unfinished session with its evidence and its prompt version and rebuilds the brief; `--fresh` discards the session first.
   It refuses a file with reviewed content, and an existing draft that review did not send back unless `--regenerate` is given.
+- `start --revisions` starts a revision session instead, for every story of the country that review sent back; see [Revisions](#revisions) below.
 - `fetch` reads a page from the editor's computer with `fetchPage` in `pipeline/claims/local-fetch.ts`: HTML and plain text as the server returns them, without scripts, and PDFs by their text layer with a `[Page n]` line before each page.
   PDFs are read with unpdf, a maintained packaging of Mozilla's pdf.js for Node with no dependencies of its own.
   pdf.js runs at verbosity 0 (errors only), so its font warnings ("TT: undefined function") never mix with a command's output.
@@ -458,6 +463,8 @@ npm run content:agent -- status CHL
   The links are kept in the evidence record (at most 5,000 per page) and are not covered by the hash, since they are only a way to find pages; a record stored before links were kept asks for `--refresh`.
   PDFs and plain text have no links.
   A page that answers with an error status, a bot challenge, no text without scripts, a type other than HTML, plain text or PDF, or no answer within a minute stores nothing, so it cannot be cited.
+  A bot challenge is a page of at most 3,000 characters with a phrase of the interstitial pages of Cloudflare, Akamai, Imperva or Anubis (`BOT_CHALLENGE` in `pipeline/claims/local-fetch.ts`), whatever its status: hal.ird.fr answered 200 with an Anubis proof-of-work page ("Making sure you're not a bot!", with either apostrophe), which was stored as a citable page before Anubis was on the list.
+  A longer page that mentions such a phrase is read, so an article about captchas is not refused.
   A server error (5xx) is tried again after 5, 20 and 60 seconds, or after the server's `Retry-After` when that is a minute or less, because usgs.gov answered 504 for longer than subagents kept retrying by hand; any other status, such as the 403 that Britannica, EITI and Wiley answer, is final at once, since asking again would not change it.
   A network failure reports its cause along with "fetch failed" (Node keeps the real reason in `error.cause`), such as a redirect loop, a certificate for another host name, `ECONNRESET` or an unknown host, so a page that will never load is told apart from one that may load later.
   The claim check's `fetch_page` tool shares this reason.
@@ -470,6 +477,8 @@ npm run content:agent -- status CHL
   The flag is computed from the stored record each time, never saved, so the warning and the rejection agree (`pipeline/agent/page-check.ts`).
 - `places` searches the gazetteer like the API path's `find_places` tool.
   `--query` may be repeated to search several names in one call, each result headed by its query.
+  `--country` may be repeated too, for places in any of the listed countries (the cities on both sides of a border, sorted with `--near`), since a drafter who repeated it expected that.
+  Every pipeline command refuses an option that takes one value when it is given twice (`parseArgsOnce` in `pipeline/cli-args.ts`): Node's `parseArgs` keeps only the last value, so `places NGA --country A --country B` once searched only B without saying so.
   The commands import nothing that loads the Anthropic SDK (`replaceConflict` lives in `pipeline/generate/replace.ts` for that reason), which keeps a call under a second; importing `pipeline/generate/run.ts` made every call take several.
 - `submit` parses, assembles and checks the draft with the same function as the API path's `submit_draft`: every `content:check` rule and every rule the pipeline adds.
   The retrieved URLs it checks sources against are those of the session's evidence records whose text still matches its hash; a record that does not, or that `fetch` did not write, is a problem of its own and never counts.
@@ -478,11 +487,38 @@ npm run content:agent -- status CHL
   A passing draft is written to the session's content directory by the same writer as the API path, after the same refusals as `start`.
   `submit --dry-run` runs the same refusals and checks and prints the same problems, or says the draft would pass with its story, source and pending reference counts.
   It writes nothing to the content tree, keeps no submission, changes nothing in the session and never finishes it, so a drafter can check a draft (for example its map routes) before submitting.
-- `status` lists the fetched pages, the failed fetches and the submissions.
+- `status` lists the fetched pages, the failed fetches and the submissions, and in a revision session the stories sent back with their notes.
 
 The evidence rule is stricter than the API path's: a cited URL must have been read through `fetch` in the session, so a search result never counts, and neither does WebFetch, which returns a model's summary instead of the page.
 The subagent could in principle write the files the commands own; the hash catches an edited record, and the claim check, which reads every cited source again (through the API, or in a claim-checker subagent with every quote verified against a live fetch), is the independent audit before review, as it is for API drafts.
-Agent drafting writes whole countries, including one that review sent back as a whole; a single story sent back is redrafted with `content:generate -- --revisions`.
+Agent drafting writes whole countries, including one that review sent back as a whole, and redrafts the single stories review sent back in a revision session.
+
+#### Revisions
+
+`start <country> --revisions` is the agent counterpart of `content:generate -- --revisions`, so a sent-back story can be redrafted on a subscription too.
+It is a mode of `start` rather than a command of its own because everything after it is the same session: `fetch`, `places`, `submit` and `status` take the country as before and work the same way, and the flag mirrors the API path's `--revisions`; a separate `revise` command would also be confused with `content:review -- revise`, which sends a story back.
+
+- One session revises every story of the country that is sent back, so the subagent sees them together; it refuses when none is, when the country file does not exist, and when the whole country is sent back, which `start` without the flag drafts again.
+  `--regenerate` has no meaning for it and is refused.
+- A session lives in the country's directory, `pipeline/.cache/agent/<country>/`, like a drafting session, so the commands find it by the country alone.
+  A finished session there (a drafting session that wrote the country, or an earlier revision) is moved to `pipeline/.cache/agent/finished/<country>-<time it was written>/`, keeping its evidence and submissions for audit while the new session starts with no evidence.
+  An unfinished drafting session is left alone and `start --revisions` refuses until it is finished or discarded with `--fresh`; `start` without the flag likewise refuses while an unfinished revision session is there.
+  Running `start --revisions` again continues an unfinished revision session with its evidence and prompt version, and rebuilds the brief from what is sent back now.
+- `session.json` records the stories and their revision requests (notes, who and when).
+  The brief is the shared system prompt, reference example, gazetteer and link targets of every brief, then the revision task, `revise-story.md`, with what the API path's revise-story task gives for each story (the editor's notes and the story as drafted, without its paraphrases and the request), the country's other stories, the stories elsewhere that link here and the places around the country, plus the commands and the JSON Schema of the submission.
+  The task tells the subagent to fetch again every page it keeps from the old story.
+- The submission is one JSON object with every story sent back and the sources they cite (`StoryRevisionsDraft` in `pipeline/generate/draft-schema.ts`); the stories are written together or not at all.
+  `submit` checks it with the API revision path's own function, `checkStoryRevisions` in `pipeline/generate/tasks.ts`: each story keeps the ID of a story sent back and appears once, every one of them is there, and each replaces its story in place and passes every check the API path applies to a revised story, inside the current tree.
+  The evidence rule is the agent one: every cited URL, a source kept from the old story included, must have been read through `fetch` in this session.
+  It refuses, without recording a submission, when a story's revision request changed since `start` (it was redrafted another way, or sent back with new notes), so the subagent never answers notes the editor replaced.
+- A passing submission is written by the same writer as the API path: the file is read again, only the revised stories change, in their places, and the rest of the file is byte for byte as it was.
+  Each revised story gets new provenance as on the API path, which clears its revision request: `generatedBy` is the session's model, `promptVersion` the session's (`agent-v2`), status `draft`.
+  Like an API revision, a revised story has no paraphrases, so `content:paraphrase -- <country>` writes them again; `submit` says so with the other next steps.
+- `--dry-run` and `status` work as in a drafting session.
+
+agent-v2 gained `revise-story.md` with revision sessions.
+Adding a template that only revision sessions use changes no text that a drafting brief or a recorded draft was made from, so it did not need a new version: every agent-v2 drafting brief renders as before, and a revision records `agent-v2` with the exact text that produced it.
+agent-v1 has no revision template, and a revision session always starts on the current version.
 
 ### Agent claim check
 

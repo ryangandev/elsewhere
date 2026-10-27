@@ -1,11 +1,18 @@
 // The commands a drafting subagent runs through `npm run content:agent`. The subagent researches
 // and writes; these commands own every guarantee: what counts as evidence, every content check,
 // and the only write into the content tree. Each command prints for the subagent to read and
-// returns an exit code.
+// returns an exit code. A session drafts a whole country, or in a revision session redrafts the
+// stories review sent back; fetch, places, submit and status work the same way in both.
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import type { CountryFile } from '../../src/content/schema';
 import { findPendingReferences } from '../../src/content/validate';
-import { CURRENT_AGENT_PROMPT_VERSION, loadAgentPrompts } from '../prompts';
+import {
+  CURRENT_AGENT_PROMPT_VERSION,
+  loadAgentPrompts,
+  loadAgentRevisionPrompts,
+} from '../prompts';
 import { STORIES_PER_COUNTRY } from '../config';
 import {
   countryFilePath,
@@ -19,8 +26,21 @@ import type { Plan } from '../generate/check';
 import { findPlaces } from '../generate/gazetteer-context';
 import { allPlans } from '../generate/plan';
 import { replaceConflict } from '../generate/replace';
-import { renderLinkTargets, submitCountryDraft } from '../generate/tasks';
-import { AGENT_EVIDENCE_RULE, renderBrief, renderRepair, type AgentContext } from './brief';
+import { StoryRevisionsDraft } from '../generate/draft-schema';
+import {
+  checkStoryRevisions,
+  renderLinkTargets,
+  submitCountryDraft,
+  zodIssues,
+  type DraftingContext,
+} from '../generate/tasks';
+import {
+  AGENT_EVIDENCE_RULE,
+  renderBrief,
+  renderRepair,
+  renderRevisionBrief,
+  type AgentContext,
+} from './brief';
 import { notTheRequestedPage } from './page-check';
 import {
   describeRecord,
@@ -32,6 +52,7 @@ import {
 } from './reading';
 import {
   DEFAULT_SESSIONS_DIR,
+  archiveSession,
   briefFile,
   draftFile,
   evidenceIntact,
@@ -43,6 +64,7 @@ import {
   sessionDir,
   submissionsDir,
   writeSession,
+  type AgentSession,
 } from './session';
 
 export { CHUNK_CHARACTERS } from './reading';
@@ -90,13 +112,19 @@ export type StartOptions = {
   regenerate: boolean;
   /** Discard an existing session instead of continuing it. */
   fresh: boolean;
+  /** Redraft the stories review sent back instead of the whole country. */
+  revisions?: boolean;
 };
 
+const quoted = (ids: string[]) => ids.map((id) => `"${id}"`).join(', ');
+
 /**
- * Create or continue a session and write its brief. Continuing keeps the evidence and
- * submissions of an unfinished session and rewrites the brief with the current tree and plan.
+ * Create or continue a session and write its brief. Continuing keeps the evidence, submissions
+ * and prompt version of an unfinished session and rewrites the brief with the current tree and
+ * plan. With `revisions`, the session redrafts the stories review sent back.
  */
 export function start(options: StartOptions, deps: AgentDeps): number {
+  if (options.revisions) return startRevisions(options, deps);
   const { root, now, plan: loadPlan } = context(deps);
   const country = requireMapCountry(options.countryId);
   const dir = sessionDir(root, country.id);
@@ -114,11 +142,18 @@ export function start(options: StartOptions, deps: AgentDeps): number {
     );
     return 1;
   }
+  if (previous?.revisions) {
+    deps.out(
+      `An unfinished revision session for ${country.name} is in ${dir}. Finish it with ${command(`submit ${country.id}`)}, or pass --fresh to discard it.`,
+    );
+    return 1;
+  }
 
   const plan = loadPlan();
+  const promptVersion = previous?.promptVersion ?? CURRENT_AGENT_PROMPT_VERSION;
   const agentContext: AgentContext = {
     contentDir: options.contentDir,
-    prompts: loadAgentPrompts(),
+    prompts: loadAgentPrompts(promptVersion),
     date: options.date,
     plan,
     linkTargets: renderLinkTargets(options.contentDir, plan),
@@ -129,7 +164,7 @@ export function start(options: StartOptions, deps: AgentDeps): number {
     countryId: country.id,
     contentDir: options.contentDir,
     model: options.model,
-    promptVersion: CURRENT_AGENT_PROMPT_VERSION,
+    promptVersion,
     date: options.date,
     regenerate: options.regenerate,
     startedAt: previous?.startedAt ?? now(),
@@ -146,6 +181,111 @@ export function start(options: StartOptions, deps: AgentDeps): number {
     `Read the whole brief before you research: ${briefFile(dir)} (${number(brief.trimEnd().split('\n').length)} lines; read all of it, in parts).`,
   );
   deps.out(`Write the draft to ${draftFile(dir)}, then run: ${command(`submit ${country.id}`)}`);
+  return 0;
+}
+
+/**
+ * Why the stories of a country file cannot be revised in an agent session, or undefined. Only
+ * single stories are revised this way; a whole country sent back is drafted again with `start`.
+ */
+function revisionRefusal(
+  existing: CountryFile,
+  country: { id: string; name: string },
+): string | undefined {
+  if (existing.country.provenance.revision) {
+    return `The whole of ${country.name} was sent back. Draft it again with: ${command(`start ${country.id}`)}`;
+  }
+  if (!existing.stories.some((story) => story.provenance.revision)) {
+    return `No story in ${country.name} is sent back for revision. Send one back first with: npm run content:review -- revise ${country.id} <story> --notes "..."`;
+  }
+  return undefined;
+}
+
+/**
+ * Create or continue a revision session for every story of a country that review sent back. A
+ * finished session in the country's directory moves to finished/ first; an unfinished drafting
+ * session stays, and the revision waits until it is finished or discarded with --fresh.
+ */
+function startRevisions(options: StartOptions, deps: AgentDeps): number {
+  const { root, now, plan: loadPlan } = context(deps);
+  const country = requireMapCountry(options.countryId);
+  const dir = sessionDir(root, country.id);
+  if (options.regenerate) {
+    deps.out(
+      '--regenerate is for drafting a whole country again; a revision keeps the rest of the file, so leave it out.',
+    );
+    return 1;
+  }
+  const existing = readCountryFile(options.contentDir, country.slug);
+  if (!existing) {
+    deps.out(
+      `${countryFilePath(options.contentDir, country.slug)} does not exist, so nothing in ${country.name} is sent back.`,
+    );
+    return 1;
+  }
+  const refusal = revisionRefusal(existing, country);
+  if (refusal) {
+    deps.out(refusal);
+    return 1;
+  }
+  if (options.fresh) rmSync(dir, { recursive: true, force: true });
+  let previous = hasSession(dir) ? readSession(dir, country.id) : undefined;
+  if (previous && !previous.written && !previous.revisions) {
+    deps.out(
+      `An unfinished drafting session for ${country.name} is in ${dir}. Finish it, or pass --fresh to discard it and start the revision.`,
+    );
+    return 1;
+  }
+  if (previous?.written) {
+    deps.out(`Moved the finished session to ${archiveSession(root, previous)}.`);
+    previous = undefined;
+  }
+
+  const revisions = existing.stories.flatMap((story) =>
+    story.provenance.revision ? [{ storyId: story.id, request: story.provenance.revision }] : [],
+  );
+  const storyIds = revisions.map((revision) => revision.storyId);
+  const plan = loadPlan();
+  const promptVersion = previous?.promptVersion ?? CURRENT_AGENT_PROMPT_VERSION;
+  const brief = renderRevisionBrief(
+    {
+      contentDir: options.contentDir,
+      prompts: loadAgentRevisionPrompts(promptVersion),
+      date: options.date,
+      plan,
+      linkTargets: renderLinkTargets(options.contentDir, plan),
+      storyCount: STORIES_PER_COUNTRY,
+    },
+    existing,
+    storyIds,
+    draftFile(dir),
+  );
+  writeSession(dir, {
+    countryId: country.id,
+    contentDir: options.contentDir,
+    model: options.model,
+    promptVersion,
+    date: options.date,
+    regenerate: false,
+    startedAt: previous?.startedAt ?? now(),
+    submissions: previous?.submissions ?? [],
+    failedFetches: previous?.failedFetches ?? [],
+    revisions,
+  });
+  writeFileSync(briefFile(dir), brief);
+
+  const kept = previous
+    ? ` Kept ${loadEvidence(dir).records.length} fetched pages and ${previous.submissions.length} submissions from the unfinished session.`
+    : '';
+  deps.out(
+    `Agent revision session for ${country.name} (${country.id}) in ${dir}, revising ${quoted(storyIds)}.${kept}`,
+  );
+  deps.out(
+    `Read the whole brief before you research: ${briefFile(dir)} (${number(brief.trimEnd().split('\n').length)} lines; read all of it, in parts).`,
+  );
+  deps.out(
+    `Write the revised stories to ${draftFile(dir)}, then run: ${command(`submit ${country.id}`)}`,
+  );
   return 0;
 }
 
@@ -245,15 +385,23 @@ export type PlacesOptions = {
   countryId: string;
   /** Names to search for; with several, each result is headed by its query. */
   queries: string[];
-  country?: string;
+  /** Only places in these map countries (in any of them); none means everywhere. */
+  countries: string[];
   near?: string;
 };
 
 export function places(options: PlacesOptions, deps: AgentDeps): number {
   requireMapCountry(options.countryId);
+  const countries = options.countries.map((id) => requireMapCountry(id).id);
   for (const query of options.queries.length ? options.queries : [null]) {
     if (options.queries.length > 1) deps.out(`## ${query}`);
-    deps.out(findPlaces({ query, countryId: options.country ?? null, near: options.near ?? null }));
+    deps.out(
+      findPlaces({
+        query,
+        countryId: countries.length ? countries : null,
+        near: options.near ?? null,
+      }),
+    );
   }
   return 0;
 }
@@ -267,9 +415,56 @@ export type SubmitOptions = {
 };
 
 /**
+ * Why a revision session cannot submit: a story it revises is gone from the file or no longer
+ * has the revision request the session started from (it was redrafted another way, or the
+ * notes changed), or undefined.
+ */
+function revisionChanged(
+  existing: CountryFile | undefined,
+  session: AgentSession,
+  country: { id: string; slug: string },
+): string | undefined {
+  const file = countryFilePath(session.contentDir, country.slug);
+  if (!existing) return `${file} no longer exists.`;
+  for (const { storyId, request } of session.revisions ?? []) {
+    const story = existing.stories.find((entry) => entry.id === storyId);
+    if (!isDeepStrictEqual(story?.provenance.revision, request)) {
+      return `${country.id}/${storyId} no longer has the revision request this session started from. Run ${command(`start ${country.id} --revisions`)} to rebuild the brief from what is sent back now.`;
+    }
+  }
+  return undefined;
+}
+
+type Checked = { ok: true; file: CountryFile } | { ok: false; issues: string[] };
+
+/** Check revised stories as the API revision path does, with the session's evidence. */
+function checkRevisionSubmission(
+  drafting: DraftingContext,
+  existing: CountryFile,
+  storyIds: string[],
+  input: unknown,
+  options: Parameters<typeof checkStoryRevisions>[4],
+): Checked {
+  const parsed = StoryRevisionsDraft.safeParse(input);
+  if (!parsed.success) return { ok: false, issues: zodIssues(parsed.error) };
+  return checkStoryRevisions(
+    drafting,
+    existing,
+    storyIds,
+    {
+      stories: parsed.data.stories.map((story, index) => ({ path: `stories[${index}]`, story })),
+      sources: parsed.data.sources,
+    },
+    options,
+  );
+}
+
+/**
  * Check a draft with every rule the API path applies, with only fetched pages as evidence, and
- * write the country file when it passes. Every submission is kept in the session. A dry run
- * does the same checks and changes nothing, so it never finishes the session.
+ * write the country file when it passes. In a revision session the draft holds the revised
+ * stories, checked as the API revision path checks them, and only they change in the file.
+ * Every submission is kept in the session. A dry run does the same checks and changes nothing,
+ * so it never finishes the session.
  */
 export function submit(options: SubmitOptions, deps: AgentDeps): number {
   const { root, now, plan } = context(deps);
@@ -281,10 +476,19 @@ export function submit(options: SubmitOptions, deps: AgentDeps): number {
     return 1;
   }
   const existing = readCountryFile(session.contentDir, country.slug);
-  const conflict = replaceConflict(existing, { regenerate: session.regenerate, force: false });
-  if (conflict) {
-    deps.out(conflictMessage(conflict, session.contentDir, country));
-    return 1;
+  const revisedIds = session.revisions?.map((revision) => revision.storyId);
+  if (revisedIds) {
+    const changed = revisionChanged(existing, session, country);
+    if (changed) {
+      deps.out(changed);
+      return 1;
+    }
+  } else {
+    const conflict = replaceConflict(existing, { regenerate: session.regenerate, force: false });
+    if (conflict) {
+      deps.out(conflictMessage(conflict, session.contentDir, country));
+      return 1;
+    }
   }
 
   const file = options.file ?? draftFile(dir);
@@ -318,23 +522,28 @@ export function submit(options: SubmitOptions, deps: AgentDeps): number {
   } catch (error) {
     issues.push(`The draft is not valid JSON: ${error instanceof Error ? error.message : error}`);
   }
-  const submission =
+  const drafting: DraftingContext = {
+    contentDir: session.contentDir,
+    prompts,
+    date: session.date,
+    plan: plan(),
+    linkTargets: '',
+    storyCount: STORIES_PER_COUNTRY,
+    land: landIndex(),
+  };
+  const evidenceOptions = {
+    model: session.model,
+    evidence,
+    evidenceRule: AGENT_EVIDENCE_RULE,
+    unusableEvidence,
+  };
+  const submission: Checked | undefined =
     input === undefined
       ? undefined
-      : submitCountryDraft(
-          {
-            contentDir: session.contentDir,
-            prompts,
-            date: session.date,
-            plan: plan(),
-            linkTargets: '',
-            storyCount: STORIES_PER_COUNTRY,
-            land: landIndex(),
-          },
-          country.id,
-          input,
-          { model: session.model, evidence, evidenceRule: AGENT_EVIDENCE_RULE, unusableEvidence },
-        );
+      : revisedIds
+        ? // revisionChanged above refused a session whose file is gone.
+          checkRevisionSubmission(drafting, existing!, revisedIds, input, evidenceOptions)
+        : submitCountryDraft(drafting, country.id, input, evidenceOptions);
   if (submission && !submission.ok) issues.push(...submission.issues);
 
   if (!options.dryRun) {
@@ -351,9 +560,12 @@ export function submit(options: SubmitOptions, deps: AgentDeps): number {
     return 1;
   }
 
-  const { stories } = submission.file;
+  // What this submission drafted: the whole country, or only the revised stories.
+  const stories = submission.file.stories.filter(
+    (story) => !revisedIds || revisedIds.includes(story.id),
+  );
   const sources = new Set(
-    [submission.file.country, ...stories].flatMap((entry) =>
+    [...(revisedIds ? [] : [submission.file.country]), ...stories].flatMap((entry) =>
       entry.sources.map((source) => source.url),
     ),
   );
@@ -361,22 +573,26 @@ export function submit(options: SubmitOptions, deps: AgentDeps): number {
   const files = parsedCountryFiles(session.contentDir);
   files.set(country.id, submission.file);
   const pending = findPendingReferences([...files.values()]).filter(
-    (ref) => ref.from.countryId === country.id,
+    (ref) =>
+      ref.from.countryId === country.id && (!revisedIds || revisedIds.includes(ref.from.storyId)),
   );
+  const drafted = revisedIds ? `the revised ${quoted(revisedIds)}` : 'the draft';
   if (options.dryRun) {
     deps.out(
-      `Dry run: the draft would pass. Nothing was written; run ${command(`submit ${country.id}`)} to submit it.`,
+      `Dry run: ${drafted} would pass. Nothing was written; run ${command(`submit ${country.id}`)} to submit ${revisedIds ? 'them' : 'it'}.`,
     );
   } else {
     const written = writeCountryFile(session.contentDir, submission.file);
     session.written = { file: written, writtenAt: now() };
     writeSession(dir, session);
     deps.out(
-      `Submission ${ordinal} passed. Wrote ${written} (draft, ${session.promptVersion}, ${session.model}).`,
+      revisedIds
+        ? `Submission ${ordinal} passed. Wrote ${quoted(revisedIds)} into ${written} (draft, ${session.promptVersion}, ${session.model}); the revision requests are cleared and the rest of the file is unchanged.`
+        : `Submission ${ordinal} passed. Wrote ${written} (draft, ${session.promptVersion}, ${session.model}).`,
     );
   }
   deps.out(
-    `${stories.length} stories, ${sources.size} sources, ${pending.length} pending references${pending.length ? ':' : '.'}`,
+    `${stories.length} ${revisedIds ? 'revised ' : ''}${stories.length === 1 ? 'story' : 'stories'}, ${sources.size} sources, ${pending.length} pending references${pending.length ? ':' : '.'}`,
   );
   for (const ref of pending) {
     deps.out(
@@ -385,7 +601,9 @@ export function submit(options: SubmitOptions, deps: AgentDeps): number {
   }
   if (!options.dryRun) {
     deps.out(
-      `Next, for the editor: npm run content:verify, npm run content:claims -- ${country.id}, then npm run content:review -- show ${country.id}.`,
+      revisedIds
+        ? `Next, for the editor: npm run content:verify, npm run content:claims -- ${country.id}, npm run content:paraphrase -- ${country.id} for the revised stories' search phrasings, then npm run content:review -- show ${country.id}.`
+        : `Next, for the editor: npm run content:verify, npm run content:claims -- ${country.id}, then npm run content:review -- show ${country.id}.`,
     );
   }
   return 0;
@@ -397,10 +615,18 @@ export function status(options: { countryId: string }, deps: AgentDeps): number 
   const dir = sessionDir(root, country.id);
   const session = readSession(dir, country.id);
   const { records, problems } = loadEvidence(dir);
-  deps.out(`Agent session for ${country.name} (${country.id}) in ${dir}`);
+  deps.out(
+    `Agent ${session.revisions ? 'revision ' : ''}session for ${country.name} (${country.id}) in ${dir}`,
+  );
   deps.out(
     `Content ${session.contentDir}, model ${session.model}, prompts ${session.promptVersion}, date ${session.date}${session.regenerate ? ', replaces the existing draft' : ''}.`,
   );
+  if (session.revisions) {
+    deps.out(`Revising ${session.revisions.length} stories sent back:`);
+    for (const { storyId, request } of session.revisions) {
+      deps.out(`  ${storyId} (${request.requestedBy}, ${request.requestedAt}): ${request.notes}`);
+    }
+  }
   deps.out(`Brief: ${briefFile(dir)}`);
   deps.out(`Fetched pages: ${records.length}`);
   for (const { record } of records) {

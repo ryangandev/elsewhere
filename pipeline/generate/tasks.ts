@@ -10,13 +10,20 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages';
 import { z } from 'zod';
 import type { LandIndex } from '../../src/content/geometry';
-import type { CountryFile } from '../../src/content/schema';
+import type { CountryFile, Story } from '../../src/content/schema';
 import { REFERENCE_COUNTRY_FILE, type Effort, type GenerationLimits } from '../config';
 import { parsedCountryFiles, requireMapCountry } from '../content-tree';
 import { render, type PromptSet } from '../prompts';
 import { assembleCountry, assembleStory, replaceStory } from './assemble';
 import { checkCandidate, type Plan } from './check';
-import { CountryDraft, StoryDraft, toStrictJsonSchema, toToolJsonSchema } from './draft-schema';
+import {
+  CountryDraft,
+  StoryDraft,
+  toStrictJsonSchema,
+  toToolJsonSchema,
+  type DraftSource,
+  type DraftStory,
+} from './draft-schema';
 import { candidateListing, findPlaces, sharedListing } from './gazetteer-context';
 import type { SessionSetup, Submission } from './session';
 
@@ -158,7 +165,7 @@ export function renderLinkTargets(contentDir: string, plan: Plan): string {
   return lines.join('\n');
 }
 
-function inboundReferences(contentDir: string, countryId: string): string {
+export function inboundReferences(contentDir: string, countryId: string): string {
   const lines: string[] = [];
   for (const file of parsedCountryFiles(contentDir).values()) {
     if (file.country.id === countryId) continue;
@@ -176,7 +183,7 @@ function inboundReferences(contentDir: string, countryId: string): string {
     : 'None yet.';
 }
 
-function zodIssues(error: z.ZodError): string[] {
+export function zodIssues(error: z.ZodError): string[] {
   return error.issues.map(
     (issue) => `${issue.path.map(String).join('.') || '(root)'}: ${issue.message}`,
   );
@@ -311,33 +318,129 @@ export function countrySession(
   };
 }
 
+/**
+ * A story that review sent back, as a revision task shows it: its notes, and the story as drafted
+ * without its paraphrases and the revision request.
+ */
+export function storyUnderRevision(
+  existing: CountryFile,
+  storyId: string,
+): { story: Story; notes: string; asDrafted: string } {
+  const story = existing.stories.find((entry) => entry.id === storyId);
+  if (!story?.provenance.revision) {
+    throw new Error(`${existing.country.id}/${storyId} has no revision request`);
+  }
+  return {
+    story,
+    notes: story.provenance.revision.notes,
+    asDrafted: JSON.stringify(
+      withoutParaphrases({ ...story, provenance: { ...story.provenance, revision: undefined } }),
+      null,
+      2,
+    ),
+  };
+}
+
+/** The country's stories other than `storyIds`, as a revision task lists them for context. */
+export function otherStoriesText(existing: CountryFile, storyIds: string[]): string {
+  return (
+    existing.stories
+      .filter((entry) => !storyIds.includes(entry.id))
+      .map((entry) => `"${entry.id}" (${entry.question})`)
+      .join(', ') || 'none'
+  );
+}
+
+/** A revised story as submitted, with where it sits in the submission for problem messages. */
+export type SubmittedRevision = { path: string; story: DraftStory };
+
+/**
+ * Assemble and check revised stories. Each must keep the ID of one of the stories sent back
+ * (`storyIds`), every one of them must be there once, and each replaces its story in place, so
+ * the rest of the file stays as it is. The candidate file passes every check the revision path
+ * applies to each revised story. The pipeline's provenance replaces the old one, which clears
+ * the revision request.
+ */
+export function checkStoryRevisions(
+  context: DraftingContext,
+  existing: CountryFile,
+  storyIds: string[],
+  submission: { stories: SubmittedRevision[]; sources: DraftSource[] },
+  options: {
+    model: string;
+    evidence: Set<string>;
+    evidenceRule?: string;
+    unusableEvidence?: Map<string, string>;
+  },
+): { ok: true; file: CountryFile } | { ok: false; issues: string[] } {
+  const idIssues: string[] = [];
+  const seen = new Set<string>();
+  for (const { path, story } of submission.stories) {
+    if (!storyIds.includes(story.id)) {
+      idIssues.push(
+        storyIds.length === 1
+          ? `${path}.id: keep the story ID "${storyIds[0]}"`
+          : `${path}.id: "${story.id}" is not a story sent back; keep the ID of the story it revises, one of ${storyIds.map((id) => `"${id}"`).join(', ')}`,
+      );
+    } else if (seen.has(story.id)) {
+      idIssues.push(`${path}.id: "${story.id}" appears more than once; submit each story once`);
+    }
+    seen.add(story.id);
+  }
+  for (const storyId of storyIds) {
+    if (!seen.has(storyId)) {
+      idIssues.push(`stories: revise every story sent back; "${storyId}" is missing`);
+    }
+  }
+  if (idIssues.length) return { ok: false, issues: idIssues };
+
+  const countryId = existing.country.id;
+  let file = existing;
+  for (const { story } of submission.stories) {
+    file = replaceStory(
+      file,
+      assembleStory(story, submission.sources, {
+        countryId,
+        slug: existing.country.slug,
+        model: options.model,
+        date: context.date,
+        promptVersion: context.prompts.version,
+      }),
+    );
+  }
+  const issues = storyIds.flatMap((storyId) =>
+    checkCandidate({
+      contentDir: context.contentDir,
+      candidate: file,
+      scope: { storyId },
+      plan: context.plan,
+      submittedSources: submission.sources,
+      evidence: options.evidence,
+      evidenceRule: options.evidenceRule,
+      unusableEvidence: options.unusableEvidence,
+      storyCount: context.storyCount,
+      land: context.land,
+    }),
+  );
+  return issues.length ? { ok: false, issues: [...new Set(issues)] } : { ok: true, file };
+}
+
 /** Redraft one story that review sent back, following the reviewer's notes. */
 export function storySession(
   context: RunContext,
   existing: CountryFile,
   storyId: string,
 ): SessionSetup {
-  const story = existing.stories.find((entry) => entry.id === storyId);
-  if (!story?.provenance.revision) {
-    throw new Error(`${existing.country.id}/${storyId} has no revision request`);
-  }
+  const { notes, asDrafted } = storyUnderRevision(existing, storyId);
   const countryId = existing.country.id;
   const task = render(context.prompts['revise-story'], {
     countryName: existing.country.name,
     countryId,
     storyId,
     today: context.date,
-    notes: story.provenance.revision.notes,
-    story: JSON.stringify(
-      withoutParaphrases({ ...story, provenance: { ...story.provenance, revision: undefined } }),
-      null,
-      2,
-    ),
-    otherStories:
-      existing.stories
-        .filter((entry) => entry.id !== storyId)
-        .map((entry) => `"${entry.id}" (${entry.question})`)
-        .join(', ') || 'none',
+    notes,
+    story: asDrafted,
+    otherStories: otherStoriesText(existing, [storyId]),
     inboundReferences: inboundReferences(context.contentDir, countryId),
     candidatePlaces: candidateListing(countryId),
   });
@@ -353,28 +456,14 @@ export function storySession(
     submit: (input, { model, evidence }): Submission => {
       const parsed = StoryDraft.safeParse(input);
       if (!parsed.success) return { ok: false, issues: zodIssues(parsed.error), draft: input };
-      if (parsed.data.story.id !== storyId) {
-        return { ok: false, issues: [`story.id: keep the story ID "${storyId}"`], draft: input };
-      }
-      const revised = assembleStory(parsed.data.story, parsed.data.sources, {
-        countryId,
-        slug: existing.country.slug,
-        model,
-        date: context.date,
-        promptVersion: context.prompts.version,
-      });
-      const file = replaceStory(existing, revised);
-      const issues = checkCandidate({
-        contentDir: context.contentDir,
-        candidate: file,
-        scope: { storyId },
-        plan: context.plan,
-        submittedSources: parsed.data.sources,
-        evidence,
-        storyCount: context.storyCount,
-        land: context.land,
-      });
-      return issues.length ? { ok: false, issues, draft: input } : { ok: true, file };
+      const result = checkStoryRevisions(
+        context,
+        existing,
+        [storyId],
+        { stories: [{ path: 'story', story: parsed.data.story }], sources: parsed.data.sources },
+        { model, evidence },
+      );
+      return result.ok ? result : { ok: false, issues: result.issues, draft: input };
     },
   };
 }

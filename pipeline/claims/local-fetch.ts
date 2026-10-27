@@ -149,11 +149,12 @@ function retryAfter(response: Response): number | undefined {
 
 /**
  * Phrases of the interstitial pages that bot protection serves instead of the content (Cloudflare,
- * Akamai, Imperva and the like), sometimes with a 200. Only short pages are tested, so an
- * article that mentions a captcha is still read.
+ * Akamai, Imperva, Anubis and the like), sometimes with a 200. Only short pages are tested, so an
+ * article that mentions a captcha is still read. Anubis (hal.ird.fr) serves a proof-of-work page
+ * that opens with "Making sure you're not a bot!", with a straight or a curly apostrophe.
  */
 const BOT_CHALLENGE =
-  /just a moment\.\.\.|checking (if the site connection is secure|your browser)|enable javascript and cookies to continue|verify(ing)? (that )?you are (a )?human|are you a robot|attention required|pardon our interruption|request unsuccessful\. incapsula|captcha/i;
+  /just a moment\.\.\.|checking (if the site connection is secure|your browser)|enable javascript and cookies to continue|verify(ing)? (that )?you are (a )?human|are you a robot|making sure you['\u2019]re not a bot|set up anubis to protect the server|attention required|pardon our interruption|request unsuccessful\. incapsula|captcha/i;
 const BOT_CHALLENGE_MAX_CHARACTERS = 3000;
 
 const megabytes = (bytes: number) => `${(bytes / 1_000_000).toFixed(1)} MB`;

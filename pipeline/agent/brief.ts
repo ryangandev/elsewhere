@@ -1,14 +1,26 @@
 // The brief a drafting subagent follows: the same system prompt, reference example, gazetteer,
 // link targets and country task the API path sends, from the agent-v<n> prompt line, followed by
-// the JSON Schema of the submission. Only the research and submission instructions differ.
+// the JSON Schema of the submission. Only the research and submission instructions differ. A
+// revision session's brief has the story revision task instead, with what the API path's
+// revise-story task gives: each story's notes and the story as drafted, and its context.
 import { z } from 'zod';
-import type { CountryFile } from '../../src/content/schema';
-import { render, type AgentPromptSet } from '../prompts';
-import { CountryDraft, DraftSource, toToolJsonSchema } from '../generate/draft-schema';
+import { StoryId, type CountryFile } from '../../src/content/schema';
+import { render, type AgentPromptSet, type AgentRevisionPromptSet } from '../prompts';
+import {
+  CountryDraft,
+  DraftSource,
+  DraftStory,
+  StoryRevisionsDraft,
+  toToolJsonSchema,
+} from '../generate/draft-schema';
+import { candidateListing } from '../generate/gazetteer-context';
 import {
   countryTaskValues,
+  inboundReferences,
   linkTargetsText,
+  otherStoriesText,
   sharedSystemText,
+  storyUnderRevision,
   type DraftingContext,
 } from '../generate/tasks';
 
@@ -22,21 +34,41 @@ export const AGENT_EVIDENCE_RULE =
  * The country draft as the brief shows it. It validates exactly like CountryDraft; only the
  * description of a source URL names the fetch command instead of the API's web tools.
  */
+const AgentDraftSource = DraftSource.extend({
+  url: z
+    .string()
+    .describe('The exact URL of a page you read with the fetch command in this session.'),
+});
+
 const AgentCountryDraft = CountryDraft.extend({
-  sources: z
-    .array(
-      DraftSource.extend({
-        url: z
-          .string()
-          .describe('The exact URL of a page you read with the fetch command in this session.'),
-      }),
-    )
-    .min(1)
-    .describe('Every source cited above, declared once.'),
+  sources: z.array(AgentDraftSource).min(1).describe('Every source cited above, declared once.'),
 });
 
 export function submissionSchema(): Record<string, unknown> {
   return toToolJsonSchema(AgentCountryDraft);
+}
+
+/**
+ * The revised stories as a revision brief shows them. It validates exactly like
+ * StoryRevisionsDraft; only the descriptions of a story ID and a source URL differ.
+ */
+const AgentStoryRevisionsDraft = StoryRevisionsDraft.extend({
+  stories: z
+    .array(
+      DraftStory.extend({
+        id: StoryId.describe('The ID of the story this revises, unchanged.'),
+      }),
+    )
+    .min(1)
+    .describe('Every story listed under "Stories to revise", revised, each keeping its ID.'),
+  sources: z
+    .array(AgentDraftSource)
+    .min(1)
+    .describe('Every source the stories cite, declared once.'),
+});
+
+export function revisionSubmissionSchema(): Record<string, unknown> {
+  return toToolJsonSchema(AgentStoryRevisionsDraft);
 }
 
 /**
@@ -72,6 +104,53 @@ export function renderBrief(
     ...countryTaskValues(context, countryId, existing),
     draftFile,
     submissionSchema: readableJson(submissionSchema()),
+  });
+  return `${[
+    sharedSystemText(context.prompts, 'the submission schema in the task'),
+    linkTargetsText(context),
+    task,
+  ].join('\n\n')}\n`;
+}
+
+const quoted = (ids: string[]) => ids.map((id) => `"${id}"`);
+
+/** "the story "a"", or "the stories "a", "b" and "c"". */
+function storiesSentBack(storyIds: string[]): string {
+  const ids = quoted(storyIds);
+  return ids.length === 1
+    ? `the story ${ids[0]}`
+    : `the stories ${ids.slice(0, -1).join(', ')} and ${ids.at(-1)}`;
+}
+
+/** The brief of a revision session: the stories sent back, each with its notes and old text. */
+export function renderRevisionBrief(
+  context: DraftingContext & { prompts: AgentRevisionPromptSet },
+  existing: CountryFile,
+  storyIds: string[],
+  draftFile: string,
+): string {
+  const countryId = existing.country.id;
+  const revisions = storyIds.map((storyId) => {
+    const { story, notes, asDrafted } = storyUnderRevision(existing, storyId);
+    return [
+      `### "${storyId}": ${story.question}`,
+      "#### Editor's notes",
+      notes,
+      '#### The story as drafted',
+      `\`\`\`json\n${asDrafted}\n\`\`\``,
+    ].join('\n\n');
+  });
+  const task = render(context.prompts['revise-story'], {
+    countryName: existing.country.name,
+    countryId,
+    storiesSentBack: storiesSentBack(storyIds),
+    today: context.date,
+    draftFile,
+    revisions: revisions.join('\n\n'),
+    otherStories: otherStoriesText(existing, storyIds),
+    inboundReferences: inboundReferences(context.contentDir, countryId),
+    candidatePlaces: candidateListing(countryId),
+    submissionSchema: readableJson(revisionSubmissionSchema()),
   });
   return `${[
     sharedSystemText(context.prompts, 'the submission schema in the task'),

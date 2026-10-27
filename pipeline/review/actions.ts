@@ -170,7 +170,7 @@ export function approve(options: ApproveOptions): {
   const waiting = entries.filter((entry) => entry.provenance.revision);
   if (waiting.length) {
     throw new ReviewError(
-      `Waiting for a revision: ${waiting.map((entry) => entry.label).join(', ')}. Run npm run content:generate -- --revisions first.`,
+      `Waiting for a revision: ${waiting.map((entry) => entry.label).join(', ')}. Redraft first with npm run content:generate -- --revisions, or in a Claude Code subagent with npm run content:agent -- start ${current.country.id}${current.country.provenance.revision ? '' : ' --revisions'}.`,
     );
   }
 
@@ -278,7 +278,10 @@ export type ReviseOptions = {
   date: string;
 };
 
-/** Ask for a redraft. npm run content:generate -- --revisions consumes the request. */
+/**
+ * Ask for a redraft. npm run content:generate -- --revisions consumes the request, or agent
+ * drafting (npm run content:agent -- start <country> --revisions for stories).
+ */
 export function requestRevision(options: ReviseOptions): { file: string; target: string } {
   const current = loadCountry(options.contentDir, options.country);
   const notes = options.notes.trim();

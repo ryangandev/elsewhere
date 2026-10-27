@@ -1,7 +1,8 @@
 // npm run content:agent -- <command> <country> [options]
-// The commands a Claude Code drafting subagent (.claude/agents/content-drafter.md) runs. See
-// docs/architecture.md#agent-drafting.
-import { parseArgs, type ParseArgsConfig } from 'node:util';
+// The commands a Claude Code drafting subagent (.claude/agents/content-drafter.md) runs, to draft
+// a country or to redraft the stories review sent back. See docs/architecture.md#agent-drafting.
+import type { ParseArgsConfig } from 'node:util';
+import { parseArgsOnce } from '../cli-args';
 import { ignoreClosedOutput } from '../closed-output';
 import { DEFAULT_CONTENT_DIR, DEFAULT_MODEL, today } from '../config';
 import { fetchCommand, places, start, status, submit, type AgentDeps } from './commands';
@@ -14,6 +15,8 @@ Commands:
     --model <id>          recorded as generatedBy (default ${DEFAULT_MODEL})
     --date YYYY-MM-DD     generatedAt and accessedAt (default today)
     --regenerate          the draft may replace an existing draft nobody sent back
+    --revisions           redraft the stories review sent back instead of the whole country;
+                          a finished session moves to finished/ first
     --fresh               discard an existing session first
   fetch <country> <url>   read a page on this computer, keep it as evidence, print a part
     --offset <n>          print the part starting at character n
@@ -23,9 +26,10 @@ Commands:
     --refresh             fetch again even when the page is stored
   places <country>        search the gazetteer
     --query <name>        part of a place name; repeat it to search several names at once
-    --country <id>        only places in this map country
+    --country <id>        only places in this map country; repeat it for places in any of several
     --near <place id>     sort by distance from this place
-  submit <country> [file] check the draft (default draft.json in the session) and write it
+  submit <country> [file] check the draft or the revised stories (default draft.json in the
+                          session) and write them
     --dry-run             run the same checks but write and record nothing
   status <country>        what the session has fetched and submitted
 `;
@@ -38,6 +42,7 @@ const OPTIONS: Record<string, Options> = {
     model: { type: 'string', default: DEFAULT_MODEL },
     date: { type: 'string' },
     regenerate: { type: 'boolean', default: false },
+    revisions: { type: 'boolean', default: false },
     fresh: { type: 'boolean', default: false },
   },
   fetch: {
@@ -48,7 +53,7 @@ const OPTIONS: Record<string, Options> = {
   },
   places: {
     query: { type: 'string', multiple: true },
-    country: { type: 'string' },
+    country: { type: 'string', multiple: true },
     near: { type: 'string' },
   },
   submit: { 'dry-run': { type: 'boolean', default: false } },
@@ -70,7 +75,7 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return name && name !== '--help' && name !== 'help' ? 1 : 0;
   }
-  const { values, positionals } = parseArgs({
+  const { values, positionals } = parseArgsOnce({
     args: rest,
     options: OPTIONS[name],
     allowPositionals: true,
@@ -96,6 +101,7 @@ async function main(): Promise<number> {
           date,
           regenerate: values.regenerate === true,
           fresh: values.fresh === true,
+          revisions: values.revisions === true,
         },
         deps,
       );
@@ -120,7 +126,7 @@ async function main(): Promise<number> {
         {
           countryId,
           queries: (values.query as string[] | undefined) ?? [],
-          country: string('country'),
+          countries: (values.country as string[] | undefined) ?? [],
           near: string('near'),
         },
         deps,

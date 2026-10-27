@@ -1,7 +1,7 @@
 // npm run content:claims -- <country> [story] | --all | --drafts
 // Check every claim-bearing text against the sources it cites. See
 // docs/architecture.md#content-pipeline for the workflow and every option.
-import { parseArgs } from 'node:util';
+import { parseArgsOnce } from '../cli-args';
 import {
   CLAIM_LIMITS,
   CLAIM_SOURCES_PER_SESSION,
@@ -56,7 +56,7 @@ Options:
 const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
 async function main(): Promise<number> {
-  const { values, positionals } = parseArgs({
+  const { values, positionals } = parseArgsOnce({
     allowPositionals: true,
     options: {
       all: { type: 'boolean', default: false },
