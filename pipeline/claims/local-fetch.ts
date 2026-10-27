@@ -6,6 +6,8 @@
 //   server returns them; it runs no scripts and does not read PDFs.
 // - Agent drafting (pipeline/agent) reads every page it cites through fetchPage with PDFs on,
 //   and keeps the text as evidence.
+// - The agent claim check (pipeline/claims-agent) reads cited pages the same way, and fetches every
+//   quoted page again at submission to verify its quotes against the live text.
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -177,13 +179,49 @@ async function readBody(response: Response, maxBytes: number): Promise<Uint8Arra
   return Buffer.concat(chunks);
 }
 
-function decode(body: Uint8Array, contentType: string): string {
-  const charset = /charset=["']?([\w-]+)/i.exec(contentType)?.[1] ?? 'utf-8';
-  try {
-    return new TextDecoder(charset).decode(body);
-  } catch {
-    return new TextDecoder('utf-8').decode(body);
+const CHARSET = /charset\s*=\s*["']?([\w.:-]+)/i;
+
+/** How far into an HTML document a <meta> charset declaration is looked for (HTML says 1024 bytes). */
+const META_SNIFF_BYTES = 2048;
+
+/**
+ * The charset an HTML document declares in a <meta charset> or <meta http-equiv="Content-Type">
+ * near its start. The bytes are read as Latin-1, which keeps ASCII as it is in every charset a
+ * declaration can name.
+ */
+function sniffMetaCharset(body: Uint8Array): string | undefined {
+  const head = Buffer.from(body.subarray(0, META_SNIFF_BYTES)).toString('latin1');
+  for (const [tag] of head.matchAll(/<meta\b[^>]*>/gi)) {
+    const charset = CHARSET.exec(tag)?.[1];
+    if (charset) return charset;
   }
+  return undefined;
+}
+
+/** The decoder for a charset label, or undefined when TextDecoder does not know it. */
+function decoder(label: string): TextDecoder | undefined {
+  try {
+    return new TextDecoder(label);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Text in the charset the response declares in its Content-Type header, else the one an HTML page
+ * declares in a <meta> tag, else UTF-8. A page that declares nothing and is not valid UTF-8 (UTF-8
+ * decoding leaves replacement characters) is read as windows-1252, which older government sites
+ * such as Argentina's InfoLEG still serve without saying so, so "Constitución" does not become
+ * "Constituci�n".
+ */
+function decode(body: Uint8Array, contentType: string): string {
+  const declared =
+    CHARSET.exec(contentType)?.[1] ??
+    (/html/i.test(contentType) ? sniffMetaCharset(body) : undefined);
+  const chosen = declared ? decoder(declared) : undefined;
+  if (chosen) return chosen.decode(body);
+  const text = new TextDecoder('utf-8').decode(body);
+  return text.includes('�') ? new TextDecoder('windows-1252').decode(body) : text;
 }
 
 const isPdf = (body: Uint8Array) => Buffer.from(body.subarray(0, 5)).toString('latin1') === '%PDF-';

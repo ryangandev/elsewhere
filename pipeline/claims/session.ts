@@ -123,6 +123,26 @@ function scopeText(file: CountryFile, scopes: ClaimScope[]): { scope: string; co
   return { scope: joinNames(names), context: context.join('\n') };
 }
 
+/**
+ * The values of a claim check task template: what is checked, for context, and the sources and
+ * units. The API task and the agent brief render the same values.
+ */
+export function claimsTaskValues(
+  file: CountryFile,
+  scopes: ClaimScope[],
+  units: ClaimUnit[],
+): Record<string, string> {
+  return {
+    ...scopeText(file, scopes),
+    countryName: file.country.name,
+    countryId: file.country.id,
+    sources: citedSources(units)
+      .map((source) => `- ${source.id}: "${source.title}", ${source.publisher}. ${source.url}`)
+      .join('\n'),
+    units: units.map(renderUnit).join('\n\n'),
+  };
+}
+
 export function claimSession(
   context: ClaimsContext,
   job: ClaimsJob,
@@ -153,15 +173,7 @@ export function claimSession(
   const texts = new Map<string, string[]>();
   const addText = (url: string, text: string) => texts.set(url, [...(texts.get(url) ?? []), text]);
   const ttl = context.cacheTtl === '1h' ? { ttl: '1h' as const } : {};
-  const task = render(context.prompts.task, {
-    ...scopeText(file, scopes),
-    countryName: file.country.name,
-    countryId: file.country.id,
-    sources: sources
-      .map((source) => `- ${source.id}: "${source.title}", ${source.publisher}. ${source.url}`)
-      .join('\n'),
-    units: units.map(renderUnit).join('\n\n'),
-  });
+  const task = render(context.prompts.task, claimsTaskValues(file, scopes, units));
   return {
     units,
     progress: () => ({ checks: { ...checks }, failures: new Map(failures) }),

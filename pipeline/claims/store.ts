@@ -51,6 +51,27 @@ const ClaimCheck = z.strictObject({
   model: z.string(),
   effort: z.string(),
   promptVersion: z.string(),
+  /**
+   * Agent claim checks only (pipeline/claims-agent): the pages the pipeline fetched live from the
+   * web at submission, itself, to verify the unit's quotes, each with the SHA-256 of the text the
+   * quotes were matched against. Empty when the verdict quotes nothing. API results have none,
+   * since their quotes are checked against what the API fetched in the conversation.
+   */
+  verification: z
+    .strictObject({
+      pages: z.array(
+        z.strictObject({
+          sourceId: z.string(),
+          url: z.string(),
+          /** Where redirects ended. */
+          finalUrl: z.string(),
+          fetchedAt: z.string(),
+          characters: z.number().int(),
+          sha256: z.string(),
+        }),
+      ),
+    })
+    .optional(),
   /** A reviewer read the flag and approved anyway, saying why. */
   accepted: z.strictObject({ by: z.string(), on: z.string(), reason: z.string() }).optional(),
 });
@@ -116,7 +137,8 @@ const quoted = (list: string[]) => list.map((text) => `"${text}"`).join(', ');
 /** Lines describing one unit's claim check, for the terminal. */
 export function describeCheck(check: ClaimCheck | undefined): string[] {
   if (!check) return ['claim check: not checked (or the text changed since)'];
-  const head = `claim check: ${VERDICT_LABELS[check.verdict]} (${check.checkedAt}, ${check.model})`;
+  const method = check.verification ? `, ${check.promptVersion}` : '';
+  const head = `claim check: ${VERDICT_LABELS[check.verdict]} (${check.checkedAt}, ${check.model}${method})`;
   const lines = [head];
   if (check.unsupported.length)
     lines.push(`  not stated by the sources: ${quoted(check.unsupported)}`);
@@ -125,6 +147,10 @@ export function describeCheck(check: ClaimCheck | undefined): string[] {
     lines.push(`  [${source.id}] could not be read${source.note ? `: ${source.note}` : ''}`);
   }
   for (const item of check.evidence) lines.push(`  [${item.sourceId}] "${item.quote}"`);
+  if (check.verification?.pages.length) {
+    const pages = check.verification.pages.map((page) => `[${page.sourceId}] ${page.fetchedAt}`);
+    lines.push(`  quotes verified against a live fetch: ${pages.join(', ')}`);
+  }
   if (check.accepted) {
     lines.push(
       `  accepted by ${check.accepted.by} on ${check.accepted.on}: ${check.accepted.reason}`,

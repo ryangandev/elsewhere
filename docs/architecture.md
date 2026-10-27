@@ -212,6 +212,7 @@ pipeline/
   prompts/paraphrase/v<n>/  versioned prompts of the paraphrase step, recorded in paraphrases
   prompts/claims-v<n>/  versioned claim check prompts, on their own version line
   prompts/agent-v<n>/   versioned agent drafting prompts, on their own version line
+  prompts/claims-agent-v<n>/  versioned agent claim check prompts, on their own version line
   batches/         batch definitions (pilot.json) and the question plans generated for them
   generate/        plan, draft and redraft (npm run content:generate)
   validate/        every content:check rule plus source URL reachability (npm run content:verify)
@@ -219,6 +220,7 @@ pipeline/
   review/          list, read, approve and send back drafts (npm run content:review)
   paraphrase/      search phrasings for each story's question (npm run content:paraphrase)
   agent/           commands a Claude Code subagent drafts a country with (npm run content:agent)
+  claims-agent/    commands a Claude Code subagent checks claims with (npm run content:claims-agent)
 ```
 
 ```sh
@@ -228,6 +230,7 @@ npm run content:generate -- --revisions        # redraft everything review sent 
 npm run content:agent -- start CHL             # or let a Claude Code subagent draft Chile
 npm run content:verify                         # content rules and source URLs
 npm run content:claims -- CHL                  # check Chile's text against its sources
+npm run content:claims-agent -- start CHL      # or let a Claude Code subagent check it
 npm run content:paraphrase -- --all            # search phrasings where missing or stale
 npm run content:review -- list                 # then show, approve, revise
 ```
@@ -259,6 +262,7 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    `--offline` skips the network and reports cached results.
 4. **Claims.**
    `content:claims -- <country> [story]` (or `--all`, or `--drafts`) asks Claude whether the cited sources state each piece of text.
+   [Agent claim check](#agent-claim-check) does the same check in a Claude Code subagent instead, with every quote verified against a live fetch.
    A unit is one claim-bearing piece with its source IDs: the overview's summary and geography together, each why-it-matters point, each quick fact (with its as-of date), and each section of a story.
    A conversation with Claude Opus 5.5 at `high` effort (`--model`, `--effort`) checks the due units of one country; checking one story alone is its own conversation.
    Every cited page stays in the conversation's context, so a country's due units are packed into conversations that cite at most `CLAIM_SOURCES_PER_SESSION` sources each (10, `--sources-per-session` to change), with overviews and stories that share sources kept together so a shared source is read once.
@@ -426,6 +430,7 @@ npm run content:agent -- status CHL
   It refuses a file with reviewed content, and an existing draft that review did not send back unless `--regenerate` is given.
 - `fetch` reads a page from the editor's computer with `fetchPage` in `pipeline/claims/local-fetch.ts`: HTML and plain text as the server returns them, without scripts, and PDFs by their text layer with a `[Page n]` line before each page.
   PDFs are read with unpdf, a maintained packaging of Mozilla's pdf.js for Node with no dependencies of its own.
+  Text is decoded in the charset the Content-Type header names, else the one an HTML page declares in a `<meta charset>` or `http-equiv` tag in its first 2 KB, else UTF-8; a page that declares nothing and is not valid UTF-8 is read as windows-1252, which older government sites such as Argentina's InfoLEG serve without saying so.
   Each page becomes an evidence record in `evidence/`: the requested and final URLs, both normalized, the HTTP status, the content type, the time, the SHA-256 of the text, and the text, up to 2 million characters from at most 40 MB.
   It prints 20,000 characters at a time (Claude Code shows up to 30,000 characters of a command's output), with `--offset` for another part and `--find` to list where words appear; later reads come from the stored copy unless `--refresh` is given.
   `--links` lists the page's links instead of its text, because the text leaves them out and a drafter otherwise resorts to curl to find a statistics table PDF or a primary source.
@@ -456,8 +461,58 @@ npm run content:agent -- status CHL
 - `status` lists the fetched pages, the failed fetches and the submissions.
 
 The evidence rule is stricter than the API path's: a cited URL must have been read through `fetch` in the session, so a search result never counts, and neither does WebFetch, which returns a model's summary instead of the page.
-The subagent could in principle write the files the commands own; the hash catches an edited record, and the claim check, which reads every cited source again through the API, is the independent audit before review, as it is for API drafts.
+The subagent could in principle write the files the commands own; the hash catches an edited record, and the claim check, which reads every cited source again (through the API, or in a claim-checker subagent with every quote verified against a live fetch), is the independent audit before review, as it is for API drafts.
 Agent drafting writes whole countries, including one that review sent back as a whole; a single story sent back is redrafted with `content:generate -- --revisions`.
+
+### Agent claim check
+
+`npm run content:claims-agent` lets a Claude Code subagent do the claim check in place of an API conversation, so it is paid by a Claude subscription instead of API credit.
+The subagent reads the cited pages and judges each unit; code verifies every quote against a fresh fetch of the page, so the authenticity of a result rests on the pipeline, not on the subagent.
+`.claude/agents/claim-checker.md` defines the subagent: Opus, with Bash, Read, Write, Glob and Grep, and without WebSearch or WebFetch.
+Ask Claude Code to run it for a country, or once for each session `start` prints; sessions share no units, so several subagents can check one country at once.
+It never reads the drafting session or draft notes, so the check stays independent of how the text was written.
+The API claim check stays as a reserve and writes the same results.
+
+```sh
+npm run content:claims-agent -- start CHL [story] [--recheck] [--drafts] [--sources-per-session <n>] [--content-dir <dir>] [--claims-dir <dir>] [--model <id>] [--effort <label>] [--fresh]
+npm run content:claims-agent -- fetch <session> "<url>" [--offset <n>] [--find <words>] [--refresh]
+npm run content:claims-agent -- submit <session> [<verdicts.json>] [--dry-run]
+npm run content:claims-agent -- status <session or country>
+```
+
+- `start` picks the due units with the API path's plan (`claimsJobs` in `pipeline/claims/plan.ts`): units without a result for their current text, or every selected unit with `--recheck`.
+  It packs them into sessions of at most `--sources-per-session` cited sources (10 by default), exactly as the API path packs conversations, and creates them all at once, one directory each in `pipeline/.cache/claims-agent/<session>/`, named like `CHL`, `CHL-length` or `CHL-part2`.
+  Planning every part from one reading of the claims file is what keeps parts apart: if each subagent planned its own part, a result saved in between would shift the packing.
+  It refuses while an unfinished session of the country holds a unit it would hand out; such a session can be continued by another subagent, or discarded with `--fresh`.
+  Each session has `session.json` (the units by ID and key, the sources, model, effort, prompt version, fetches and submissions) and `brief.md`.
+  The brief is the claims-agent-v1 system prompt and task, rendered from the same values as the API task (`claimsTaskValues` in `pipeline/claims/session.ts`), followed by the commands and the JSON Schema of the verdict file, which is the schema of the API path's `submit_verdicts` tool.
+  Its prompts are their own version line, `pipeline/prompts/claims-agent-v<n>/`: claims-agent-v1 is claims-v1 with the reading and submission instructions rewritten for these commands, and every judging rule unchanged (a test compares the two from `# Verdicts` on).
+- `fetch` reads one of the session's cited URLs (compared normalized; any other URL is refused) with the same fetcher and limits as agent drafting: HTML, plain text, and PDFs by their text layer, printed 20,000 characters at a time, with `--offset` and `--find`.
+  It keeps a reading copy in `pages/`, so reading the next part does not fetch the page again, and logs every fetch and failure in `session.json`; the copy is never used to verify anything.
+  It warns when the page is probably not the cited one, by agent drafting's page check (`pipeline/agent/page-check.ts`: a stub, or a redirect to a login or home page).
+- `submit` validates the verdict file with the API path's `checkVerdicts`: every unit still due and its sources answered once, a source reported read was fetched with the fetch command in this session, `supported` has no unsupported phrases and the others do, every unsupported phrase is copied from the unit, quotes come from the unit's own read sources, and `source_unreachable` names an unreadable source.
+  It verifies the quotes itself: it fetches every page quoted from a source reported read, live from the web at that moment, and matches each quote against that text with the API path's matcher (`normalizeForMatch` and the `QUOTE_MAX_GAP` bound on each gap).
+  A quote that is not on the live page, or whose parts are too far apart there, fails its unit, and so does a quote from a page the live fetch cannot read; such a unit becomes "source unreachable" only when the subagent marks the source unreachable and gives that verdict.
+  A live page that the page check flags counts as unreadable, so a cited URL that now redirects to a home page cannot verify a quote even when that page happens to repeat the text.
+  Unlike the API path, a quote from a PDF is checked too, against the PDF's text layer.
+  Every unit that passes is saved at once by `recordChecks`, into the same `content/en/claims/<slug>.json` in the same format, and the others are listed with their problems.
+  The subagent fixes them and submits again; a unit that passed may stay in the file, and a new verdict replaces its saved one only if the new one passes.
+  A subagent may also stop with units left not checked, which stay due for the next session.
+  A submission is refused when a unit's text or sources changed since `start`, because its verdict would no longer apply.
+  Every verdict file is kept in `submissions/<n>.json`, and the session logs each submission's saved units, problems and live fetches.
+  `--dry-run` runs the same checks and live fetches, and saves, keeps and logs nothing.
+- `status` lists the units checked and still due (with the last problems), the fetched and unfetched sources, the failed fetches and the submissions; given a country, every session of it.
+
+An agent result is an API result with three differences.
+Its `promptVersion` is `claims-agent-v1`, and its `effort` is what `start` recorded ("default", the subagent's own, unless given); `model` is the subagent's model (`claude-opus-5-5` by default, `--model` to change).
+An extra `verification` field lists, for each source the unit quotes, the URL, the final URL, the time of the live fetch, and the length and SHA-256 of the text its quotes were matched against; it is empty when the verdict quotes nothing.
+`content:review -- show` prints both kinds the same way, adding the prompt version and the live fetch to an agent result, and `approve` gates on them identically: a missing or flagged result blocks approval until the text is revised or the flag accepted with `--accept-claims`.
+
+The guarantee: every quote of a saved agent result was on the cited page, as the matcher compares text, when the pipeline fetched it live at submission.
+The subagent can write any file in its session, but none of them is read to verify a quote.
+What the subagent judges is support, whether the quoted text and the rest of the page state the unit; that is the judgement the API check asks of Claude, made here by the subscription model.
+A page can change after submission; the SHA-256 records which text was checked.
+A subagent could still call a unit `not_supported` without reading its source, which only flags it for review, or pass a unit on a real quote that does not state it, which is the same misreading risk as the API check.
 
 ## Globe
 
@@ -679,7 +734,7 @@ Adding Chinese later means adding a catalog and a `content/zh/` tree, with no co
 
 - Unit tests (Vitest) for pure logic: schema rules, navigation, search, cartography, picking.
 - Content validation runs in CI on every change to `content/`.
-- Pipeline tests in `tests/pipeline/` run plan, draft, verify, review, redraft and the paraphrase step on replayed model responses, and agent drafting against stubbed page fetches.
+- Pipeline tests in `tests/pipeline/` run plan, draft, verify, review, redraft and the paraphrase step on replayed model responses, and agent drafting and the agent claim check against stubbed page fetches.
 - Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, robots.txt, the sitemap and canonical links, back and forward, trails, saving a story to your atlas, share, and the About sheet.
   A phone project runs the core loop (home, ask, story, follow), the reading panel collapsing to a strip and giving the globe its room, and share through a stubbed system share sheet at 390 by 844 with touch.
   Every page loads with the production response headers from `vercel.json`, and a Content Security Policy violation fails the test, like an uncaught error does.
