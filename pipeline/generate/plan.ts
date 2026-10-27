@@ -2,7 +2,7 @@
 // every country in it. Drafts keep the planned story IDs, so a story can link to a planned story
 // in a country that has not been drafted yet, and the link resolves once that country is drafted.
 // The plan is written next to the batch file so Ryan can read and edit it before drafting.
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages';
 import { z } from 'zod';
@@ -68,6 +68,17 @@ export function planMap(plan: PlanFile | undefined): Plan {
       stories.map(({ id, question }) => ({ id, question })),
     ]),
   );
+}
+
+/** Every plan file in pipeline/batches, merged: a country keeps the first plan that has it. */
+export function allPlans(): Plan {
+  const plan: Plan = new Map();
+  for (const name of readdirSync(BATCHES_DIR).filter((entry) => entry.endsWith('.plan.json'))) {
+    for (const [countryId, stories] of planMap(readPlan(name.replace(/\.plan\.json$/, '')))) {
+      if (!plan.has(countryId)) plan.set(countryId, stories);
+    }
+  }
+  return plan;
 }
 
 /** Problems with a plan for this batch; empty when it can be used. */

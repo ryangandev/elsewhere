@@ -71,6 +71,20 @@ const hasReviewed = (file: CountryFile) =>
   file.country.provenance.status === 'reviewed' ||
   file.stories.some((story) => story.provenance.status === 'reviewed');
 
+/**
+ * Why a new country draft may not replace the existing file: it has reviewed content (only
+ * --force replaces it), or it is a draft nobody sent back (only --regenerate replaces it).
+ */
+export function replaceConflict(
+  existing: CountryFile | undefined,
+  flags: { regenerate: boolean; force: boolean },
+): 'reviewed' | 'draft' | undefined {
+  if (!existing) return undefined;
+  if (hasReviewed(existing) && !flags.force) return 'reviewed';
+  if (existing.country.provenance.revision || flags.regenerate || flags.force) return undefined;
+  return 'draft';
+}
+
 /** Why a job should not run, or undefined when it should. */
 function skipReason(job: Job, options: GenerateOptions): string | undefined {
   const slug = requireMapCountry(job.countryId).slug;
@@ -80,12 +94,14 @@ function skipReason(job: Job, options: GenerateOptions): string | undefined {
     if (!story) return 'no such story';
     return story.provenance.revision ? undefined : 'no revision requested';
   }
-  if (!existing) return undefined;
-  if (hasReviewed(existing) && !options.force) {
-    return 'contains reviewed content; pass --force to replace it';
+  switch (replaceConflict(existing, options)) {
+    case 'reviewed':
+      return 'contains reviewed content; pass --force to replace it';
+    case 'draft':
+      return 'a draft exists; pass --regenerate to replace it';
+    default:
+      return undefined;
   }
-  if (existing.country.provenance.revision || options.regenerate || options.force) return undefined;
-  return 'a draft exists; pass --regenerate to replace it';
 }
 
 function setupFor(job: Job, context: RunContext): SessionSetup {

@@ -23,9 +23,14 @@ export type CheckInput = {
   submittedSources: DraftSource[];
   /** Normalized URLs retrieved so far in this task. */
   evidence: Set<string>;
+  /** Which pages may be cited, told to the drafter when a source was not retrieved. */
+  evidenceRule?: string;
   storyCount: { min: number; max: number };
   land?: LandIndex;
 };
+
+const DEFAULT_EVIDENCE_RULE =
+  'Cite only pages from your web_search results or pages you fetched with web_fetch.';
 
 export function checkCandidate(input: CheckInput): string[] {
   const { candidate, scope, plan, contentDir } = input;
@@ -51,7 +56,7 @@ export function checkCandidate(input: CheckInput): string[] {
   for (const source of input.submittedSources) {
     if (!input.evidence.has(normalizeUrl(source.url))) {
       issues.push(
-        `sources: "${source.id}" (${source.url}) was not retrieved in this task. Cite only pages from your web_search results or pages you fetched with web_fetch.`,
+        `sources: "${source.id}" (${source.url}) was not retrieved in this task. ${input.evidenceRule ?? DEFAULT_EVIDENCE_RULE}`,
       );
     }
   }
