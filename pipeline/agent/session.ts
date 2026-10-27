@@ -80,6 +80,8 @@ export const EvidenceRecord = z.strictObject({
   /** The text was cut off at the fetch command's character limit. */
   truncated: z.boolean(),
   sha256: z.string(),
+  /** The page's links, for `fetch --links`. Absent in records stored before links were kept. */
+  links: z.array(z.strictObject({ url: z.string(), text: z.string() })).optional(),
   text: z.string(),
 });
 export type EvidenceRecord = z.infer<typeof EvidenceRecord>;
@@ -109,6 +111,7 @@ export function saveEvidence(
     characters: page.text.length,
     truncated: page.truncated,
     sha256: sha256(page.text),
+    links: page.links,
     text: page.text,
   };
   const file = evidencePath(dir, page.url);

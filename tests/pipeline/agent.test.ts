@@ -7,12 +7,14 @@ import { describe, expect, it } from 'vitest';
 import {
   CHUNK_CHARACTERS,
   fetchCommand,
+  places,
   start,
   status,
   submit,
   type AgentDeps,
 } from '../../pipeline/agent/commands';
 import { AGENT_EVIDENCE_RULE } from '../../pipeline/agent/brief';
+import { MIN_PAGE_CHARACTERS, notTheRequestedPage } from '../../pipeline/agent/page-check';
 import {
   briefFile,
   draftFile,
@@ -20,10 +22,11 @@ import {
   readSession,
   sessionDir,
 } from '../../pipeline/agent/session';
-import { fetchPage } from '../../pipeline/claims/local-fetch';
+import { extractLinks, fetchPage } from '../../pipeline/claims/local-fetch';
 import { DEFAULT_MODEL } from '../../pipeline/config';
 import { countryFilePath, readCountryFile } from '../../pipeline/content-tree';
 import { allPlans } from '../../pipeline/generate/plan';
+import { loadAgentPrompts } from '../../pipeline/prompts';
 import { chileDraft } from './fixtures/build-replay';
 import { RUN_DATE, minimalPdf, tempContentTree, tempDir } from './helpers';
 
@@ -65,12 +68,16 @@ function stubFetch(pages: Record<string, Page>, failures: Record<string, Error> 
 const html = (title: string, text: string) =>
   `<!doctype html><html><head><title>${title}</title><script>var x = 1;</script></head><body><nav>Menu</nav><h1>${title}</h1><p>${text}</p></body></html>`;
 
+/** Background text, so a page is longer than the shortest the pipeline accepts as a page. */
+const BACKGROUND = ' Statistics, history and background for the readers of this page.'.repeat(8);
+const fullPage = (title: string, text: string) => html(title, text + BACKGROUND);
+
 /** Pages for every source the fixture's Chile draft cites. */
 function chilePages(): Record<string, Page> {
   return Object.fromEntries(
     chileDraft().sources.map((source) => [
       source.url,
-      { type: 'text/html; charset=utf-8', body: html(source.title, `Text of ${source.id}.`) },
+      { type: 'text/html; charset=utf-8', body: fullPage(source.title, `Text of ${source.id}.`) },
     ]),
   );
 }
@@ -107,13 +114,17 @@ function setup(
       },
       deps,
     );
-  const read = (url: string, extra: { offset?: number; find?: string; refresh?: boolean } = {}) =>
+  const read = (
+    url: string,
+    extra: { offset?: number; find?: string; links?: boolean; refresh?: boolean } = {},
+  ) =>
     fetchCommand(
       {
         countryId: 'CHL',
         url,
         offset: extra.offset ?? 0,
         find: extra.find,
+        links: extra.links,
         refresh: !!extra.refresh,
       },
       deps,
@@ -143,7 +154,7 @@ describe('agent drafting session', () => {
     expect(session).toMatchObject({
       countryId: 'CHL',
       model: DEFAULT_MODEL,
-      promptVersion: 'agent-v1',
+      promptVersion: 'agent-v2',
       date: RUN_DATE,
       regenerate: false,
       submissions: [],
@@ -153,7 +164,7 @@ describe('agent drafting session', () => {
     for (const planned of allPlans().get('CHL')!) {
       expect(brief).toContain(`- ${planned.id}: ${planned.question}`);
     }
-    expect(brief).toContain('Never use the WebFetch tool');
+    expect(brief).toContain('never use the WebFetch tool');
     expect(brief).toContain('Cite only pages you read with the fetch command');
     expect(brief).toContain('npm run content:agent -- fetch CHL "<url>"');
     expect(brief).toContain(`write it to ${draftFile(dir)}`);
@@ -180,7 +191,7 @@ describe('agent fetch command', () => {
   const pages: Record<string, Page> = {
     'https://example.org/article': {
       type: 'text/html; charset=utf-8',
-      body: html('Copper', 'Chile is the largest producer of copper.'),
+      body: fullPage('Copper', 'Chile is the largest producer of copper.'),
       finalUrl: 'https://www.example.org/article/',
     },
     'https://example.org/notes.txt': { type: 'text/plain', body: '  Plain notes.  ' },
@@ -475,7 +486,7 @@ describe('agent submit command', () => {
       expect(file.country.provenance).toEqual({
         generatedBy: DEFAULT_MODEL,
         generatedAt: RUN_DATE,
-        promptVersion: 'agent-v1',
+        promptVersion: 'agent-v2',
         status: 'draft',
       });
       expect(file.stories.map((story) => story.id)).toEqual([
@@ -499,4 +510,332 @@ describe('agent submit command', () => {
     },
     SUBMIT_TIMEOUT_MS,
   );
+});
+
+describe('agent fetch --links', () => {
+  const ARTICLE = 'https://stats.example.org/section/report';
+  const links = `
+    <a href="/data/table-1.pdf">Table 1 (PDF)</a>
+    <a href="https://other.example.org/source?a=1&amp;b=2#part"><span>Primary</span>
+      <em>source</em></a>
+    <a href="table-2.xlsx"></a>
+    <a href="/data/table-1.pdf">Table 1 again</a>
+    <a href="/data/table-2.pdf" title="Second table"><img alt="icon" src="x.png"></a>
+    <a href="#top">Top</a>
+    <a href="${ARTICLE}#notes">This page</a>
+    <a href="mailto:press@example.org">Press</a>
+    <a href="javascript:void(0)">Script</a>
+    <a name="anchor-only">No target</a>
+    <a href="http://[bad">Broken</a>`;
+  const many = Array.from({ length: 700 }, (_, n) => `<a href="/doc/${n}">Document ${n}</a>`).join(
+    ' ',
+  );
+  const pages: Record<string, Page> = {
+    [ARTICLE]: { type: 'text/html', body: fullPage('Report', links) },
+    'https://stats.example.org/plain.txt': { type: 'text/plain', body: 'Plain. '.repeat(100) },
+    'https://stats.example.org/many': { type: 'text/html', body: fullPage('Many', many) },
+    'https://stats.example.org/none': { type: 'text/html', body: fullPage('None', 'No links.') },
+  };
+
+  it('extracts absolute links in page order, once each, with their anchor text', () => {
+    expect(extractLinks(links, ARTICLE)).toEqual([
+      { url: 'https://stats.example.org/data/table-1.pdf', text: 'Table 1 (PDF)' },
+      { url: 'https://other.example.org/source?a=1&b=2', text: 'Primary source' },
+      { url: 'https://stats.example.org/section/table-2.xlsx', text: '' },
+      { url: 'https://stats.example.org/data/table-2.pdf', text: 'Second table' },
+    ]);
+    // The text of a later link fills in an earlier link to the same URL that had none.
+    const texts = extractLinks('<a href="/a"></a><a href="/b">B</a><a href="/a">A</a>', ARTICLE);
+    expect(texts.map((link) => link.text)).toEqual(['A', 'B']);
+  });
+
+  it('lists the stored links instead of the text', async () => {
+    const { dir, begin, read, output, requested } = setup({ pages });
+    begin();
+    output();
+    expect(await read(ARTICLE, { links: true })).toBe(0);
+    const printed = output();
+    expect(printed).toContain('Links 1 to 4 of 4, as "text | URL". This is the end of the links.');
+    expect(printed).toContain('Table 1 (PDF) | https://stats.example.org/data/table-1.pdf');
+    expect(printed).toContain('Primary source | https://other.example.org/source?a=1&b=2');
+    expect(printed).toContain('(no text) | https://stats.example.org/section/table-2.xlsx');
+    expect(printed).not.toContain('Statistics, history and background');
+
+    // The text is still there, from the stored copy.
+    expect(await read(ARTICLE)).toBe(0);
+    expect(output()).toContain('Statistics, history and background');
+    expect(requested).toEqual([ARTICLE]);
+    expect(loadEvidence(dir).records[0].record.links).toHaveLength(4);
+  });
+
+  it('pages through many links like the text, by link number', async () => {
+    const { begin, read, output } = setup({ pages });
+    begin();
+    output();
+    const url = 'https://stats.example.org/many';
+    expect(await read(url, { links: true })).toBe(0);
+    const first = output();
+    const shown = Number(/^Links 1 to (\d+) of 700/m.exec(first)?.[1]);
+    expect(shown).toBeGreaterThan(100);
+    expect(shown).toBeLessThan(700);
+    expect(first).toContain(`--links --offset ${shown}`);
+    expect(first.length).toBeLessThan(CHUNK_CHARACTERS + 1000);
+
+    expect(await read(url, { links: true, offset: shown })).toBe(0);
+    expect(output()).toContain(`Document ${shown} | https://stats.example.org/doc/${shown}`);
+
+    expect(await read(url, { links: true, offset: 700 })).toBe(1);
+    expect(output()).toContain('--offset counts links: between 0 and 699');
+  });
+
+  it('says so when a page has no links, and refuses --links with --find', async () => {
+    const { begin, read, output } = setup({ pages });
+    begin();
+    output();
+    expect(await read('https://stats.example.org/none', { links: true })).toBe(0);
+    expect(output()).toContain('The page has no links.');
+    expect(await read('https://stats.example.org/plain.txt', { links: true })).toBe(0);
+    expect(output()).toContain('The page has no links.');
+    expect(await read(ARTICLE, { links: true, find: 'links' })).toBe(1);
+    expect(output()).toContain('cannot be combined');
+  });
+
+  it('asks for a fresh fetch when the stored copy predates links', async () => {
+    const { dir, begin, read, output } = setup({ pages });
+    begin();
+    await read(ARTICLE);
+    output();
+    const { file, record } = loadEvidence(dir).records[0];
+    // JSON leaves out the undefined links, as a record stored before links were kept does.
+    writeFileSync(file, JSON.stringify({ ...record, links: undefined }));
+    expect(await read(ARTICLE, { links: true })).toBe(1);
+    expect(output()).toContain('before links were kept. Fetch it again with --refresh');
+    expect(await read(ARTICLE, { links: true, refresh: true })).toBe(0);
+    expect(output()).toContain('Links 1 to 4 of 4');
+  });
+});
+
+describe('pages that are not the requested page', () => {
+  const suspicious: { url: string; page: Page; reason: string }[] = [
+    {
+      // A script stub.
+      url: 'https://app.example.org/report',
+      page: { type: 'text/html', body: html('App', 'You need JavaScript.') },
+      reason: 'its text is only',
+    },
+    {
+      url: 'https://news.example.org/2026/story',
+      page: {
+        type: 'text/html',
+        body: fullPage('News', 'Front page.'),
+        finalUrl: 'https://news.example.org/',
+      },
+      reason: "redirected to the site's home page",
+    },
+    {
+      url: 'https://agency.example.gov/statistics/2026',
+      page: {
+        type: 'text/html',
+        body: fullPage('Agency', 'Welcome.'),
+        finalUrl: 'https://agency.example.gov/en',
+      },
+      reason: "redirected to the site's home page",
+    },
+    {
+      url: 'https://journal.example.org/articles/x1',
+      page: {
+        type: 'text/html',
+        body: fullPage('Sign in', 'Email and password.'),
+        finalUrl: 'https://journal.example.org/user/sign-in?next=%2Farticles%2Fx1',
+      },
+      reason: 'redirected to a login, sign-in or consent page',
+    },
+    {
+      // A login host, as a journal's identity provider.
+      url: 'https://www.nature.example/articles/s1',
+      page: {
+        type: 'text/html',
+        body: fullPage('Log in', 'Access through your institution.'),
+        finalUrl: 'https://idp.nature.example/session?redirect=1',
+      },
+      reason: 'redirected to a login, sign-in or consent page',
+    },
+    {
+      url: 'https://daily.example.com/world/story',
+      page: {
+        type: 'text/html',
+        body: fullPage('Before you continue', 'We value your privacy.'),
+        finalUrl: 'https://daily.example.com/consent?url=story',
+      },
+      reason: 'redirected to a login, sign-in or consent page',
+    },
+  ];
+
+  /** Pages that move or are short, but are the page that was asked for. */
+  const ordinary: Record<string, Page> = {
+    // A DOI lands on the publisher's article, on another host.
+    'https://doi.example/10.1/abc': {
+      type: 'text/html',
+      body: fullPage('Article', 'Findings.'),
+      finalUrl: 'https://publisher.example.net/articles/10.1-abc',
+    },
+    // A site that moved to www and added a language path.
+    'https://agency.example.gov/statistics': {
+      type: 'text/html',
+      body: fullPage('Statistics', 'Tables.'),
+      finalUrl: 'https://www.agency.example.gov/en/statistics/',
+    },
+    // A page about logging in is still that page.
+    'https://help.example.org/login': {
+      type: 'text/html',
+      body: fullPage('Login help', 'How to log in.'),
+    },
+    // A home page asked for as such.
+    'https://example.net/': {
+      type: 'text/html',
+      body: fullPage('Home', 'Welcome.'),
+      finalUrl: 'https://example.net/en/',
+    },
+    'https://example.org/exactly-enough': {
+      type: 'text/plain',
+      body: 'x'.repeat(MIN_PAGE_CHARACTERS),
+    },
+  };
+
+  it('recognises the suspicious cases and leaves ordinary pages alone', () => {
+    const check = (requestedUrl: string, finalUrl: string, length = 5000) =>
+      notTheRequestedPage({ requestedUrl, finalUrl, text: 'x'.repeat(length) });
+    // The cases that prompted the check: a 209-character stub, and an article behind a login.
+    expect(check('https://a.example/p', 'https://a.example/p', 209)).toContain(
+      'only 209 characters',
+    );
+    expect(
+      check(
+        'https://www.nature.com/articles/s41586-024-07000-0',
+        'https://idp.nature.com/authorize?response_type=cb&client_id=grover',
+      ),
+    ).toContain('login');
+    for (const [url, page] of Object.entries(ordinary)) {
+      expect(check(url, page.finalUrl ?? url, MIN_PAGE_CHARACTERS)).toBeUndefined();
+    }
+  });
+
+  it('warns in the fetch output, still stores the page, and marks it in status', async () => {
+    const pages = Object.fromEntries(suspicious.map(({ url, page }) => [url, page]));
+    const { begin, read, output, deps, dir } = setup({ pages: { ...pages, ...ordinary } });
+    begin();
+    output();
+    for (const { url, reason } of suspicious) {
+      expect(await read(url)).toBe(0);
+      const printed = output();
+      expect(printed).toContain('WARNING: this is probably not the page you asked for');
+      expect(printed).toContain(reason);
+      expect(printed).toContain('rejected at submit');
+    }
+    for (const url of Object.keys(ordinary)) {
+      expect(await read(url)).toBe(0);
+      expect(output()).not.toContain('WARNING');
+    }
+    expect(loadEvidence(dir).records).toHaveLength(
+      suspicious.length + Object.keys(ordinary).length,
+    );
+
+    status({ countryId: 'CHL' }, deps);
+    expect(output().match(/NOT CITABLE/g)).toHaveLength(suspicious.length);
+  });
+
+  it(
+    'rejects a draft that cites such a page',
+    async () => {
+      const cited = suspicious.slice(0, 4);
+      const { contentDir, dir, begin, read, writeDraft, output, deps } = setup({
+        pages: Object.fromEntries(cited.map(({ url, page }) => [url, page])),
+      });
+      begin();
+      for (const { url } of cited) await read(url);
+      output();
+      // The fixture draft, citing the suspicious pages in place of its own sources.
+      const draft = chileDraft();
+      const sources = draft.sources.map((source, index) => ({ ...source, url: cited[index].url }));
+      writeDraft({ ...draft, sources });
+
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      const printed = output();
+      for (const [index, source] of sources.entries()) {
+        expect(printed).toContain(
+          `sources: "${source.id}" (${source.url}) is not the page it should be`,
+        );
+        expect(printed).toContain(cited[index].reason);
+      }
+      expect(printed).not.toContain('was not retrieved in this task');
+      expect(existsSync(countryFilePath(contentDir, 'chile'))).toBe(false);
+      expect(readSession(dir, 'CHL').written).toBeUndefined();
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
+});
+
+describe('agent-v2 prompts', () => {
+  const research = (system: string) =>
+    system.slice(system.indexOf('# Research and sources'), system.indexOf('# The map scene'));
+
+  it('is the current line, with agent-v1 left as it was', () => {
+    const v1 = loadAgentPrompts('agent-v1');
+    expect(v1.system).toContain('the CIA World Factbook, Britannica (the main edition');
+    expect(v1.system).not.toContain('curl');
+
+    const v2 = loadAgentPrompts();
+    expect(v2.version).toBe('agent-v2');
+    // Everything outside the research section and the command list is unchanged.
+    expect(v2.system.replace(research(v2.system), '')).toBe(
+      v1.system.replace(research(v1.system), ''),
+    );
+    expect(v2['link-targets']).toBe(v1['link-targets']);
+    expect(v2.repair).toBe(v1.repair);
+    for (const sentence of [
+      'Do not cite Wikipedia or other wikis.',
+      'If you cannot find a source for a claim, leave the claim out.',
+      'Cite only pages you read with the fetch command, by the URL you fetched.',
+    ]) {
+      expect(research(v2.system)).toContain(sentence);
+    }
+  });
+
+  it('recommends sources the fetch command can read and states the new rules', () => {
+    const { dir, begin } = setup({ plan: undefined });
+    begin();
+    const brief = readFileSync(briefFile(dir), 'utf8');
+    const sources = research(brief);
+    expect(sources).toContain('national statistics offices');
+    expect(sources).toContain('parliament pages');
+    expect(sources).toContain('the OECD');
+    expect(sources).toContain('museums, archives and libraries');
+    expect(sources).toContain(
+      'Britannica) and discontinued references (the CIA World Factbook) cannot be fetched',
+    );
+    expect(sources).not.toContain('Britannica (the main edition');
+    expect(brief).toContain('Never use curl, wget or any other tool that makes HTTP requests');
+    expect(brief).toContain('Never put personal information');
+    expect(brief).toContain('run the fetch command with --links');
+    expect(brief).toContain('Add `--links` to list the page');
+    expect(brief).toContain('Repeat `--query` to search several names in one call.');
+  });
+});
+
+describe('agent places command', () => {
+  it('searches several names in one call, headed by each query', () => {
+    const { deps, output } = setup();
+    expect(places({ countryId: 'CHL', queries: ['santiago', 'punta arenas'] }, deps)).toBe(0);
+    const printed = output();
+    expect(printed).toMatch(/^## santiago\n[^\n]*Santiago \| city in CHL/m);
+    expect(printed).toMatch(/^## punta arenas\n[^\n]*Punta Arenas/m);
+  });
+
+  it('prints a single query, or none, without a heading', () => {
+    const { deps, output } = setup();
+    expect(places({ countryId: 'CHL', queries: ['santiago'] }, deps)).toBe(0);
+    expect(output()).not.toContain('##');
+    expect(places({ countryId: 'CHL', queries: [], country: 'CHL' }, deps)).toBe(0);
+    expect(output()).toContain('| city in CHL |');
+  });
 });

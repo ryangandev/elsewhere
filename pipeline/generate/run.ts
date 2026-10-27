@@ -4,7 +4,6 @@
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
-import type { CountryFile } from '../../src/content/schema';
 import { CACHE_DIR, type Effort } from '../config';
 import {
   readCountryFile,
@@ -15,6 +14,7 @@ import {
 } from '../content-tree';
 import { replaceStory } from './assemble';
 import { MissingApiKeyError, type ModelClient } from './model-client';
+import { replaceConflict } from './replace';
 import { DraftSession, type SessionSetup, type SessionSnapshot } from './session';
 import { countrySession, storySession, type RunContext } from './tasks';
 import { emptyUsage, formatUsage, sumUsage, type Usage } from './usage';
@@ -66,24 +66,6 @@ type BatchRunState = {
   sessions: SessionSnapshot[];
   results: JobResult[];
 };
-
-const hasReviewed = (file: CountryFile) =>
-  file.country.provenance.status === 'reviewed' ||
-  file.stories.some((story) => story.provenance.status === 'reviewed');
-
-/**
- * Why a new country draft may not replace the existing file: it has reviewed content (only
- * --force replaces it), or it is a draft nobody sent back (only --regenerate replaces it).
- */
-export function replaceConflict(
-  existing: CountryFile | undefined,
-  flags: { regenerate: boolean; force: boolean },
-): 'reviewed' | 'draft' | undefined {
-  if (!existing) return undefined;
-  if (hasReviewed(existing) && !flags.force) return 'reviewed';
-  if (existing.country.provenance.revision || flags.regenerate || flags.force) return undefined;
-  return 'draft';
-}
 
 /** Why a job should not run, or undefined when it should. */
 function skipReason(job: Job, options: GenerateOptions): string | undefined {

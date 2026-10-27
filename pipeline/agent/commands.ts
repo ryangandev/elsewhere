@@ -19,9 +19,10 @@ import {
 import type { Plan } from '../generate/check';
 import { findPlaces } from '../generate/gazetteer-context';
 import { allPlans } from '../generate/plan';
-import { replaceConflict } from '../generate/run';
+import { replaceConflict } from '../generate/replace';
 import { renderLinkTargets, submitCountryDraft } from '../generate/tasks';
 import { AGENT_EVIDENCE_RULE, renderBrief, renderRepair, type AgentContext } from './brief';
+import { notTheRequestedPage } from './page-check';
 import {
   DEFAULT_SESSIONS_DIR,
   briefFile,
@@ -156,6 +157,8 @@ export type FetchOptions = {
   offset: number;
   /** Instead of a chunk, list where these words appear. */
   find?: string;
+  /** Instead of the text, list the page's links; `offset` then counts links. */
+  links?: boolean;
   /** Fetch again even when the page is stored. */
   refresh: boolean;
 };
@@ -167,6 +170,10 @@ function describeRecord(record: EvidenceRecord): string {
     `${number(record.characters)} characters${record.truncated ? ` (cut off at ${number(MAX_EVIDENCE_CHARACTERS)})` : ''}`,
     `fetched ${record.fetchedAt}`,
   ].join(', ');
+}
+
+function notRequestedWarning(reason: string): string {
+  return `WARNING: this is probably not the page you asked for: ${reason}. A source that cites it is rejected at submit. Look for the real page (--links on a page that links to it may find it) or choose another source.`;
 }
 
 function printChunk(record: EvidenceRecord, options: FetchOptions, deps: AgentDeps): number {
@@ -185,6 +192,42 @@ function printChunk(record: EvidenceRecord, options: FetchOptions, deps: AgentDe
   );
   deps.out('-----');
   deps.out(text.slice(options.offset, end));
+  deps.out('-----');
+  return 0;
+}
+
+function formatLink({ url, text }: { url: string; text: string }): string {
+  return `${text || '(no text)'} | ${url}`;
+}
+
+/** Print links from the `offset`-th on, as many as fit in one chunk of output. */
+function printLinks(record: EvidenceRecord, options: FetchOptions, deps: AgentDeps): number {
+  const { links } = record;
+  if (!links) {
+    deps.out('This stored copy was fetched before links were kept. Fetch it again with --refresh.');
+    return 1;
+  }
+  if (!links.length) {
+    deps.out('The page has no links.');
+    return 0;
+  }
+  if (options.offset < 0 || options.offset >= links.length) {
+    deps.out(`With --links, --offset counts links: between 0 and ${links.length - 1}.`);
+    return 1;
+  }
+  let end = options.offset;
+  let size = 0;
+  while (end < links.length && (end === options.offset || size < CHUNK_CHARACTERS)) {
+    size += formatLink(links[end]).length + 1;
+    end += 1;
+  }
+  const next =
+    end < links.length
+      ? ` Next part: ${command(`fetch ${options.countryId} "${options.url}" --links --offset ${end}`)}`
+      : ' This is the end of the links.';
+  deps.out(`Links ${options.offset + 1} to ${end} of ${links.length}, as "text | URL".${next}`);
+  deps.out('-----');
+  for (const link of links.slice(options.offset, end)) deps.out(formatLink(link));
   deps.out('-----');
   return 0;
 }
@@ -229,6 +272,10 @@ export async function fetchCommand(options: FetchOptions, deps: AgentDeps): Prom
   const countryId = requireMapCountry(options.countryId).id;
   const dir = sessionDir(root, countryId);
   const session = readSession(dir, countryId);
+  if (options.links && options.find) {
+    deps.out('--links and --find cannot be combined; use one at a time.');
+    return 1;
+  }
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(options.url);
@@ -278,28 +325,33 @@ export async function fetchCommand(options: FetchOptions, deps: AgentDeps): Prom
   }
   const { record } = stored;
   deps.out(describeRecord(record));
+  const notRequested = notTheRequestedPage(record);
   if (record.finalUrl !== record.requestedUrl) {
-    deps.out(`Redirected to ${record.finalUrl}; either URL may be cited.`);
+    deps.out(
+      notRequested
+        ? `Redirected to ${record.finalUrl}.`
+        : `Redirected to ${record.finalUrl}; either URL may be cited.`,
+    );
   }
+  if (notRequested) deps.out(notRequestedWarning(notRequested));
+  if (options.links) return printLinks(record, options, deps);
   return options.find ? printMatches(record, options, deps) : printChunk(record, options, deps);
 }
 
 export type PlacesOptions = {
   countryId: string;
-  query?: string;
+  /** Names to search for; with several, each result is headed by its query. */
+  queries: string[];
   country?: string;
   near?: string;
 };
 
 export function places(options: PlacesOptions, deps: AgentDeps): number {
   requireMapCountry(options.countryId);
-  deps.out(
-    findPlaces({
-      query: options.query ?? null,
-      countryId: options.country ?? null,
-      near: options.near ?? null,
-    }),
-  );
+  for (const query of options.queries.length ? options.queries : [null]) {
+    if (options.queries.length > 1) deps.out(`## ${query}`);
+    deps.out(findPlaces({ query, countryId: options.country ?? null, near: options.near ?? null }));
+  }
   return 0;
 }
 
@@ -346,7 +398,15 @@ export function submit(options: SubmitOptions, deps: AgentDeps): number {
   }
 
   const { records, problems } = loadEvidence(dir);
-  const evidence = new Set(records.flatMap(({ record }) => record.normalizedUrls));
+  const evidence = new Set<string>();
+  const unusableEvidence = new Map<string, string>();
+  for (const { record } of records) {
+    const notRequested = notTheRequestedPage(record);
+    for (const url of record.normalizedUrls) {
+      if (notRequested) unusableEvidence.set(url, notRequested);
+      else evidence.add(url);
+    }
+  }
   const prompts = loadAgentPrompts(session.promptVersion);
   const issues = [...problems];
   let input: unknown;
@@ -370,7 +430,7 @@ export function submit(options: SubmitOptions, deps: AgentDeps): number {
           },
           country.id,
           input,
-          { model: session.model, evidence, evidenceRule: AGENT_EVIDENCE_RULE },
+          { model: session.model, evidence, evidenceRule: AGENT_EVIDENCE_RULE, unusableEvidence },
         );
   if (submission && !submission.ok) issues.push(...submission.issues);
 
@@ -441,7 +501,10 @@ export function status(options: { countryId: string }, deps: AgentDeps): number 
   deps.out(`Brief: ${briefFile(dir)}`);
   deps.out(`Fetched pages: ${records.length}`);
   for (const { record } of records) {
-    deps.out(`  ${record.requestedUrl} (${describeRecord(record)})`);
+    const notRequested = notTheRequestedPage(record);
+    deps.out(
+      `  ${record.requestedUrl} (${describeRecord(record)})${notRequested ? ` - NOT CITABLE, probably not the page asked for: ${notRequested}` : ''}`,
+    );
   }
   for (const problem of problems) deps.out(`  Unusable: ${problem}`);
   deps.out(`Failed fetches: ${session.failedFetches.length || 'none'}`);

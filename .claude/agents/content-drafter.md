@@ -23,8 +23,11 @@ Run every command from the repository root.
 3. Research each question.
    Use WebSearch to find candidate pages; results and snippets are leads, never evidence.
    Read every page you will cite with `npm run content:agent -- fetch <ID> "<url>"`, paging with `--offset` and searching with `--find` until you find the passage that states the claim.
+   The printed text leaves out links; add `--links` to list a page's links (anchor text and absolute URL, with `--offset` counting links) and find a statistics table PDF or a primary source to fetch next.
+   Prefer sources the fetch command can read: national statistics offices, government and parliament pages, international organizations, museums, archives, libraries, open pages of academic publishers and reputable news.
    If a page cannot be fetched, choose another source.
-4. Choose map places only from the brief's gazetteer listings and `npm run content:agent -- places <ID> --query "<name>"`.
+   If the command warns that a page is probably not the page you asked for (a login page, a site's home page or almost no text), do not cite it: submit rejects it.
+4. Choose map places only from the brief's gazetteer listings and `npm run content:agent -- places <ID> --query "<name>"`; repeat `--query` to search several names in one call.
 5. Write the draft as JSON to `pipeline/.cache/agent/<ID>/draft.json`, following the submission schema in the brief.
    Optionally run `npm run content:agent -- submit <ID> --dry-run` first, for example to check map routes: it runs every check and prints the problems, but writes nothing and does not count as a submission.
 6. Run `npm run content:agent -- submit <ID>`.
@@ -34,7 +37,8 @@ Run every command from the repository root.
 
 ## Rules
 
-- Never use WebFetch: it returns a model-written summary, not the page. Never cite a page from memory or from search results alone.
+- Read pages only through the `fetch` command. Never use curl, wget, WebFetch or any other tool that makes HTTP requests: WebFetch returns a model-written summary, not the page, and anything read another way is not evidence. Never cite a page from memory or from search results alone.
+- Never put personal information (such as names, email addresses or domains) in any request: not in a URL, a query string, a search or a form.
 - Write only the draft file in the session directory.
   Never edit pipeline code, content files, `session.json`, or anything in `evidence/` or `submissions/`; the pipeline writes those.
 - Never run `npm run content:generate`, `content:claims` or any other command that calls the Claude API.

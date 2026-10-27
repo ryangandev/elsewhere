@@ -66,6 +66,61 @@ export function htmlToText(html: string): string {
     .join('\n');
 }
 
+/** A link on an HTML page: an absolute URL and its anchor text (empty when it has none). */
+export type PageLink = { url: string; text: string };
+
+/** Pages with more links than this keep the first ones, in page order. */
+const MAX_LINKS = 5000;
+const MAX_LINK_TEXT = 150;
+
+/** The value of an HTML attribute, decoded, or undefined when the tag has no such attribute. */
+function attribute(tag: string, name: string): string | undefined {
+  const match = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(
+    tag,
+  );
+  const value = match?.[1] ?? match?.[2] ?? match?.[3];
+  return value === undefined ? undefined : decodeEntities(value);
+}
+
+const collapse = (text: string) => text.replace(/\s+/g, ' ').trim();
+
+/**
+ * The links of an HTML page in page order, as absolute http(s) URLs without fragments, each
+ * once, with the anchor text of its first link that has any. Links to the page itself, mailto:
+ * and javascript: links are left out. An image link is described by its title or alt text.
+ */
+export function extractLinks(html: string, pageUrl: string): PageLink[] {
+  const self = new URL(pageUrl);
+  self.hash = '';
+  const links = new Map<string, string>();
+  for (const [, tag, inner] of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)) {
+    const href = attribute(tag, 'href')?.trim();
+    if (!href) continue;
+    let url: URL;
+    try {
+      url = new URL(href, self);
+    } catch {
+      continue;
+    }
+    url.hash = '';
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.href === self.href) continue;
+    const text = collapse(
+      htmlToText(inner) ||
+        attribute(tag, 'aria-label') ||
+        attribute(tag, 'title') ||
+        attribute(/<img\b[^>]*>/i.exec(inner)?.[0] ?? '', 'alt') ||
+        '',
+    );
+    const shown = text.length > MAX_LINK_TEXT ? `${text.slice(0, MAX_LINK_TEXT)}...` : text;
+    if (links.has(url.href)) {
+      if (!links.get(url.href) && shown) links.set(url.href, shown);
+    } else if (links.size < MAX_LINKS) {
+      links.set(url.href, shown);
+    }
+  }
+  return [...links].map(([url, text]) => ({ url, text }));
+}
+
 export type FetchedPage = {
   /** The URL asked for. */
   url: string;
@@ -76,6 +131,8 @@ export type FetchedPage = {
   text: string;
   /** The text was cut off at the character limit. */
   truncated: boolean;
+  /** The page's links; empty for plain text and PDF, whose text is all that is kept. */
+  links: PageLink[];
 };
 
 export type FetchPageOptions = {
@@ -216,11 +273,14 @@ export async function fetchPage(url: string, options: FetchPageOptions = {}): Pr
   }
   const body = await readBody(response, maxBytes);
   let text: string;
+  let links: PageLink[] = [];
   if (pdf && isPdf(body)) {
     text = await pdfToText(body);
   } else if (isText) {
     const raw = decode(body, contentType);
-    text = /html/i.test(contentType) ? htmlToText(raw) : raw.trim();
+    const html = /html/i.test(contentType);
+    text = html ? htmlToText(raw) : raw.trim();
+    if (html) links = extractLinks(raw, response.url || url);
     if (!text) throw new Error('the page has no text without running its scripts');
     if (text.length <= BOT_CHALLENGE_MAX_CHARACTERS && BOT_CHALLENGE.test(text)) {
       throw new Error('the server answered with a bot challenge instead of the page');
@@ -236,6 +296,7 @@ export async function fetchPage(url: string, options: FetchPageOptions = {}): Pr
     contentType,
     text: truncated ? text.slice(0, maxCharacters) : text,
     truncated,
+    links,
   };
 }
 

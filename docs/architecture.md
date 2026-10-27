@@ -409,8 +409,8 @@ Ask Claude Code to run it for a country; one subagent drafts one country, and se
 
 ```sh
 npm run content:agent -- start CHL [--content-dir <dir>] [--model <id>] [--date YYYY-MM-DD] [--regenerate] [--fresh]
-npm run content:agent -- fetch CHL "<url>" [--offset <n>] [--find <words>] [--refresh]
-npm run content:agent -- places CHL [--query <name>] [--country <map ID>] [--near <place ID>]
+npm run content:agent -- fetch CHL "<url>" [--offset <n>] [--find <words> | --links] [--refresh]
+npm run content:agent -- places CHL [--query <name>]... [--country <map ID>] [--near <place ID>]
 npm run content:agent -- submit CHL [<draft.json>] [--dry-run]
 npm run content:agent -- status CHL
 ```
@@ -418,19 +418,34 @@ npm run content:agent -- status CHL
 - `start` creates `pipeline/.cache/agent/<country>/` with `session.json` (country, content directory, model, prompt version, date, and logs of submissions and failed fetches) and `brief.md`, the subagent's complete instructions.
   The brief is the system prompt, the reference example, the shared gazetteer, the link targets and the country task, built by the same functions as the API task, followed by the JSON Schema of the submission.
   Its prompts are their own version line, `pipeline/prompts/agent-v<n>/`: agent-v1 is v3 with the research, tool and submission instructions rewritten for these commands, and every content, tone and sourcing rule unchanged.
-  A draft records `promptVersion: "agent-v1"` and the session's model (`claude-opus-5-5` by default) as `generatedBy`, so agent drafts can be told apart from API drafts.
+  agent-v2 is agent-v1 with the research section made current: it recommends sources the fetch command can read (national statistics offices, government and parliament pages, international organizations, museums, archives, libraries, open pages of academic publishers and reputable news), because Britannica refuses the local fetcher and the CIA World Factbook is discontinued.
+  It adds three instructions: read pages only through the fetch command and never with curl, wget or another HTTP tool, use `--links` to find documents, and never put personal information (names, email addresses, domains) in any request.
+  agent-v1 stays as it was for the ten drafts that recorded it; a session keeps the prompt version it started with.
+  A draft records `promptVersion: "agent-v2"` and the session's model (`claude-opus-5-5` by default) as `generatedBy`, so agent drafts can be told apart from API drafts.
   Running `start` again continues an unfinished session with its evidence and rebuilds the brief; `--fresh` discards the session first.
   It refuses a file with reviewed content, and an existing draft that review did not send back unless `--regenerate` is given.
 - `fetch` reads a page from the editor's computer with `fetchPage` in `pipeline/claims/local-fetch.ts`: HTML and plain text as the server returns them, without scripts, and PDFs by their text layer with a `[Page n]` line before each page.
   PDFs are read with unpdf, a maintained packaging of Mozilla's pdf.js for Node with no dependencies of its own.
   Each page becomes an evidence record in `evidence/`: the requested and final URLs, both normalized, the HTTP status, the content type, the time, the SHA-256 of the text, and the text, up to 2 million characters from at most 40 MB.
   It prints 20,000 characters at a time (Claude Code shows up to 30,000 characters of a command's output), with `--offset` for another part and `--find` to list where words appear; later reads come from the stored copy unless `--refresh` is given.
+  `--links` lists the page's links instead of its text, because the text leaves them out and a drafter otherwise resorts to curl to find a statistics table PDF or a primary source.
+  Each line is the anchor text and the absolute URL, `text | URL`, in page order and once per URL (fragments are dropped, an empty anchor takes the text of a later link to the same URL, and links to the page itself, `mailto:` and `javascript:` are left out).
+  It pages like the text, 20,000 characters at a time, but `--offset` then counts links, so a part never ends in the middle of a URL.
+  The links are kept in the evidence record (at most 5,000 per page) and are not covered by the hash, since they are only a way to find pages; a record stored before links were kept asks for `--refresh`.
+  PDFs and plain text have no links.
   A page that answers with an error status, a bot challenge, no text without scripts, a type other than HTML, plain text or PDF, or no answer within a minute stores nothing, so it cannot be cited.
   A network failure reports its cause along with "fetch failed" (Node keeps the real reason in `error.cause`), such as a redirect loop, a certificate for another host name, `ECONNRESET` or an unknown host, so a page that will never load is told apart from one that may load later.
   The claim check's `fetch_page` tool shares this reason.
   Every failed fetch is recorded in `session.json` with its URL, time and reason, and `status` lists it, so a drafter sees which pages failed and why.
   A failed fetch is only a note: it is never evidence, and a cited page still needs a stored record.
+  Some URLs answer 200 with a page that is not the one requested, such as a script stub or a redirect to a login page or a site's home page.
+  A page is flagged when its text is under 300 characters (the stub that prompted the check was 209, and a login form is about 100 to 250, while a page worth citing has thousands and even a short government notice with its navigation reaches 400 or more), when it redirected to a site's home page (`/`, `/index.html` or a language root such as `/en`) from a deeper path, or when it redirected to a login, sign-in, single sign-on or consent path or host (`/user/sign-in`, `idp.nature.com`) from a page that is not one.
+  A change of host alone is not flagged, since a DOI or an agency's new domain legitimately lands elsewhere.
+  `fetch` prints a warning for a flagged page but still stores it, `status` marks it as not citable, and `submit` rejects a source that cites it with the reason.
+  The flag is computed from the stored record each time, never saved, so the warning and the rejection agree (`pipeline/agent/page-check.ts`).
 - `places` searches the gazetteer like the API path's `find_places` tool.
+  `--query` may be repeated to search several names in one call, each result headed by its query.
+  The commands import nothing that loads the Anthropic SDK (`replaceConflict` lives in `pipeline/generate/replace.ts` for that reason), which keeps a call under a second; importing `pipeline/generate/run.ts` made every call take several.
 - `submit` parses, assembles and checks the draft with the same function as the API path's `submit_draft`: every `content:check` rule and every rule the pipeline adds.
   The retrieved URLs it checks sources against are those of the session's evidence records whose text still matches its hash; a record that does not, or that `fetch` did not write, is a problem of its own and never counts.
   Problems come back as a numbered list with exit code 1, and the subagent fixes them and submits again; the subagent's own budget bounds the repairs.
