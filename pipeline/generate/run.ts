@@ -112,8 +112,23 @@ function setupFor(job: Job, context: RunContext): SessionSetup {
   return storySession(context, existing, job.storyId);
 }
 
-/** Errors that would fail every job the same way: stop the run instead of trying the rest. */
+export const describeError = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
+/**
+ * The request was refused because its conversation is longer than the model's context window.
+ * A synchronous call throws it as a 400; a batch entry reports it as an errored result, whose text
+ * is the same error.
+ */
+export const isContextOverflow = (error: unknown) =>
+  /prompt is too long/i.test(describeError(error));
+
+/**
+ * Errors that would fail every job the same way: stop the run instead of trying the rest. A
+ * conversation that outgrew the context window is a 400 too, but it fails only its own job.
+ */
 export function isFatal(error: unknown): boolean {
+  if (isContextOverflow(error)) return false;
   return (
     error instanceof MissingApiKeyError ||
     error instanceof Anthropic.AuthenticationError ||
@@ -122,9 +137,6 @@ export function isFatal(error: unknown): boolean {
     error instanceof Anthropic.NotFoundError
   );
 }
-
-export const describeError = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
 
 /** Write a finished session's draft, or record why it failed. */
 function finish(session: DraftSession, job: Job, options: GenerateOptions): JobResult {

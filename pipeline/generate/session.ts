@@ -154,11 +154,14 @@ export class DraftSession<T = CountryFile> {
     const evidence = this.setup.evidence ?? retrievedUrls;
     for (const url of evidence(message.content)) this.evidence.add(url);
     this.messages.push({ role: 'assistant', content: message.content as BetaContentBlockParam[] });
-
-    if (this.usage.requests >= this.setup.limits.requests) {
-      return this.fail(`stopped after ${this.usage.requests} requests`);
+    await this.respond(message);
+    // The limit applies to the next request: a submission in the last allowed response still counts.
+    if (this.running && this.usage.requests >= this.setup.limits.requests) {
+      this.fail(`stopped after ${this.usage.requests} requests`);
     }
+  }
 
+  private async respond(message: BetaMessage): Promise<void> {
     switch (message.stop_reason) {
       case 'pause_turn':
         // The server tool loop hit its iteration limit; resending the history resumes it.

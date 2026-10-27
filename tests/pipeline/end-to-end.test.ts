@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages';
 import { describe, expect, it } from 'vitest';
 import { findPendingReferences } from '../../src/content/validate';
-import { checkClaims, claimsJobs } from '../../pipeline/claims/run';
+import { claimsJobs } from '../../pipeline/claims/plan';
+import { checkClaims } from '../../pipeline/claims/run';
 import { claimsFilePath, defaultClaimsDir, readClaims } from '../../pipeline/claims/store';
 import { CLAIM_LIMITS } from '../../pipeline/config';
 import { parsedCountryFiles, readCountryFile } from '../../pipeline/content-tree';
@@ -140,12 +141,11 @@ describe('content pipeline, end to end on replayed responses', () => {
           date: RUN_DATE,
           fetchPage: async () => 'Placeholder text about the geography page.',
         },
-        jobs: claimsJobs(chile, {}, claimsDir).map((job) => ({
-          ...job,
-          scopes: job.scopes.filter(
-            (scope) => scope.kind === 'overview' || scope.storyId === 'length',
-          ),
-        })),
+        jobs: claimsJobs(
+          chile,
+          { scopes: [{ kind: 'overview' }, { kind: 'story', storyId: 'length' }] },
+          claimsDir,
+        ),
         mode: 'sync',
         claimsDir,
         log: (line) => log.push(line),

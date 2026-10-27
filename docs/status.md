@@ -59,6 +59,10 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
 - Claim check follow-ups:
   `--mode batch` has no `--resume`, so a round in flight is lost when a run stops (results already saved stay, and the next run checks only what is still due).
   The server-side fetch's size cap does not apply to PDFs, so a long statistics PDF costs its full length on every read (Japan's 475k-token handbook is about $2.40 a read); consider a local text extract or a page range for large PDFs.
+  The United Kingdom, Russia, Netherlands and Nigeria checks of the first nine-country run did not finish; rerun them live to measure the default bound of 10 sources per conversation (set from the pilot's page sizes, not yet measured).
+  Their recordings are one conversation per country, so replaying them needs `--sources-per-session 100`; with it, all three recorded countries pass.
+  On repair turns the model sometimes garbles non-ASCII characters it copied correctly before (a curly apostrophe, a minus sign or a degree sign becomes a line break or a literal `\u2212`); keeping each unit's latest passing verdict covers a unit that passed earlier, but a unit that had not passed yet can fail on the garbled quote.
+  Packing conversations by shared sources is greedy, not optimal; if shared sources read twice cost noticeably, try a better packing.
 - The search phrasings of the ten hand-converted countries were written by `npm run content:paraphrase` on 2026-10-26 and checked by the agent that ran it (every name and number appears in its story's text); Ryan has not read them yet.
   They show in `npm run content:review -- show <country>`.
 

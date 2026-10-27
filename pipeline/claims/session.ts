@@ -1,9 +1,13 @@
-// One claim check conversation per country: Claude fetches the pages cited by the overview and
-// stories being checked, each once, with the server-side web fetch tool (or, for a page that refuses
-// it, fetch_page from this computer), then submits a verdict per unit through a strict tool. One
-// conversation reads a source shared by several stories once, which matters when it is a long PDF.
-// It runs on the drafting session loop (pipeline/generate/session.ts), so pause_turn, reminders and
-// repairs work the same way, and it records and replays through the same ModelClient.
+// One claim check conversation: Claude fetches the pages cited by the units of one job (a country,
+// or part of one; see plan.ts), each once, with the server-side web fetch tool (or, for a page that
+// refuses it, fetch_page from this computer), then submits a verdict per unit through a strict
+// tool. One conversation reads a source shared by several stories once, which matters when it is a
+// long PDF. It runs on the drafting session loop (pipeline/generate/session.ts), so pause_turn,
+// reminders and repairs work the same way, and it records and replays through the same ModelClient.
+//
+// Verdicts are judged unit by unit: the latest verdict of a unit that passes every check is kept
+// while other units go back for repair, and handed to `onChecks` at once so it can be saved. The
+// session is done when every unit has one.
 import type { BetaTool, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta/messages';
 import { z } from 'zod';
 import type { CountryFile } from '../../src/content/schema';
@@ -19,8 +23,9 @@ import type { SessionSetup } from '../generate/session';
 import { render, type ClaimsPromptSet } from '../prompts';
 import type { PageFetcher } from './local-fetch';
 import type { ClaimCheck } from './store';
+import { jobScopes, jobUnits, type ClaimsJob } from './plan';
 import { checkVerdicts, fetchedTexts, fetchedUrls, SubmitVerdicts } from './verdicts';
-import { citedSources, scopesLabel, scopeUnits, type ClaimScope, type ClaimUnit } from './units';
+import { citedSources, type ClaimScope, type ClaimUnit } from './units';
 
 export type ClaimsContext = {
   prompts: ClaimsPromptSet;
@@ -38,8 +43,18 @@ export type ClaimsContext = {
 /** Results by unit key. */
 export type ClaimChecks = Record<string, ClaimCheck>;
 
-export const claimsTag = (countryId: string, scopes: ClaimScope[]) =>
-  `claims-${scopesLabel(countryId, scopes).replace('/', '-')}`;
+/** Where a session stands: the passing verdicts so far, and why the other units have none yet. */
+export type ClaimProgress = {
+  /** The latest passing verdict of each unit that has one, by unit key. */
+  checks: ClaimChecks;
+  /** The problems of the latest verdict of each unit without a passing one, by unit ID. */
+  failures: Map<string, string[]>;
+};
+
+export type ClaimSession = SessionSetup<ClaimChecks> & {
+  units: ClaimUnit[];
+  progress: () => ClaimProgress;
+};
 
 const SUBMIT_TOOL = 'submit_verdicts';
 
@@ -110,11 +125,17 @@ function scopeText(file: CountryFile, scopes: ClaimScope[]): { scope: string; co
 
 export function claimSession(
   context: ClaimsContext,
-  file: CountryFile,
-  scopes: ClaimScope[],
-): SessionSetup<ClaimChecks> & { units: ClaimUnit[] } {
-  const units = scopes.flatMap((scope) => scopeUnits(file, scope));
+  job: ClaimsJob,
+  /** Called with the passing verdicts of every submission as soon as it is checked. */
+  onChecks?: (checks: ClaimChecks) => void,
+): ClaimSession {
+  const { file } = job;
+  const scopes = jobScopes(job);
+  const units = jobUnits(job);
+  const unitKeys = new Map(units.map((unit) => [unit.id, unit.key]));
   const sources = citedSources(units);
+  const checks: ClaimChecks = {};
+  let failures = new Map<string, string[]>();
   const sourceUrls = new Map(sources.map((source) => [normalizeUrl(source.url), source.url]));
   const limits: GenerationLimits = {
     ...context.limits,
@@ -143,7 +164,8 @@ export function claimSession(
   });
   return {
     units,
-    tag: claimsTag(file.country.id, scopes),
+    progress: () => ({ checks: { ...checks }, failures: new Map(failures) }),
+    tag: job.tag,
     model: context.model,
     effort: context.effort,
     limits,
@@ -196,9 +218,17 @@ export function claimSession(
           promptVersion: context.prompts.version,
         },
       });
-      return result.ok
-        ? { ok: true, file: result.checks }
-        : { ok: false, issues: result.issues, draft: input };
+      Object.assign(checks, result.checks);
+      failures = new Map([...result.failures].filter(([id]) => !checks[unitKeys.get(id)!]));
+      if (Object.keys(result.checks).length) onChecks?.(result.checks);
+      // Done once every unit has a passing verdict, from this submission or an earlier one.
+      if (units.every((unit) => checks[unit.key])) {
+        return {
+          ok: true,
+          file: Object.fromEntries(units.map((unit) => [unit.key, checks[unit.key]])),
+        };
+      }
+      return { ok: false, issues: result.issues, draft: input };
     },
   };
 }

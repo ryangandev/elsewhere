@@ -4,6 +4,7 @@
 import { parseArgs } from 'node:util';
 import {
   CLAIM_LIMITS,
+  CLAIM_SOURCES_PER_SESSION,
   DEFAULT_CLAIMS_EFFORT,
   DEFAULT_CONTENT_DIR,
   DEFAULT_MODEL,
@@ -22,9 +23,9 @@ import { formatUsage } from '../generate/usage';
 import { loadClaimsPrompts } from '../prompts';
 import { loadCountry } from '../review/actions';
 import { fetchPageText, recordPages, replayPages } from './local-fetch';
-import { checkClaims, claimsJobs, type ClaimsJob, type JobSelection } from './run';
+import { claimsJobs, jobUnits, type ClaimsJob, type JobSelection } from './plan';
+import { checkClaims, describeUnchecked } from './run';
 import { countVerdicts, defaultClaimsDir, formatCounts, isFlagged } from './store';
-import { scopeUnits } from './units';
 
 const USAGE = `Usage: npm run content:claims -- <what> [options]
 
@@ -34,11 +35,15 @@ What to check (one of):
   --all                 every country file
   --drafts              every overview and story that is still a draft
 
-Only overviews and stories with a unit that has no result for its current text are checked.
+Only units without a result for their current text are checked, so a run after a partial one
+checks only what is left.
 
 Options:
   --recheck             check again even when every unit has a current result
   --mode sync|batch     a few sessions at a time (default), or rounds through the Batches API at half price
+  --sources-per-session <n>
+                        most cited sources one conversation reads (default ${CLAIM_SOURCES_PER_SESSION});
+                        a country citing more is split into several sessions
   --model <id>          default ${DEFAULT_MODEL}
   --effort <level>      low | medium | high | xhigh | max (default ${DEFAULT_CLAIMS_EFFORT})
   --no-fallback         do not retry refusals on the server's fallback model
@@ -58,6 +63,7 @@ async function main(): Promise<number> {
       drafts: { type: 'boolean', default: false },
       recheck: { type: 'boolean', default: false },
       mode: { type: 'string', default: 'sync' },
+      'sources-per-session': { type: 'string', default: String(CLAIM_SOURCES_PER_SESSION) },
       model: { type: 'string', default: DEFAULT_MODEL },
       effort: { type: 'string', default: DEFAULT_CLAIMS_EFFORT },
       'no-fallback': { type: 'boolean', default: false },
@@ -77,10 +83,19 @@ async function main(): Promise<number> {
   const mode = values.mode;
   if (mode !== 'sync' && mode !== 'batch') throw new Error('--mode is sync or batch');
   if (!EFFORTS.has(values.effort)) throw new Error(`Unknown effort "${values.effort}"`);
+  const maxSources = Number(values['sources-per-session']);
+  if (!Number.isInteger(maxSources) || maxSources < 1) {
+    throw new Error('--sources-per-session is a whole number of at least 1');
+  }
 
   const contentDir = values['content-dir'];
   const claimsDir = values['claims-dir'] ?? defaultClaimsDir(contentDir);
-  const selection: JobSelection = { storyId, draftsOnly: values.drafts, recheck: values.recheck };
+  const selection: JobSelection = {
+    scopes: storyId ? [{ kind: 'story', storyId }] : undefined,
+    draftsOnly: values.drafts,
+    recheck: values.recheck,
+    maxSources,
+  };
   const files = country
     ? [loadCountry(contentDir, country)]
     : [...parsedCountryFiles(contentDir).values()];
@@ -104,13 +119,12 @@ async function main(): Promise<number> {
   let fetchPage = values.replay ? replayPages(values.replay) : fetchPageText;
   if (values.record) fetchPage = recordPages(fetchPage, values.record);
 
-  const units = jobs.reduce(
-    (sum, job) =>
-      sum + job.scopes.reduce((count, scope) => count + scopeUnits(job.file, scope).length, 0),
-    0,
-  );
+  const units = jobs.flatMap(jobUnits).length;
+  const countries = new Set(jobs.map((job) => job.file.country.id)).size;
+  const plural = (count: number, word: string, many = `${word}s`) =>
+    `${count} ${count === 1 ? word : many}`;
   console.log(
-    `Checking ${units} units in ${jobs.length} countr${jobs.length === 1 ? 'y' : 'ies'} (${client.description}, ${values.model} at ${values.effort} effort).`,
+    `Checking ${plural(units, 'unit')} of ${plural(countries, 'country', 'countries')} in ${plural(jobs.length, 'session')} (${client.description}, ${values.model} at ${values.effort} effort).`,
   );
   const model = values.model;
   const { results, usage } = await checkClaims({
@@ -131,17 +145,32 @@ async function main(): Promise<number> {
   });
 
   const statuses = results.flatMap((result) => result.statuses);
-  const failed = results.filter((result) => result.outcome === 'failed').length;
+  const unchecked = results.flatMap((result) => result.unchecked);
+  const incomplete = results.filter(
+    (result) => result.outcome === 'partial' || result.outcome === 'failed',
+  ).length;
   const flagged = statuses.filter(({ check }) => check && isFlagged(check)).length;
   console.log(
-    `\n${formatCounts(countVerdicts(statuses))}${failed ? `; ${failed} failed` : ''}. ${formatUsage(usage, model)}`,
+    `\n${formatCounts(countVerdicts(statuses))}${incomplete ? `; ${plural(incomplete, 'session')} did not check every unit` : ''}. ${formatUsage(usage, model)}`,
   );
+  if (unchecked.length) {
+    console.log(
+      [
+        `${plural(unchecked.length, 'unit')} not checked. Every verdict that passed is saved; running the same command again checks only these:`,
+        ...results.flatMap((result) =>
+          result.unchecked.length
+            ? [`  ${result.label}:`, ...describeUnchecked(result.unchecked, '    ')]
+            : [],
+        ),
+      ].join('\n'),
+    );
+  }
   if (flagged) {
     console.log(
       'Flagged text needs a source that states it: send it back with npm run content:review -- revise, or approve with --accept-claims "<why>" after checking the source yourself.',
     );
   }
-  return failed || flagged ? 1 : 0;
+  return unchecked.length || flagged ? 1 : 0;
 }
 
 main().then(

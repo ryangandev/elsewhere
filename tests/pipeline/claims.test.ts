@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import type { BetaContentBlock } from '@anthropic-ai/sdk/resources/beta/messages';
 import { describe, expect, it } from 'vitest';
 import type { CountryFile } from '../../src/content/schema';
-import { checkClaims, claimsJobs, type ClaimsJob } from '../../pipeline/claims/run';
+import { claimsJobs, jobFor, jobScopes } from '../../pipeline/claims/plan';
+import { checkClaims } from '../../pipeline/claims/run';
 import { claimSession, type ClaimsContext } from '../../pipeline/claims/session';
 import {
   claimsFilePath,
@@ -14,7 +15,13 @@ import {
   recordChecks,
   unitStatuses,
 } from '../../pipeline/claims/store';
-import { citedSources, overviewUnits, scopeUnits, storyUnits } from '../../pipeline/claims/units';
+import {
+  citedSources,
+  overviewUnits,
+  scopeUnits,
+  storyUnits,
+  type ClaimScope,
+} from '../../pipeline/claims/units';
 import {
   htmlToText,
   recordPages,
@@ -25,6 +32,7 @@ import {
   checkVerdicts,
   fetchedTexts,
   fetchedUrls,
+  normalizeForMatch,
   quoteInText,
 } from '../../pipeline/claims/verdicts';
 import { CLAIM_FETCH_RETRIES, CLAIM_LIMITS } from '../../pipeline/config';
@@ -65,16 +73,11 @@ const context = (mode: 'sync' | 'batch' = 'sync'): ClaimsContext => ({
   fetchPage,
 });
 
-/** The overview and the "length" story: the scopes the fixtures answer. */
 /** The recorded fixtures cover the overview and the "length" story. */
-const fixtureJobs = (jobs: ClaimsJob[]) =>
-  jobs.map((job) => ({
-    ...job,
-    scopes: job.scopes.filter(
-      (scope) =>
-        scope.kind === 'overview' || (scope.kind === 'story' && scope.storyId === 'length'),
-    ),
-  }));
+const FIXTURE_SCOPES: ClaimScope[] = [{ kind: 'overview' }, { kind: 'story', storyId: 'length' }];
+
+const scopeNames = (scopes: ClaimScope[]) =>
+  scopes.map((scope) => (scope.kind === 'overview' ? 'overview' : scope.storyId));
 
 const lastTurn = (request: { request: { messages: unknown[] } }) =>
   JSON.stringify(request.request.messages.at(-1));
@@ -146,7 +149,7 @@ describe('verdict validation', () => {
   it('accepts a complete submission and keys results by unit', () => {
     const result = checkVerdicts(valid, { units, sources, fetched, texts, stamp });
     expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    expect(result.issues).toEqual([]);
     expect(Object.keys(result.checks)).toEqual(units.map((unit) => unit.key));
     expect(result.checks[units[0].key]).toMatchObject({
       label: units[0].label,
@@ -174,7 +177,7 @@ describe('verdict validation', () => {
     bad.verdicts.push({ ...bad.verdicts[0], unitId: 'section-9' });
     const result = checkVerdicts(bad, { units, sources, fetched: new Set(), texts, stamp });
     expect(result.ok).toBe(false);
-    if (result.ok) return;
+    expect(result.checks).toEqual({});
     expect(result.issues).toEqual([
       'sources.fixture-geography: marked read, but https://example.org/elsewhere-fixture/chile/geography was not fetched with web_fetch or fetch_page in this conversation. Fetch it, or mark it unreachable and say why.',
       'verdicts.length-section-1: "a phrase that is not in the text" is not in the unit text; copy the phrase exactly',
@@ -193,10 +196,9 @@ describe('verdict validation', () => {
     };
     partial.verdicts.pop();
     const result = checkVerdicts(partial, { units, sources, fetched, texts, stamp });
-    expect(result).toEqual({
-      ok: false,
-      issues: ['verdicts: give a verdict for "length-section-2"'],
-    });
+    expect(result.issues).toEqual(['verdicts: give a verdict for "length-section-2"']);
+    expect(Object.keys(result.checks)).toEqual([units[0].key]);
+    expect([...result.failures.keys()]).toEqual(['length-section-2']);
   });
 
   it('checks quotes against the text fetched from their source', () => {
@@ -211,12 +213,12 @@ describe('verdict validation', () => {
     ];
     quoted.verdicts[1].evidence = [{ sourceId: 'fixture-geography', quote: 'Chile is long' }];
     const result = checkVerdicts(quoted, { units, sources, fetched, texts: withPage, stamp });
-    expect(result).toEqual({
-      ok: false,
-      issues: [
-        'verdicts.length-section-2: the quote "Chile is long" is not in the text fetched from https://example.org/elsewhere-fixture/chile/geography; copy the words exactly (use "..." for a gap) or leave the quote out',
-      ],
-    });
+    const issue =
+      'verdicts.length-section-2: the quote "Chile is long" is not in the text fetched from https://example.org/elsewhere-fixture/chile/geography; copy the words exactly (use "..." for a gap) or leave the quote out';
+    expect(result.issues).toEqual([issue]);
+    // The unit with the good quote passes on its own; the other one fails with its reason.
+    expect(Object.keys(result.checks)).toEqual([units[0].key]);
+    expect(result.failures).toEqual(new Map([['length-section-2', [issue]]]));
     // Without the page's text (a PDF), quotes are taken as given.
     expect(checkVerdicts(quoted, { units, sources, fetched, texts, stamp }).ok).toBe(true);
   });
@@ -231,6 +233,84 @@ describe('quotes', () => {
     expect(quoteInText('dormant ... Ring of Fire', page)).toBe(false);
     expect(quoteInText('2,000 volcanoes', page)).toBe(false);
     expect(quoteInText('...', page)).toBe(false);
+  });
+
+  // The quotes that failed the pilot run, with the page text they were checked against.
+  it('ignore quotation mark and apostrophe styles, and marks a quote adds', () => {
+    const rotterdam =
+      'yet it is also open to the North Sea, the world’s most heavily navigated sea.';
+    expect(quoteInText('the world"s most heavily navigated sea', rotterdam)).toBe(true);
+    expect(quoteInText('the world`s most heavily navigated sea', rotterdam)).toBe(true);
+    const banknotes =
+      'Bank of Scotland issues banknotes in denominations of £5, £10, £20, £50 and £100. Bank of Scotland issued a new polymer £5 in 2016.';
+    expect(
+      quoteInText(
+        'Bank of Scotland issues banknotes in denominations of "£5, £10, £20, £50 and £100.',
+        banknotes,
+      ),
+    ).toBe(true);
+    expect(quoteInText('euro ("€")', '**Currency**: euro (€)')).toBe(true);
+    expect(quoteInText('hun land zelf hebben "gemaakt".', 'hun land zelf hebben ‘gemaakt’.')).toBe(
+      true,
+    );
+  });
+
+  it('decode escapes a model writes in place of a character', () => {
+    const siberia =
+      'It is notorious for its almost snowless winters. Temperatures of −90 °F (−68 °C) have been recorded.';
+    expect(
+      quoteInText(
+        'Temperatures of \\u221290 \\u00b0F (\\u221268 \\u00b0C) have been recorded.',
+        siberia,
+      ),
+    ).toBe(true);
+    expect(quoteInText('the world\\"s most heavily', 'the world’s most heavily')).toBe(true);
+  });
+
+  it('fold dashes, minus signs, Unicode spaces and ellipses, and ignore case', () => {
+    const page =
+      'Temperatures of −90 °F (−68 °C) were recorded in 1892–1933 … at Verkhoyansk – a town in Sakha.';
+    expect(quoteInText('temperatures of -90 °F (-68 °C)', page)).toBe(true);
+    expect(quoteInText('in 1892 - 1933', page)).toBe(true);
+    expect(quoteInText('verkhoyansk -- a town', page)).toBe(true);
+    expect(quoteInText('Temperatures of ... 1892-1933 [...] Verkhoyansk', page)).toBe(true);
+    expect(quoteInText('recorded in 1892–1933 … at Verkhoyansk', page)).toBe(true);
+    expect(quoteInText('recorded in 1892–1933 . . . at', page)).toBe(true);
+    expect(quoteInText('a town in Sakha', 'a town in Sa\u00adkha\u200b.')).toBe(true);
+    // Narrow and ordinary non-breaking spaces, as typeset pages put between a number and its unit.
+    expect(
+      quoteInText(
+        '-90 \u00b0F (-68 \u00b0C)',
+        '\u221290\u202f\u00b0F\u00a0(\u221268\u202f\u00b0C)',
+      ),
+    ).toBe(true);
+  });
+
+  it('read Markdown as its words: links, emphasis and table rows', () => {
+    expect(
+      quoteInText(
+        'Capital: Moscow. The population is primarily Russian',
+        'Capital: [Moscow](https://www.britannica.com/summary/Moscow). The population is primarily Russian;',
+      ),
+    ).toBe(true);
+    expect(
+      quoteInText(
+        'England 58,834,800 227,600 0.39%',
+        '| Country | Population |\n| England   | 58,834,800 | 227,600 | 0.39% |',
+      ),
+    ).toBe(true);
+    expect(quoteInText('around c. 1000 bc', 'around *c.* 1000 bc')).toBe(true);
+  });
+
+  it('stay strict on the words themselves', () => {
+    const page = 'the world’s most heavily navigated sea, with £5, £10 and £20 notes';
+    expect(quoteInText('the worlds most heavily navigated sea', page)).toBe(false);
+    expect(quoteInText('the world’s most heavily navigated ocean', page)).toBe(false);
+    expect(quoteInText('£5, £10, £20 and £50 notes', page)).toBe(false);
+    expect(quoteInText('−90 °F', '90 °F')).toBe(false);
+    expect(normalizeForMatch('It’s “Ring  of Fire” – 1,500 volcanoes…')).toBe(
+      "it's ring of fire-1,500 volcanoes...",
+    );
   });
 });
 
@@ -323,15 +403,17 @@ describe('local page fetches', () => {
   });
 
   it('are limited to the cited URLs of the task', async () => {
-    const setup = claimSession(context(), chileFile(), [{ kind: 'story', storyId: 'length' }]);
+    const setup = claimSession(
+      context(),
+      jobFor(chileFile(), [{ kind: 'story', storyId: 'length' }]),
+    );
     expect(setup.tag).toBe('claims-CHL-length');
     await expect(setup.runTool('fetch_page', { url: 'https://example.org/other' })).rejects.toThrow(
       'https://example.org/other is not a source URL in this task',
     );
     const failing = claimSession(
       { ...context(), fetchPage: () => Promise.reject(new Error('the server answered 403')) },
-      chileFile(),
-      [{ kind: 'story', storyId: 'length' }],
+      jobFor(chileFile(), [{ kind: 'story', storyId: 'length' }]),
     );
     await expect(
       failing.runTool('fetch_page', {
@@ -351,11 +433,10 @@ describe('claim check sessions', () => {
     ).size;
     const setup = claimSession(
       { ...context(), limits: { ...CLAIM_LIMITS, webFetchesPerRequest: 1 } },
-      file,
-      [
+      jobFor(file, [
         { kind: 'overview' },
         ...file.stories.map((story) => ({ kind: 'story' as const, storyId: story.id })),
-      ],
+      ]),
     );
     expect(setup.limits.webFetchesPerRequest).toBe(sources + CLAIM_FETCH_RETRIES);
     expect(setup.tools[0]).toMatchObject({
@@ -365,10 +446,7 @@ describe('claim check sessions', () => {
   });
 
   it('check a country in one conversation with the basic web fetch, the local fallback and a strict verdict tool', () => {
-    const setup = claimSession(context(), chileFile(), [
-      { kind: 'overview' },
-      { kind: 'story', storyId: 'length' },
-    ]);
+    const setup = claimSession(context(), jobFor(chileFile(), FIXTURE_SCOPES));
     expect(setup.tag).toBe('claims-CHL');
     expect(setup.units.map((unit) => unit.id)).toEqual([
       'overview',
@@ -406,16 +484,14 @@ describe('checking claims on replayed responses', () => {
     const client = new ReplayClient(REPLAY_DIR);
     const log: string[] = [];
 
-    const jobs = claimsJobs(file, {}, claimsDir);
-    expect(
-      jobs.map(({ scopes }) =>
-        scopes.map((scope) => (scope.kind === 'overview' ? 'overview' : scope.storyId)),
-      ),
-    ).toEqual([['overview', 'length', 'desert', 'copper', 'andes']]);
+    // Chile cites few sources, so the whole country is one session.
+    expect(claimsJobs(file, {}, claimsDir).map((job) => scopeNames(jobScopes(job)))).toEqual([
+      ['overview', 'length', 'desert', 'copper', 'andes'],
+    ]);
     const { results, usage } = await checkClaims({
       client,
       context: context(),
-      jobs: fixtureJobs(jobs),
+      jobs: claimsJobs(file, { scopes: FIXTURE_SCOPES }, claimsDir),
       mode: 'sync',
       claimsDir,
       log: (line) => log.push(line),
@@ -466,19 +542,24 @@ describe('checking claims on replayed responses', () => {
       checkedAt: RUN_DATE,
     });
 
-    // Checked scopes are skipped; an edited unit makes its scope due again.
-    expect(claimsJobs(file, {}, claimsDir)[0].scopes.map((scope) => scope.kind)).toEqual([
-      'story',
-      'story',
-      'story',
+    // Checked units are skipped; an edited unit is due again, alone.
+    expect(scopeNames(jobScopes(claimsJobs(file, {}, claimsDir)[0]))).toEqual([
+      'desert',
+      'copper',
+      'andes',
     ]);
     const edited = structuredClone(file);
     edited.stories[0].sections[1].text = 'Changed placeholder text.';
-    expect(claimsJobs(edited, { storyId: 'length' }, claimsDir)).toEqual([
-      { file: edited, scopes: [{ kind: 'story', storyId: 'length' }] },
+    const length: ClaimScope[] = [{ kind: 'story', storyId: 'length' }];
+    const due = claimsJobs(edited, { scopes: length }, claimsDir);
+    expect(due).toMatchObject([{ tag: 'claims-CHL-length', label: 'CHL/length' }]);
+    expect(due[0].parts.map((part) => part.units.map((unit) => unit.id))).toEqual([
+      ['length-section-2'],
     ]);
-    expect(claimsJobs(file, { storyId: 'length', recheck: true }, claimsDir)).toHaveLength(1);
-    expect(claimsJobs(file, { draftsOnly: true, storyId: 'length' }, claimsDir)).toEqual([]);
+    expect(
+      claimsJobs(file, { scopes: length, recheck: true }, claimsDir)[0].parts[0].units,
+    ).toHaveLength(2);
+    expect(claimsJobs(file, { draftsOnly: true, scopes: length }, claimsDir)).toEqual([]);
 
     // The saved file is ordered like the content, formatted like it, and keeps only current units.
     const path = claimsFilePath(join(contentDir, 'claims'), 'chile');
@@ -515,7 +596,7 @@ describe('checking claims on replayed responses', () => {
     const { results, usage } = await checkClaims({
       client: new ReplayClient(REPLAY_DIR),
       context: context('batch'),
-      jobs: fixtureJobs(claimsJobs(file, {}, claimsDir)),
+      jobs: claimsJobs(file, { scopes: FIXTURE_SCOPES }, claimsDir),
       mode: 'batch',
       claimsDir,
       log: (line) => log.push(line),

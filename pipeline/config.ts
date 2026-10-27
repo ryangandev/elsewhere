@@ -57,7 +57,7 @@ export const CLAIMS_FAILED_DIR = 'pipeline/.cache/claims-failed';
 /** Reading a page closely against a text is intelligence-sensitive, like drafting. */
 export const DEFAULT_CLAIMS_EFFORT: Effort = 'high';
 
-/** Claim check sessions run at once in synchronous mode; each is one overview or story. */
+/** Claim check sessions run at once in synchronous mode. */
 export const CLAIMS_CONCURRENCY = 4;
 
 /** Limits per claim check session: it only fetches the cited pages and submits verdicts. */
@@ -81,6 +81,25 @@ export const CLAIM_FETCH_RETRIES = 4;
  * off at the limit is reported as truncated, and a claim it may have covered is inconclusive.
  */
 export const CLAIM_FETCH_MAX_CONTENT_TOKENS = 60000;
+
+/** The default model's context window; a request past it is refused ("prompt is too long"). */
+export const CLAIM_CONTEXT_WINDOW_TOKENS = 1_000_000;
+
+/**
+ * Most cited sources one claim check session reads (10); a country that cites more is split into
+ * several sessions, grouping the overviews and stories that share sources (pipeline/claims/plan.ts).
+ * Every fetched page stays in the conversation, so at the per-page cap the pages of one session
+ * fill at most 60% of the context window, which leaves 400k tokens for the prompts, fetch retries,
+ * the model's reasoning and up to three submissions. On the pilot run, pages averaged 15k to 39k
+ * tokens per cited source in a session (the UK's 29 sources reached about 440k, Russia's 24 about
+ * 930k, and Nigeria's 37 went past the window), so a session of ten typically holds 150k to 400k.
+ * Smaller sessions also cost less per request, since each request reads the whole conversation.
+ * PDFs ignore the per-page cap, so one long PDF can still overflow a session; the run then splits
+ * that session again. `--sources-per-session` changes the bound for a model with another window.
+ */
+export const CLAIM_SOURCES_PER_SESSION = Math.floor(
+  (0.6 * CLAIM_CONTEXT_WINDOW_TOKENS) / CLAIM_FETCH_MAX_CONTENT_TOKENS,
+);
 
 export type KnownBlockedUrl = {
   /** The day a person opened the page in a browser and saw it support the content. */
