@@ -36,11 +36,14 @@ import {
   recordChecks,
 } from '../../pipeline/claims/store';
 import { allScopes, scopeUnits, storyUnits } from '../../pipeline/claims/units';
-import { QUOTE_MAX_GAP } from '../../pipeline/claims/verdicts';
+import { QUOTE_MAX_GAP, QUOTE_MAX_WORDS } from '../../pipeline/claims/verdicts';
 import { writeCountryFile } from '../../pipeline/content-tree';
 import { assembleCountry } from '../../pipeline/generate/assemble';
 import { CountryDraft } from '../../pipeline/generate/draft-schema';
-import { CURRENT_CLAIMS_AGENT_PROMPT_VERSION } from '../../pipeline/prompts';
+import {
+  CURRENT_CLAIMS_AGENT_PROMPT_VERSION,
+  loadClaimsAgentPrompts,
+} from '../../pipeline/prompts';
 import { approve } from '../../pipeline/review/actions';
 import { chileDraft } from './fixtures/build-replay';
 import { RUN_DATE, minimalPdf, tempContentTree, tempDir } from './helpers';
@@ -224,11 +227,23 @@ describe('agent claim check sessions', () => {
       const system = readFileSync(`pipeline/prompts/${version}/system.md`, 'utf8');
       return system.slice(system.indexOf('# Verdicts'));
     };
-    expect(verdicts(CURRENT_CLAIMS_AGENT_PROMPT_VERSION)).toBe(verdicts('claims-v1'));
-    const system = readFileSync('pipeline/prompts/claims-agent-v1/system.md', 'utf8');
     const original = readFileSync('pipeline/prompts/claims-v1/system.md', 'utf8');
     const head = (text: string) => text.slice(0, text.indexOf('# How to work'));
-    expect(head(system)).toBe(head(original));
+    for (const version of ['claims-agent-v1', CURRENT_CLAIMS_AGENT_PROMPT_VERSION]) {
+      expect(verdicts(version)).toBe(verdicts('claims-v1'));
+      const system = readFileSync(`pipeline/prompts/${version}/system.md`, 'utf8');
+      expect(head(system)).toBe(head(original));
+    }
+    // claims-agent-v1 stays loadable for the results and sessions that recorded it.
+    expect(loadClaimsAgentPrompts('claims-agent-v1').version).toBe('claims-agent-v1');
+  });
+
+  it('states the limits the quote check enforces', () => {
+    const system = loadClaimsAgentPrompts().system;
+    expect(system).toContain(`at most ${QUOTE_MAX_GAP} characters between one part and the next`);
+    expect(system).toContain(`A quote must be under ${QUOTE_MAX_WORDS + 1} words`);
+    expect(system).toContain('`--offset`');
+    expect(system).toContain('never save the output to a file');
   });
 
   it('splits a country into sessions that share no units and together cover every due unit', () => {
@@ -352,7 +367,7 @@ describe('agent claim check submissions', () => {
       checkedAt: '2026-10-27',
       model: 'claude-opus-5-5',
       effort: 'default',
-      promptVersion: 'claims-agent-v1',
+      promptVersion: CURRENT_CLAIMS_AGENT_PROMPT_VERSION,
       verification: {
         pages: [
           {
@@ -383,7 +398,7 @@ describe('agent claim check submissions', () => {
       'verification',
     ]);
     expect(describeCheck(checks[units[0].key]).join('\n')).toContain(
-      `claim check: supported (2026-10-27, claude-opus-5-5, claims-agent-v1)`,
+      `claim check: supported (2026-10-27, claude-opus-5-5, ${CURRENT_CLAIMS_AGENT_PROMPT_VERSION})`,
     );
     const session = readSession(dir, 'CHL-length');
     expect(session.passed).toEqual(['length-section-1', 'length-section-2']);
@@ -712,7 +727,7 @@ describe('review of agent results', () => {
       readClaims(defaultClaimsDir(contentDir), { id: 'CHL', slug: 'chile' }).checks,
     ).find((check) => check.accepted)!;
     expect(accepted).toMatchObject({
-      promptVersion: 'claims-agent-v1',
+      promptVersion: CURRENT_CLAIMS_AGENT_PROMPT_VERSION,
       accepted: { by: 'Tester', reason: 'Read the page myself.' },
     });
     expect(accepted.verification!.pages).toHaveLength(1);

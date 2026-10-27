@@ -505,8 +505,9 @@ npm run content:claims-agent -- status <session or country>
   Planning every part from one reading of the claims file is what keeps parts apart: if each subagent planned its own part, a result saved in between would shift the packing.
   It refuses while an unfinished session of the country holds a unit it would hand out; such a session can be continued by another subagent, or discarded with `--fresh`.
   Each session has `session.json` (the units by ID and key, the sources, model, effort, prompt version, fetches and submissions) and `brief.md`.
-  The brief is the claims-agent-v1 system prompt and task, rendered from the same values as the API task (`claimsTaskValues` in `pipeline/claims/session.ts`), followed by the commands and the JSON Schema of the verdict file, which is the schema of the API path's `submit_verdicts` tool.
+  The brief is the claims-agent-v2 system prompt and task, rendered from the same values as the API task (`claimsTaskValues` in `pipeline/claims/session.ts`), followed by the commands and the JSON Schema of the verdict file, which is the schema of the API path's `submit_verdicts` tool.
   Its prompts are their own version line, `pipeline/prompts/claims-agent-v<n>/`: claims-agent-v1 is claims-v1 with the reading and submission instructions rewritten for these commands, and every judging rule unchanged (a test compares the two from `# Verdicts` on).
+  claims-agent-v2 adds what the quote check ignores and what it enforces (the 300-character gap, quotes under 30 words, PDF line-end hyphens, lost ligatures and page breaks), how `--find` pages its matches, and to read a long page with `--offset` instead of saving it; claims-agent-v1 stays as it was for the results that recorded it, and a session keeps the version it started with.
 - `fetch` reads one of the session's cited URLs (compared normalized; any other URL is refused) with the same fetcher and limits as agent drafting: HTML, plain text, and PDFs by their text layer, printed 20,000 characters at a time, with `--offset` and `--find`.
   It keeps a reading copy in `pages/`, so reading the next part does not fetch the page again, and logs every fetch and failure in `session.json`; the copy is never used to verify anything.
   It warns when the page is probably not the cited one, by agent drafting's page check (`pipeline/agent/page-check.ts`: a stub, or a redirect to a login or home page).
@@ -526,7 +527,7 @@ npm run content:claims-agent -- status <session or country>
 - `status` lists the units checked and still due (with the last problems), the fetched and unfetched sources, the failed fetches and the submissions; given a country, every session of it.
 
 An agent result is an API result with three differences.
-Its `promptVersion` is `claims-agent-v1`, and its `effort` is what `start` recorded ("default", the subagent's own, unless given); `model` is the subagent's model (`claude-opus-5-5` by default, `--model` to change).
+Its `promptVersion` is `claims-agent-v2` (`claims-agent-v1` on earlier results), and its `effort` is what `start` recorded ("default", the subagent's own, unless given); `model` is the subagent's model (`claude-opus-5-5` by default, `--model` to change).
 An extra `verification` field lists, for each source the unit quotes, the URL, the final URL, the time of the live fetch, and the length and SHA-256 of the text its quotes were matched against; it is empty when the verdict quotes nothing.
 `content:review -- show` prints both kinds the same way, adding the prompt version and the live fetch to an agent result, and `approve` gates on them identically: a missing or flagged result blocks approval until the text is revised or the flag accepted with `--accept-claims`.
 

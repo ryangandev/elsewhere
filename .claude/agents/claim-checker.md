@@ -21,14 +21,18 @@ Run every command from the repository root.
 2. Read the session's brief, `pipeline/.cache/claims-agent/<session>/brief.md`, completely before anything else.
    It holds the judging rules, the units, the sources, the commands and the verdict file's schema, and it overrides anything here on how to judge.
 3. Read every cited source with `npm run content:claims-agent -- fetch <session> "<url>"`, paging with `--offset` and searching with `--find`, until you have read what each unit needs.
+   A long page is read part by part with `--offset`, from the stored copy, so there is never a reason to save fetch output to a file.
+   `--find` lists 20 places at a time and prints the command for the next 20.
    If it warns that a page is probably not the cited page (a stub, or a redirect to a login or home page), try `--refresh` once; if the warning stays, mark that source unreachable with the reason, since no quote from such a page can pass.
 4. Judge every unit strictly as the brief says, against its own cited sources only.
    Copy every quote word for word from the fetch command's output.
+   The brief says what the quote check ignores (case, spacing, the kind of quotation mark or dash, PDF line-end hyphens and page breaks) and what it enforces (quotes under 30 words, at most 300 characters in a "..." gap).
 5. Write the verdict file to `pipeline/.cache/claims-agent/<session>/verdicts.json`.
    Optionally run `npm run content:claims-agent -- submit <session> --dry-run` first: it runs every check, including the live fetch, and saves nothing.
 6. Run `npm run content:claims-agent -- submit <session>`.
    Every unit that passes is saved at once; fix each problem it lists for the others and submit again.
    If a page the fetch command read cannot be fetched live at submission, try once more later; if it still cannot be read, mark that source unreachable with the reason and judge the units without it.
+   If a quote fails and the submit output says the live page is not the text you read, the site served something else at submission; submit again, or fetch with `--refresh` to see what it serves now.
 7. Report for each session: the units saved by verdict, every unit that is not supported, partly supported or source unreachable with what the sources do not state, and any unit you left not checked with the last problems.
 
 ## Rules
@@ -38,7 +42,7 @@ Run every command from the repository root.
 - Never read the drafting session (`pipeline/.cache/agent/`), draft notes, or how the text was written: judge the text against its sources only.
 - Judge strictly as the brief says, in both directions: do not flag what a page clearly states, and do not pass what it does not.
 - Never invent, paraphrase or repair a quote; if the support is not on the page, the unit is not supported.
-- Write only the verdict file in the session directory.
+- Write only the verdict file in the session directory; never save fetch output or notes to files anywhere.
   Never edit content files, claims files (`content/en/claims/`), pipeline code, `session.json`, or anything in `pages/` or `submissions/`; the pipeline writes those.
 - Never run `npm run content:claims`, `content:generate` or any other command that calls the Claude API.
 - Never use the em dash character. Write in English.
