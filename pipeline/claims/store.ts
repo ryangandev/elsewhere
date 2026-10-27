@@ -1,7 +1,12 @@
-// Claim check results, saved per country in pipeline/.cache/claims/<country ID>.json and keyed by
-// each unit's key (a hash of its exact text and cited sources). A result applies only to the text
-// it was made for: when a unit changes, its key changes and it reads as not checked again. Old
-// entries are kept, so the same file serves content/en and a scratch copy of it.
+// Claim check results, committed next to the content they check: content/<locale>/claims/<country
+// slug>.json, keyed by each unit's key (a hash of its exact text and cited sources). A result
+// applies only to the text it was made for: when a unit changes, its key changes and it reads as
+// not checked again. A reviewer's acceptance of a flag is a review decision, so it is kept here too.
+//
+// Writes keep only the results of the file's current units, in the order the units appear, with
+// fields in schema order and writeJson's formatting, so a recheck or an approval makes a small,
+// readable diff. The site never reads these files: content discovery reads only the top-level
+// files and countries/ (src/content/files.ts).
 //
 // Review reads these results: content:review show prints them, and approve refuses while a unit
 // in what it approves is not checked, or is flagged (partly supported, not supported, or a cited
@@ -9,8 +14,9 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
+import type { CountryFile } from '../../src/content/schema';
 import { readJson, writeJson } from '../content-tree';
-import type { ClaimUnit } from './units';
+import { allScopes, scopeUnits, type ClaimUnit } from './units';
 
 export const ClaimVerdict = z.enum([
   'supported',
@@ -56,25 +62,38 @@ const ClaimsFile = z.strictObject({
 });
 export type ClaimsFile = z.infer<typeof ClaimsFile>;
 
-export const claimsFilePath = (dir: string, countryId: string) => join(dir, `${countryId}.json`);
+/** Where a content tree keeps its claim check results unless --claims-dir says otherwise. */
+export const defaultClaimsDir = (contentDir: string) => join(contentDir, 'claims');
 
-export function readClaims(dir: string, countryId: string): ClaimsFile {
-  const file = claimsFilePath(dir, countryId);
-  return existsSync(file) ? ClaimsFile.parse(readJson(file)) : { countryId, checks: {} };
+export const claimsFilePath = (dir: string, slug: string) => join(dir, `${slug}.json`);
+
+type CountryRef = { id: string; slug: string };
+
+export function readClaims(dir: string, country: CountryRef): ClaimsFile {
+  const file = claimsFilePath(dir, country.slug);
+  return existsSync(file)
+    ? ClaimsFile.parse(readJson(file))
+    : { countryId: country.id, checks: {} };
 }
 
-/** Add or replace results by unit key, keeping every other entry. */
+/**
+ * Add or replace results by unit key, then keep only the results of the file's current units:
+ * results for text that has since changed or gone no longer apply to anything.
+ */
 export function recordChecks(
   dir: string,
-  countryId: string,
+  file: CountryFile,
   checks: Record<string, ClaimCheck>,
 ): void {
-  const current = readClaims(dir, countryId);
+  const merged = { ...readClaims(dir, file.country).checks, ...checks };
+  const kept: Record<string, ClaimCheck> = {};
+  for (const unit of allScopes(file).flatMap((scope) => scopeUnits(file, scope))) {
+    const check = merged[unit.key];
+    // Parsing puts the fields in schema order, whatever order they were built in.
+    if (check && !kept[unit.key]) kept[unit.key] = ClaimCheck.parse(check);
+  }
   mkdirSync(dir, { recursive: true });
-  writeJson(claimsFilePath(dir, countryId), {
-    countryId,
-    checks: { ...current.checks, ...checks },
-  });
+  writeJson(claimsFilePath(dir, file.country.slug), { countryId: file.country.id, checks: kept });
 }
 
 /** Verdicts that need a reviewer's eyes before approval. */
@@ -154,7 +173,7 @@ export function claimProblems(statuses: UnitStatus[], where: string): string[] {
 /** Record a reviewer's acceptance on every flagged, unaccepted unit among these. */
 export function acceptFlagged(
   dir: string,
-  countryId: string,
+  file: CountryFile,
   statuses: UnitStatus[],
   accepted: NonNullable<ClaimCheck['accepted']>,
 ): number {
@@ -162,6 +181,6 @@ export function acceptFlagged(
   for (const { unit, check } of statuses) {
     if (check && isFlagged(check) && !check.accepted) checks[unit.key] = { ...check, accepted };
   }
-  if (Object.keys(checks).length) recordChecks(dir, countryId, checks);
+  if (Object.keys(checks).length) recordChecks(dir, file, checks);
   return Object.keys(checks).length;
 }

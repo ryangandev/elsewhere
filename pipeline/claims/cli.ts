@@ -4,7 +4,6 @@
 import { parseArgs } from 'node:util';
 import {
   CLAIM_LIMITS,
-  CLAIMS_DIR,
   DEFAULT_CLAIMS_EFFORT,
   DEFAULT_CONTENT_DIR,
   DEFAULT_MODEL,
@@ -24,7 +23,7 @@ import { loadClaimsPrompts } from '../prompts';
 import { loadCountry } from '../review/actions';
 import { fetchPageText, recordPages, replayPages } from './local-fetch';
 import { checkClaims, claimsJobs, type ClaimsJob, type JobSelection } from './run';
-import { countVerdicts, formatCounts, isFlagged } from './store';
+import { countVerdicts, defaultClaimsDir, formatCounts, isFlagged } from './store';
 import { scopeUnits } from './units';
 
 const USAGE = `Usage: npm run content:claims -- <what> [options]
@@ -44,7 +43,7 @@ Options:
   --effort <level>      low | medium | high | xhigh | max (default ${DEFAULT_CLAIMS_EFFORT})
   --no-fallback         do not retry refusals on the server's fallback model
   --content-dir <dir>   default ${DEFAULT_CONTENT_DIR}
-  --claims-dir <dir>    where results are saved (default ${CLAIMS_DIR})
+  --claims-dir <dir>    where results are saved (default: claims/ in the content directory)
   --record <dir>        save every response and local page fetch, to replay later
   --replay <dir>        replay recorded responses instead of calling the API
 `;
@@ -63,7 +62,7 @@ async function main(): Promise<number> {
       effort: { type: 'string', default: DEFAULT_CLAIMS_EFFORT },
       'no-fallback': { type: 'boolean', default: false },
       'content-dir': { type: 'string', default: DEFAULT_CONTENT_DIR },
-      'claims-dir': { type: 'string', default: CLAIMS_DIR },
+      'claims-dir': { type: 'string' },
       record: { type: 'string' },
       replay: { type: 'string' },
       help: { type: 'boolean', default: false },
@@ -80,7 +79,7 @@ async function main(): Promise<number> {
   if (!EFFORTS.has(values.effort)) throw new Error(`Unknown effort "${values.effort}"`);
 
   const contentDir = values['content-dir'];
-  const claimsDir = values['claims-dir'];
+  const claimsDir = values['claims-dir'] ?? defaultClaimsDir(contentDir);
   const selection: JobSelection = { storyId, draftsOnly: values.drafts, recheck: values.recheck };
   const files = country
     ? [loadCountry(contentDir, country)]

@@ -1,6 +1,7 @@
 // Reading one locale's content tree from disk. Content files are discovered, not registered:
 // every country file in `countries/` and every known top-level file is read at load time, in a
-// fixed order, so adding a country is only a matter of writing its file.
+// fixed order, so adding a country is only a matter of writing its file. Nothing else is read:
+// the pipeline's claim check results in `claims/` sit next to the content but never reach the site.
 // Used by the loaders (Next.js server components at build time), `npm run content:check`, the
 // pipeline and the tests. Server-side only: it uses the file system.
 import { readdirSync, readFileSync, statSync } from 'node:fs';

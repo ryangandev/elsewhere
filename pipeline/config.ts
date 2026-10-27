@@ -51,7 +51,8 @@ export const DEFAULT_LIMITS: GenerationLimits = {
 };
 
 /** Claim check results, one file per country (see pipeline/claims/store.ts). */
-export const CLAIMS_DIR = 'pipeline/.cache/claims';
+/** Logs of claim checks that failed; results themselves live next to the content. */
+export const CLAIMS_FAILED_DIR = 'pipeline/.cache/claims-failed';
 
 /** Reading a page closely against a text is intelligence-sensitive, like drafting. */
 export const DEFAULT_CLAIMS_EFFORT: Effort = 'high';

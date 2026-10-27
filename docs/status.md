@@ -35,6 +35,7 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
   6. Run `npm run content:paraphrase -- --all` to write search phrasings for the new stories (a few cents per country).
   7. Review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back.
      Approval needs a current claim check with nothing flagged; after opening a flagged source yourself, `approve --accept-claims "<why>"` records why it is fine.
+     Commit `content/en/claims/` together with the reviewed country files.
 
 - Deployment: the repository is ready for Vercel; only the project itself is missing.
   The site needs no environment variables: content is generated offline and committed, so the API key never goes to Vercel or CI.
@@ -54,7 +55,9 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
   Japan: 11 of 13 units flagged, including the "Capital" and "Language" quick facts and "The less visible strengths", which the statistics handbook does not state.
   Most flags are true facts cited to a page that does not say them, so the fix is usually a better source rather than different text.
   The other eight hand-converted countries have not been checked; run `npm run content:claims -- --all` before they are treated like pipeline-reviewed content.
-- Claim check results live in the git-ignored `pipeline/.cache/claims/`, so approval needs a check run on the same machine, and accepted flags are not in git; decide whether to commit them next to the content.
+- Claim check follow-ups:
+  `--mode batch` has no `--resume`, so a round in flight is lost when a run stops (results already saved stay, and the next run checks only what is still due).
+  The server-side fetch's size cap does not apply to PDFs, so a long statistics PDF costs its full length on every read (Japan's 475k-token handbook is about $2.40 a read); consider a local text extract or a page range for large PDFs.
 - The search phrasings of the ten hand-converted countries were written by `npm run content:paraphrase` on 2026-10-26 and checked by the agent that ran it (every name and number appears in its story's text); Ryan has not read them yet.
   They show in `npm run content:review -- show <country>`.
 

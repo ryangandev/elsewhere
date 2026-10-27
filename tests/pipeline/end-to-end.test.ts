@@ -1,12 +1,13 @@
 // The whole pipeline on recorded responses: plan a batch, draft a country, verify it, check its
 // claims, review it, send a story back, redraft it through the batch runner, and review again.
 // No network, no key.
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages';
 import { describe, expect, it } from 'vitest';
 import { findPendingReferences } from '../../src/content/validate';
 import { checkClaims, claimsJobs } from '../../pipeline/claims/run';
-import { readClaims } from '../../pipeline/claims/store';
+import { claimsFilePath, defaultClaimsDir, readClaims } from '../../pipeline/claims/store';
 import { CLAIM_LIMITS } from '../../pipeline/config';
 import { parsedCountryFiles, readCountryFile } from '../../pipeline/content-tree';
 import { ReplayClient } from '../../pipeline/generate/model-client';
@@ -34,7 +35,8 @@ describe('content pipeline, end to end on replayed responses', () => {
       const contentDir = tempContentTree();
       const cacheDir = tempDir();
       const urlOptions = { cacheFile: join(cacheDir, 'url-status.json'), fetch: okFetch };
-      const claimsDir = join(cacheDir, 'claims');
+      // Claim results are kept with the content, in the tree's claims/ directory.
+      const claimsDir = defaultClaimsDir(contentDir);
       const client = new ReplayClient(REPLAY_DIR);
       const log: string[] = [];
 
@@ -123,7 +125,7 @@ describe('content pipeline, end to end on replayed responses', () => {
       expect(verified.urls.map(({ status }) => status?.state)).toEqual(['ok', 'ok', 'ok', 'ok']);
 
       // 4. Check the claims of the overview and one story against their sources.
-      const review = { contentDir, by: 'Tester', date: RUN_DATE, urlOptions, claimsDir };
+      const review = { contentDir, by: 'Tester', date: RUN_DATE, urlOptions };
       expect(() => approve({ ...review, country: 'CHL' })).toThrow(
         /CHL Quick fact "Capital": not claim-checked[\s\S]*npm run content:claims -- CHL/,
       );
@@ -149,9 +151,12 @@ describe('content pipeline, end to end on replayed responses', () => {
         log: (line) => log.push(line),
       });
       expect(claimed.results.map((result) => result.outcome)).toEqual(['checked']);
+      expect(existsSync(claimsFilePath(join(contentDir, 'claims'), 'chile'))).toBe(true);
+      // Content discovery and validation ignore the claims directory.
+      expect(parsedCountryFiles(contentDir).has('CHL')).toBe(true);
       const overviewSummary = countrySummary(chile, {
         files: parsedCountryFiles(contentDir),
-        ...fileReport(contentDir, chile, urlOptions, claimsDir),
+        ...fileReport(contentDir, chile, urlOptions),
       });
       expect(overviewSummary).toContain(
         '  - Capital: Fixture value [fixture-overview]\n      claim check: NOT SUPPORTED',
@@ -169,7 +174,7 @@ describe('content pipeline, end to end on replayed responses', () => {
         approve({ ...review, country: 'CHL', acceptClaims: 'Checked the fixture pages.' }),
       ).toMatchObject({ approved: ['CHL'], acceptedClaims: 2 });
       expect(
-        Object.values(readClaims(claimsDir, 'CHL').checks)
+        Object.values(readClaims(claimsDir, chile.country).checks)
           .filter((check) => check.accepted)
           .map((check) => [check.label, check.accepted]),
       ).toEqual([
@@ -240,7 +245,7 @@ describe('content pipeline, end to end on replayed responses', () => {
         revised,
         {
           files: parsedCountryFiles(contentDir),
-          ...fileReport(contentDir, revised, urlOptions, claimsDir),
+          ...fileReport(contentDir, revised, urlOptions),
         },
         'andes',
       );

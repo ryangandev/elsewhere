@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -51,6 +51,18 @@ describe('content discovery', () => {
   it('rejects an unknown top-level file', () => {
     writeFileSync(join(dir, 'notes.json'), '{}');
     expect(() => readContentTree(dir)).toThrow(`Unknown content file ${join(dir, 'notes.json')}`);
+  });
+
+  it('ignores the claim check results kept next to the content', () => {
+    const before = contentTreeRevision(dir);
+    mkdirSync(join(dir, 'claims'));
+    writeFileSync(join(dir, 'claims', 'singapore.json'), '{ "countryId": "SGP", "checks": {} }');
+    expect(readContentTree(dir).countryFiles.map(({ file }) => file)).toEqual(
+      readContentTree(localeContentDir('en')).countryFiles.map(({ file }) =>
+        file.replace(localeContentDir('en'), dir),
+      ),
+    );
+    expect(contentTreeRevision(dir)).toBe(before);
   });
 
   it('names a missing directory or file', () => {

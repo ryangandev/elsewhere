@@ -1,12 +1,19 @@
 // The claim check on recorded responses: which text units are checked, how verdicts are validated
 // and repaired, where results are saved, and when they go stale. No network, no key.
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { BetaContentBlock } from '@anthropic-ai/sdk/resources/beta/messages';
 import { describe, expect, it } from 'vitest';
 import type { CountryFile } from '../../src/content/schema';
 import { checkClaims, claimsJobs, type ClaimsJob } from '../../pipeline/claims/run';
 import { claimSession, type ClaimsContext } from '../../pipeline/claims/session';
-import { readClaims, unitStatuses } from '../../pipeline/claims/store';
+import {
+  claimsFilePath,
+  defaultClaimsDir,
+  readClaims,
+  recordChecks,
+  unitStatuses,
+} from '../../pipeline/claims/store';
 import { citedSources, overviewUnits, scopeUnits, storyUnits } from '../../pipeline/claims/units';
 import {
   htmlToText,
@@ -313,7 +320,7 @@ describe('checking claims on replayed responses', () => {
   it('saves verdicts, falls back, repairs and reminds, and checks again only what changed', async () => {
     locallyFetched.length = 0;
     const contentDir = tempContentTree();
-    const claimsDir = join(tempDir(), 'claims');
+    const claimsDir = defaultClaimsDir(contentDir);
     writeCountryFile(contentDir, chileFile());
     const file = readCountryFile(contentDir, 'chile')!;
     const client = new ReplayClient(REPLAY_DIR);
@@ -359,7 +366,7 @@ describe('checking claims on replayed responses', () => {
     expect(report).toContain('not stated by the sources: "Capital: Fixture value"');
     expect(report).toContain('[fixture-history] could not be read: The fetch failed.');
 
-    const saved = readClaims(claimsDir, 'CHL');
+    const saved = readClaims(claimsDir, file.country);
     const statuses = unitStatuses(overviewUnits(file.country), saved);
     expect(statuses.map(({ check }) => check?.verdict)).toEqual([
       'supported',
@@ -387,6 +394,31 @@ describe('checking claims on replayed responses', () => {
     ]);
     expect(claimsJobs(file, { storyId: 'length', recheck: true }, claimsDir)).toHaveLength(1);
     expect(claimsJobs(file, { draftsOnly: true, storyId: 'length' }, claimsDir)).toEqual([]);
+
+    // The saved file is ordered like the content, formatted like it, and keeps only current units.
+    const path = claimsFilePath(join(contentDir, 'claims'), 'chile');
+    const text = readFileSync(path, 'utf8');
+    expect(text).toBe(`${JSON.stringify(JSON.parse(text), null, 2)}\n`);
+    const units = [...overviewUnits(file.country), ...storyUnits(file.stories[0])];
+    expect(Object.keys(saved.checks)).toEqual(units.map((unit) => unit.key));
+    expect(Object.keys(Object.values(saved.checks)[0])).toEqual([
+      'label',
+      'text',
+      'verdict',
+      'unsupported',
+      'evidence',
+      'note',
+      'sources',
+      'checkedAt',
+      'model',
+      'effort',
+      'promptVersion',
+    ]);
+    recordChecks(claimsDir, edited, {});
+    expect(Object.keys(readClaims(claimsDir, file.country).checks)).toEqual(
+      units.filter((unit) => unit !== units[6]).map((unit) => unit.key),
+    );
+    expect(readFileSync(path, 'utf8')).toContain('"countryId": "CHL"');
   });
 
   it('runs the same sessions through the Batches API', async () => {

@@ -38,7 +38,8 @@ src/
   ui/                      React components: atlas (shell state), shell, home, search, panel,
                            dialogs, primitives
   i18n/                    message catalog (English only for now)
-content/en/                generated and reviewed content, one file per country, plus home.json
+content/en/                generated and reviewed content, one file per country, plus home.json;
+                           claims/ holds the pipeline's claim check results, never read by the site
 data/geo/                  Natural Earth derived map identities and gazetteer
 pipeline/                  content generation, validation and review (step 5)
 scripts/                   geo data builds and content:check
@@ -128,6 +129,7 @@ content/en/countries/<slug>.json   { country: Country, stories: Story[] } for on
 content/en/trails.json             Trail[]
 content/en/places.json             { [placeId]: note }, editorial notes shown on map places
 content/en/home.json               { suggestedQuestions: StoryRef[] (3 to 4) }, the home screen's picks
+content/en/claims/<slug>.json      claim check results for one country (pipeline only, see Content pipeline)
 ```
 
 Core shapes:
@@ -187,6 +189,7 @@ Loaders in `src/content/index.ts` are synchronous and server-only (see [Server a
 `getCountry(id or slug)`, `listCountries`, `getStory`, `getStoryBySlug`, `listStories`, `listTrails`, `getHome`, `getPlaceNote`, `getMapCountry` (all 258 map identities, edited or not) and `resolveScene`.
 Content files are discovered, not registered: `readContentTree` in `src/content/files.ts` reads every `countries/*.json` file, ordered by file name, and the known top-level files (`trails.json`, `places.json`, `home.json`) when content is first read.
 A file that cannot be read, is not JSON, or does not match the schema fails with its path; an unknown top-level JSON file fails too, so a new kind of content file is added to `TOP_LEVEL_FILES` and the schema together.
+Other directories, such as `claims/`, are never read, so the loaders, the build and the static export never see or ship them.
 The loaders, `content:check`, the pipeline and the tests all read content this way, from paths relative to the repository root, where Next.js, the scripts and Vitest run.
 In development the loaders compare the tree's file sizes and modification times at most twice a second and reload content when they change, so an edited or new file shows on the next page load without restarting the server.
 
@@ -258,9 +261,10 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Some sites refuse Anthropic's fetcher but answer an ordinary request, so a strict `fetch_page` tool fetches a cited URL of the task from the editor's computer and returns the page's visible text; it reads HTML and plain text, not PDFs, and runs no scripts.
    Verdicts come back through a strict tool, `submit_verdicts`: for each source whether it was read (with a note when not), and for each unit `supported`, `partly_supported`, `not_supported` or `source_unreachable`, the phrases the sources do not state, short quotes from the sources that support the rest, and a note.
    The pipeline checks the submission and sends problems back like a draft's: every unit and source answered once, a source reported read was actually fetched in the conversation, `supported` has no unsupported phrases and the others do, every unsupported phrase is copied from the unit, quotes come from the unit's own read sources, and `source_unreachable` names an unreadable source.
-   Results go to `pipeline/.cache/claims/<country>.json` (`--claims-dir`), keyed by a hash of the unit's text and its sources' IDs and URLs, with the verdict, model, effort, prompt version and date.
+   Results are committed with the content in `content/en/claims/<slug>.json`, keyed by a hash of the unit's text and its sources' IDs and URLs, with the verdict, model, effort, prompt version and date; `--claims-dir` points a scratch run elsewhere.
    Changed text or sources make a new key, so the old result no longer counts and the unit shows as not checked; a run checks only overviews and stories with such a unit, and `--recheck` checks them anyway.
-   The command prints every flagged unit and exits with an error when one is flagged or a check failed; a failed check saves its log in `pipeline/.cache/claims/failed/`.
+   Every write keeps only the results of the file's current units, in content order, with fields in a fixed order and the content tree's JSON formatting, so a recheck or an approval makes a small, readable diff.
+   The command prints every flagged unit and exits with an error when one is flagged or a check failed; a failed check saves its log in `pipeline/.cache/claims-failed/`.
    `--mode batch` sends each round through the Batches API at half price; unlike drafting it has no `--resume`: results are saved as each country finishes, and an interrupted run checks only what is still due.
    The prompts live in `pipeline/prompts/claims-v<n>/` on their own version line, so changing them never changes the drafting prompt version.
 5. **Paraphrase.**
@@ -280,14 +284,15 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    `approve <country> [story]` sets `status: 'reviewed'`, `reviewedBy` (`--by`, default the git user name) and `reviewedAt`.
    Without a story it approves the overview; `--all` approves the overview and every story.
    It refuses while the content has a validation issue, a pending reference, a revision request or a broken source URL.
-   It also refuses while a unit has no current claim check, or a unit is flagged: anything but `supported`.
-   A flagged unit either goes back through `revise`, or Ryan opens the sources, finds the claim stated (for example on a page the check could not read), and approves with `--accept-claims "<why>"`, which records who accepted it, when and why on that result.
+   It also refuses while a unit has no current claim check, or a unit is flagged: `partly_supported`, `not_supported` or `source_unreachable`.
+   A flagged unit either goes back through `revise`, or Ryan opens the sources, finds the claim stated (for example on a page the check could not read), and approves with `--accept-claims "<why>"`, which records who accepted it, when and why on that result in `content/en/claims/`, so the decision is committed with the approval.
+   `--accept-claims` never excuses a unit that has no current check.
    An acceptance belongs to the exact text and sources, so it lapses when either changes.
    `revise <country> [story] --notes "..."` records `provenance.revision`, and `content:generate -- --revisions` redrafts it: a story keeps its ID and the rest of the file, with the notes and the old story in the prompt.
    A whole country can be sent back only while nothing in it is reviewed.
    Changes go through notes and regeneration rather than JSON edits, so every text stays sourced.
 7. **Commit.**
-   Reviewed JSON is committed like code; git history is the content history.
+   Reviewed JSON is committed like code, with its claim check results in `content/en/claims/`; git history is the content history.
    A new country file needs nothing else: the loaders discover it.
 
 Pending references: a draft story may link to a planned story in a country that has no content file yet, so a batch can link its countries before all of them are drafted.

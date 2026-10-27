@@ -5,7 +5,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CountryFile } from '../../src/content/schema';
-import { CLAIMS_CONCURRENCY } from '../config';
+import { CLAIMS_CONCURRENCY, CLAIMS_FAILED_DIR } from '../config';
 import { writeJson } from '../content-tree';
 import type { ModelClient } from '../generate/model-client';
 import { describeError, isFatal } from '../generate/run';
@@ -42,8 +42,10 @@ export type ClaimsOptions = {
   jobs: ClaimsJob[];
   /** One request at a time per session, or rounds through the Batches API at half price. */
   mode: 'sync' | 'batch';
-  /** Where results are saved (pipeline/.cache/claims by default). */
+  /** Where results are saved: content/<locale>/claims, or a scratch directory. */
   claimsDir: string;
+  /** Where a failed check leaves its log (default pipeline/.cache/claims-failed). */
+  failedDir?: string;
   log: (line: string) => void;
   /** Sessions run at once in sync mode. */
   concurrency?: number;
@@ -67,7 +69,7 @@ export function claimsJobs(
   selection: JobSelection,
   claimsDir: string,
 ): ClaimsJob[] {
-  const claims = readClaims(claimsDir, file.country.id);
+  const claims = readClaims(claimsDir, file.country);
   const scopes = selection.storyId
     ? [{ kind: 'story' as const, storyId: selection.storyId }]
     : allScopes(file);
@@ -110,7 +112,7 @@ function finish(entry: Entry, options: ClaimsOptions): ClaimsJobResult {
   const base = { tag: session.tag, label, usage: session.usage };
   const state = session.state;
   if (state.status === 'done') {
-    recordChecks(options.claimsDir, job.file.country.id, state.file);
+    recordChecks(options.claimsDir, job.file, state.file);
     const statuses = units.map((unit) => ({ unit, check: state.file[unit.key] }));
     return {
       ...base,
@@ -120,7 +122,7 @@ function finish(entry: Entry, options: ClaimsOptions): ClaimsJobResult {
     };
   }
   const reason = state.status === 'failed' ? state.reason : 'did not finish';
-  const dir = join(options.claimsDir, 'failed');
+  const dir = options.failedDir ?? CLAIMS_FAILED_DIR;
   mkdirSync(dir, { recursive: true });
   const failedFile = join(dir, `${session.tag}.json`);
   writeJson(failedFile, {

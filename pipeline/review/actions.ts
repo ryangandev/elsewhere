@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import type { CountryFile, Provenance } from '../../src/content/schema';
 import {
   acceptFlagged,
+  defaultClaimsDir,
   claimProblems,
   isFlagged,
   readClaims,
@@ -14,7 +15,6 @@ import {
   type UnitStatus,
 } from '../claims/store';
 import { scopeLabel, scopeUnits, type ClaimScope } from '../claims/units';
-import { CLAIMS_DIR } from '../config';
 import {
   findPendingReferences,
   validateContent,
@@ -85,7 +85,7 @@ export function fileReport(
   contentDir: string,
   file: CountryFile,
   urlOptions?: UrlCheckOptions,
-  claimsDir: string = CLAIMS_DIR,
+  claimsDir: string = defaultClaimsDir(contentDir),
 ): FileReport {
   const path = countryFilePath(contentDir, file.country.slug);
   const issues = validateContent({
@@ -102,7 +102,7 @@ export function fileReport(
     issues,
     pending,
     urlStatuses: cachedUrlStatuses(citedUrls(file), urlOptions),
-    claims: readClaims(claimsDir, file.country.id),
+    claims: readClaims(claimsDir, file.country),
   };
 }
 
@@ -188,7 +188,7 @@ export function approve(options: ApproveOptions): {
     ),
   };
 
-  const claimsDir = options.claimsDir ?? CLAIMS_DIR;
+  const claimsDir = options.claimsDir ?? defaultClaimsDir(options.contentDir);
   const report = fileReport(options.contentDir, next, options.urlOptions, claimsDir);
   const scopes: ClaimScope[] = [
     ...(approveCountry ? [{ kind: 'overview' as const }] : []),
@@ -246,7 +246,7 @@ export function approve(options: ApproveOptions): {
   const acceptedClaims = acceptReason
     ? acceptFlagged(
         claimsDir,
-        current.country.id,
+        next,
         claimStatuses.flatMap(({ statuses }) => statuses),
         { by: options.by, on: options.date, reason: acceptReason },
       )
