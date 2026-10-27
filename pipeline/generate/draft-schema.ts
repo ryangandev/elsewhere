@@ -133,6 +133,19 @@ export const StoryDraft = z.strictObject({
 });
 export type StoryDraft = z.infer<typeof StoryDraft>;
 
+/**
+ * Several revised stories of one country with the sources they cite, as agent drafting submits
+ * the stories review sent back. Each story is checked as StoryDraft's story is.
+ */
+export const StoryRevisionsDraft = z.strictObject({
+  stories: z
+    .array(DraftStory)
+    .min(1)
+    .describe('Every story sent back, revised, each keeping its ID.'),
+  sources: z.array(DraftSource).min(1).describe('Every source the stories cite, declared once.'),
+});
+export type StoryRevisionsDraft = z.infer<typeof StoryRevisionsDraft>;
+
 /** Output of the planning request: the questions each country will answer. */
 export const BatchPlan = z.strictObject({
   countries: z.array(

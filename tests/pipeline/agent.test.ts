@@ -21,13 +21,17 @@ import {
   loadEvidence,
   readSession,
   sessionDir,
+  writeSession,
 } from '../../pipeline/agent/session';
 import { extractLinks, fetchPage } from '../../pipeline/claims/local-fetch';
 import { parseArgsOnce } from '../../pipeline/cli-args';
 import { DEFAULT_MODEL } from '../../pipeline/config';
-import { countryFilePath, readCountryFile } from '../../pipeline/content-tree';
+import { countryFilePath, readCountryFile, writeCountryFile } from '../../pipeline/content-tree';
+import { assembleCountry } from '../../pipeline/generate/assemble';
+import { CountryDraft } from '../../pipeline/generate/draft-schema';
 import { allPlans } from '../../pipeline/generate/plan';
-import { loadAgentPrompts } from '../../pipeline/prompts';
+import { loadAgentPrompts, loadAgentRevisionPrompts } from '../../pipeline/prompts';
+import { requestRevision } from '../../pipeline/review/actions';
 import { chileDraft } from './fixtures/build-replay';
 import { RUN_DATE, minimalPdf, tempContentTree, tempDir } from './helpers';
 
@@ -178,6 +182,15 @@ describe('agent drafting session', () => {
     expect(brief).toContain('The exact URL of a page you read with the fetch command');
     // Nothing from the API's tools.
     expect(brief).not.toMatch(/web_search|web_fetch|find_places|submit_draft/);
+  });
+
+  it('keeps the prompt version of a session it continues', () => {
+    const { dir, begin } = setup({ plan: undefined });
+    begin();
+    writeSession(dir, { ...readSession(dir, 'CHL'), promptVersion: 'agent-v1' });
+    expect(begin()).toBe(0);
+    expect(readSession(dir, 'CHL').promptVersion).toBe('agent-v1');
+    expect(readFileSync(briefFile(dir), 'utf8')).toContain('Britannica (the main edition');
   });
 
   it('refuses a country with reviewed content', () => {
@@ -852,6 +865,11 @@ describe('agent-v2 prompts', () => {
     );
     expect(v2['link-targets']).toBe(v1['link-targets']);
     expect(v2.repair).toBe(v1.repair);
+    // Only revision sessions use revise-story, which agent-v1 never had.
+    expect(loadAgentRevisionPrompts()['revise-story']).toContain('# Task: revise');
+    expect(() => loadAgentRevisionPrompts('agent-v1')).toThrow(
+      'The agent-v1 agent prompts have no revise-story template.',
+    );
     for (const sentence of [
       'Do not cite Wikipedia or other wikis.',
       'If you cannot find a source for a claim, leave the claim out.',
@@ -941,4 +959,258 @@ describe('command-line options', () => {
       'dry-run': true,
     });
   });
+});
+
+describe('agent revision session', () => {
+  const NOTES = 'Explain how people cross the mountains today.';
+  const REVISED_SUMMARY = 'Revised fixture answer about the passes through the andes.';
+  const geography = () => chileDraft().sources.find((source) => source.id === 'fixture-geography')!;
+
+  type FixtureStory = ReturnType<typeof chileDraft>['stories'][number];
+
+  /** The andes story revised, citing the page it cited before. */
+  function revisedAndes(change: (story: FixtureStory) => void = () => {}) {
+    const andes = chileDraft().stories.find((story) => story.id === 'andes')!;
+    andes.summary = REVISED_SUMMARY;
+    change(andes);
+    return { stories: [andes], sources: [geography()] };
+  }
+
+  /** A draft Chile file in the content tree, as the API path writes it, and its session tools. */
+  function revisionSetup() {
+    const context = setup({ pages: chilePages() });
+    const { contentDir, deps } = context;
+    writeCountryFile(
+      contentDir,
+      assembleCountry(CountryDraft.parse(chileDraft()), {
+        countryId: 'CHL',
+        slug: 'chile',
+        model: DEFAULT_MODEL,
+        date: '2026-10-01',
+        promptVersion: 'v3',
+      }),
+    );
+    const sendBack = (notes = NOTES) =>
+      requestRevision({
+        contentDir,
+        country: 'CHL',
+        storyId: 'andes',
+        notes,
+        by: 'Tester',
+        date: RUN_DATE,
+      });
+    const reviseStart = (regenerate = false) =>
+      start(
+        {
+          countryId: 'CHL',
+          contentDir,
+          model: DEFAULT_MODEL,
+          date: RUN_DATE,
+          regenerate,
+          fresh: false,
+          revisions: true,
+        },
+        deps,
+      );
+    return { ...context, sendBack, reviseStart, file: countryFilePath(contentDir, 'chile') };
+  }
+
+  it('refuses to start when nothing is sent back', () => {
+    const { contentDir, dir, reviseStart, output } = revisionSetup();
+    expect(reviseStart()).toBe(1);
+    expect(output()).toContain(
+      'No story in Chile is sent back for revision. Send one back first with: npm run content:review -- revise CHL <story>',
+    );
+    expect(existsSync(dir)).toBe(false);
+
+    requestRevision({
+      contentDir,
+      country: 'CHL',
+      notes: 'Start over.',
+      by: 'Tester',
+      date: RUN_DATE,
+    });
+    expect(reviseStart()).toBe(1);
+    expect(output()).toContain(
+      'The whole of Chile was sent back. Draft it again with: npm run content:agent -- start CHL',
+    );
+    expect(reviseStart(true)).toBe(1);
+    expect(output()).toContain('--regenerate is for drafting a whole country again');
+  });
+
+  it('writes a brief with the notes and the story as drafted', () => {
+    const { contentDir, dir, sendBack, reviseStart, output } = revisionSetup();
+    sendBack();
+    expect(reviseStart()).toBe(0);
+    expect(output()).toContain(
+      `Agent revision session for Chile (CHL) in ${dir}, revising "andes".`,
+    );
+    expect(readSession(dir, 'CHL')).toMatchObject({
+      promptVersion: 'agent-v2',
+      model: DEFAULT_MODEL,
+      revisions: [
+        {
+          storyId: 'andes',
+          request: { notes: NOTES, requestedBy: 'Tester', requestedAt: RUN_DATE },
+        },
+      ],
+    });
+
+    const brief = readFileSync(briefFile(dir), 'utf8');
+    expect(brief).toContain('# Task: revise the story "andes" in Chile');
+    expect(brief).toContain(
+      `### "andes": Fixture question about andes?\n\n#### Editor's notes\n\n${NOTES}\n\n#### The story as drafted\n\n`,
+    );
+    // The story as drafted, as the API revision task shows it: without the revision request.
+    const old = readCountryFile(contentDir, 'chile')!.stories[3];
+    const { revision, ...provenance } = old.provenance;
+    expect(revision?.notes).toBe(NOTES);
+    expect(brief).toContain(
+      `\`\`\`json\n${JSON.stringify({ ...old, provenance }, null, 2)}\n\`\`\``,
+    );
+    expect(brief).toContain(
+      'Other stories in Chile (country ID CHL): "length" (Fixture question about length?)',
+    );
+    expect(brief).toContain('fetch each one again before you keep it');
+    expect(brief).toContain(
+      `write the complete revised stories and the sources they cite to ${draftFile(dir)}`,
+    );
+    expect(brief).toContain('npm run content:agent -- fetch CHL "<url>"');
+    expect(brief).toContain('"The ID of the story this revises, unchanged."');
+    // The shared pieces of every drafting brief.
+    expect(brief).toContain('never use the WebFetch tool');
+    expect(brief).toContain('# Reference example');
+    expect(brief).toContain('# Link targets');
+    expect(brief).not.toMatch(/web_search|web_fetch|find_places|submit_story/);
+  });
+
+  it(
+    'moves a finished session aside and counts only pages fetched again',
+    async () => {
+      const { contentDir, root, dir, deps, read, sendBack, reviseStart, writeDraft, output, file } =
+        revisionSetup();
+      // A finished drafting session that read the page the story cites.
+      const draftingStart = { contentDir, model: DEFAULT_MODEL, date: RUN_DATE, fresh: false };
+      start({ countryId: 'CHL', ...draftingStart, regenerate: true }, deps);
+      await read(geography().url);
+      writeSession(dir, {
+        ...readSession(dir, 'CHL'),
+        written: { file, writtenAt: '2026-10-01T10:00:00.000Z' },
+      });
+      sendBack();
+      output();
+
+      expect(reviseStart()).toBe(0);
+      const archived = join(root, 'finished', 'CHL-2026-10-01T10-00-00-000Z');
+      expect(output()).toContain(`Moved the finished session to ${archived}.`);
+      expect(loadEvidence(archived).records).toHaveLength(1);
+      expect(loadEvidence(dir).records).toEqual([]);
+
+      writeDraft(revisedAndes());
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      expect(output()).toContain(
+        `sources: "fixture-geography" (${geography().url}) was not retrieved in this task. ${AGENT_EVIDENCE_RULE}`,
+      );
+      expect(readCountryFile(contentDir, 'chile')!.stories[3].provenance.revision?.notes).toBe(
+        NOTES,
+      );
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
+
+  it(
+    'rejects a changed story ID',
+    async () => {
+      const { deps, read, sendBack, reviseStart, writeDraft, output } = revisionSetup();
+      sendBack();
+      reviseStart();
+      await read(geography().url);
+      output();
+      writeDraft(revisedAndes((story) => (story.id = 'mountain-passes')));
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      expect(output()).toContain('1. stories[0].id: keep the story ID "andes"');
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
+
+  it(
+    'writes only the revised story, keeps the rest of the file and clears the request',
+    async () => {
+      const { contentDir, dir, deps, read, sendBack, reviseStart, writeDraft, output, file } =
+        revisionSetup();
+      sendBack();
+      const before = readFileSync(file, 'utf8');
+      expect(reviseStart()).toBe(0);
+      await read(geography().url);
+      output();
+      writeDraft(revisedAndes());
+
+      expect(submit({ countryId: 'CHL', dryRun: true }, deps)).toBe(0);
+      expect(output()).toContain('Dry run: the revised "andes" would pass. Nothing was written');
+      expect(readFileSync(file, 'utf8')).toBe(before);
+      expect(readSession(dir, 'CHL').submissions).toEqual([]);
+
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(0);
+      const printed = output();
+      expect(printed).toContain(
+        `Submission 1 passed. Wrote "andes" into ${file} (draft, agent-v2, ${DEFAULT_MODEL}); the revision requests are cleared`,
+      );
+      expect(printed).toContain('1 revised story, 1 sources, 0 pending references.');
+
+      // Only the story changed: putting the old story back gives the old file, byte for byte.
+      const after = readFileSync(file, 'utf8');
+      const andesBlock = (text: string) => {
+        const story = JSON.parse(text).stories[3];
+        expect(story.id).toBe('andes');
+        return JSON.stringify(story, null, 2).replaceAll('\n', '\n    ');
+      };
+      expect(after).not.toBe(before);
+      expect(after.replace(andesBlock(after), andesBlock(before))).toBe(before);
+
+      const andes = readCountryFile(contentDir, 'chile')!.stories[3];
+      expect(andes.summary).toBe(REVISED_SUMMARY);
+      expect(andes.provenance).toEqual({
+        generatedBy: DEFAULT_MODEL,
+        generatedAt: RUN_DATE,
+        promptVersion: 'agent-v2',
+        status: 'draft',
+      });
+      expect(andes.sources.map((source) => source.url)).toEqual([geography().url]);
+      expect(readSession(dir, 'CHL').written?.file).toBe(file);
+
+      status({ countryId: 'CHL' }, deps);
+      expect(output()).toContain(
+        `Revising 1 stories sent back:\n  andes (Tester, ${RUN_DATE}): ${NOTES}`,
+      );
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      expect(reviseStart()).toBe(1);
+      expect(output()).toContain('No story in Chile is sent back for revision.');
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses a submission when a request changed since start, and keeps drafting apart',
+    async () => {
+      const { deps, read, sendBack, reviseStart, writeDraft, output, begin } = revisionSetup();
+      sendBack();
+      reviseStart();
+      expect(begin('CHL', { regenerate: true })).toBe(1);
+      expect(output()).toContain('An unfinished revision session for Chile');
+
+      await read(geography().url);
+      writeDraft(revisedAndes());
+      sendBack('Shorter, please.');
+      output();
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      expect(output()).toContain(
+        'CHL/andes no longer has the revision request this session started from. Run npm run content:agent -- start CHL --revisions',
+      );
+      // Starting again continues the session with the new notes and keeps its evidence.
+      expect(reviseStart()).toBe(0);
+      expect(output()).toContain('Kept 1 fetched pages and 0 submissions');
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(0);
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
 });

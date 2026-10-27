@@ -6,7 +6,7 @@
 // The claim check (pipeline/claims) has its own version line, claims-v<n>, so its prompts can
 // change without moving drafting to a new version (and the other way round). Each claim check
 // result records the claims prompt version that produced it.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const CURRENT_PROMPT_VERSION = 'v3';
@@ -49,7 +49,7 @@ export function loadPrompts(version: string = CURRENT_PROMPT_VERSION): PromptSet
  * version it started from (agent-v1 from v3). It holds only the prompts agent drafting uses.
  * agent-v1 stays as it was for the drafts that recorded it. agent-v2 recommends sources the fetch
  * command can read, documents `--links`, and forbids other HTTP tools and personal information in
- * requests.
+ * requests, and holds the revise-story template of agent revision sessions.
  */
 export const CURRENT_AGENT_PROMPT_VERSION = 'agent-v2';
 
@@ -58,6 +58,24 @@ export type AgentPromptSet = { version: string } & Record<(typeof AGENT_NAMES)[n
 
 export function loadAgentPrompts(version: string = CURRENT_AGENT_PROMPT_VERSION): AgentPromptSet {
   return loadPromptFiles(version, AGENT_NAMES);
+}
+
+/**
+ * Agent revision sessions redraft the stories review sent back with one more template,
+ * `revise-story`, the agent counterpart of the API's revise-story task. agent-v2 gained it when
+ * revisions came to agent drafting: a template that only revision sessions use changes no text
+ * that a drafting brief or a recorded draft was made from, so it needed no new version. agent-v1
+ * has none, and a revision session always starts on the current version.
+ */
+export type AgentRevisionPromptSet = AgentPromptSet & { 'revise-story': string };
+
+export function loadAgentRevisionPrompts(
+  version: string = CURRENT_AGENT_PROMPT_VERSION,
+): AgentRevisionPromptSet {
+  if (!existsSync(join(PROMPTS_DIR, version, 'revise-story.md'))) {
+    throw new Error(`The ${version} agent prompts have no revise-story template.`);
+  }
+  return loadPromptFiles(version, [...AGENT_NAMES, 'revise-story'] as const);
 }
 
 export const CURRENT_CLAIMS_PROMPT_VERSION = 'claims-v1';

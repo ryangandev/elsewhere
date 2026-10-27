@@ -36,8 +36,9 @@ const USAGE = `Usage: npm run content:review -- <command> [options]
   --content-dir <dir>                  content tree (default ${DEFAULT_CONTENT_DIR})
   --claims-dir <dir>                   claim check results (default: claims/ in the content directory)
 
-<country> is a country ID (CHL) or slug (chile). After revise, run
-npm run content:generate -- --revisions to redraft everything sent back.`;
+<country> is a country ID (CHL) or slug (chile). After revise, redraft everything sent back
+with npm run content:generate -- --revisions, or a country's stories in a Claude Code subagent
+with npm run content:agent -- start <country> --revisions (a whole country: start <country>).`;
 
 async function main(): Promise<number> {
   const { values, positionals } = parseArgsOnce({
@@ -138,8 +139,9 @@ async function main(): Promise<number> {
       by: reviewerName(values.by),
       date: today(),
     });
+    const [countryId] = result.target.split('/');
     console.log(
-      `Sent ${result.target} back in ${result.file}. Run npm run content:generate -- --revisions to redraft.`,
+      `Sent ${result.target} back in ${result.file}. Redraft it with npm run content:generate -- --revisions, or in a Claude Code subagent with npm run content:agent -- start ${countryId}${storyId ? ' --revisions' : ''}.`,
     );
     return 0;
   }

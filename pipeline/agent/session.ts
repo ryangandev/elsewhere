@@ -1,19 +1,22 @@
 // An agent drafting session on disk, one directory per country in pipeline/.cache/agent/:
 //
-//   session.json    what is drafted, with which model, prompts and date, every submission and
+//   session.json    what is drafted (the whole country, or in a revision session the stories
+//                   review sent back), with which model, prompts and date, every submission and
 //                   every fetch that failed
 //   brief.md        the complete instructions the subagent follows
 //   evidence/       one record per page read through the fetch command, with its text
 //   submissions/    every draft submitted, numbered, for audit
 //   draft.json      where the subagent writes its draft
 //
+// A finished session moves to pipeline/.cache/agent/finished/ when a revision session starts in
+// its place, so its evidence and submissions stay for audit.
 // Evidence is the only proof that a cited page was read, so each record keeps the SHA-256 of
 // its text and a submission uses only records whose text still matches.
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { CountryId, IsoDate } from '../../src/content/schema';
+import { CountryId, IsoDate, RevisionRequest, StoryId } from '../../src/content/schema';
 import type { FetchedPage } from '../claims/local-fetch';
 import { CACHE_DIR } from '../config';
 import { readJson, writeJson } from '../content-tree';
@@ -40,6 +43,14 @@ export const AgentSession = z.strictObject({
     .array(z.strictObject({ url: z.string(), attemptedAt: z.string(), reason: z.string() }))
     .default([]),
   written: z.strictObject({ file: z.string(), writtenAt: z.string() }).optional(),
+  /**
+   * Present in a revision session: the stories review sent back when it started, with their
+   * requests, so a request changed since is caught at submission.
+   */
+  revisions: z
+    .array(z.strictObject({ storyId: StoryId, request: RevisionRequest }))
+    .min(1)
+    .optional(),
 });
 export type AgentSession = z.infer<typeof AgentSession>;
 
@@ -51,6 +62,22 @@ const evidenceDir = (dir: string) => join(dir, 'evidence');
 export const submissionsDir = (dir: string) => join(dir, 'submissions');
 
 export const hasSession = (dir: string) => existsSync(sessionFile(dir));
+
+/**
+ * Move a finished session out of its country's directory, into `finished/<country>-<time it was
+ * written>` under the sessions root, and return where it went.
+ */
+export function archiveSession(root: string, session: AgentSession): string {
+  const stamp = (session.written?.writtenAt ?? session.startedAt).replace(/[:.]/g, '-');
+  const folder = join(root, 'finished');
+  mkdirSync(folder, { recursive: true });
+  let target = join(folder, `${session.countryId}-${stamp}`);
+  for (let n = 2; existsSync(target); n += 1) {
+    target = join(folder, `${session.countryId}-${stamp}-${n}`);
+  }
+  renameSync(sessionDir(root, session.countryId), target);
+  return target;
+}
 
 export function readSession(dir: string, countryId: string): AgentSession {
   if (!hasSession(dir)) {
