@@ -5,7 +5,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { findPendingReferences } from '../../src/content/validate';
-import { fetchPage } from '../claims/local-fetch';
 import { CURRENT_AGENT_PROMPT_VERSION, loadAgentPrompts } from '../prompts';
 import { STORIES_PER_COUNTRY } from '../config';
 import {
@@ -24,6 +23,14 @@ import { renderLinkTargets, submitCountryDraft } from '../generate/tasks';
 import { AGENT_EVIDENCE_RULE, renderBrief, renderRepair, type AgentContext } from './brief';
 import { notTheRequestedPage } from './page-check';
 import {
+  describeRecord,
+  fetchFailure,
+  fetchForReading,
+  printChunk,
+  printLinks,
+  printMatches,
+} from './reading';
+import {
   DEFAULT_SESSIONS_DIR,
   briefFile,
   draftFile,
@@ -36,8 +43,9 @@ import {
   sessionDir,
   submissionsDir,
   writeSession,
-  type EvidenceRecord,
 } from './session';
+
+export { CHUNK_CHARACTERS } from './reading';
 
 export type AgentDeps = {
   /** Where sessions live (default pipeline/.cache/agent). */
@@ -49,17 +57,6 @@ export type AgentDeps = {
   now?: () => Date;
   out: (line: string) => void;
 };
-
-/**
- * Characters printed per fetch: about 5k tokens, under the 30,000 characters Claude Code shows
- * of a command's output, with room for the header.
- */
-export const CHUNK_CHARACTERS = 20_000;
-/** Pages are stored up to this length and read in chunks; a long statistics PDF fits. */
-const MAX_EVIDENCE_CHARACTERS = 2_000_000;
-const MAX_FETCH_BYTES = 40_000_000;
-const FETCH_TIMEOUT_MS = 60_000;
-const MAX_FIND_MATCHES = 20;
 
 const number = (value: number) => value.toLocaleString('en-US');
 const command = (args: string) => `npm run content:agent -- ${args}`;
@@ -163,104 +160,8 @@ export type FetchOptions = {
   refresh: boolean;
 };
 
-function describeRecord(record: EvidenceRecord): string {
-  return [
-    `HTTP ${record.status}`,
-    record.contentType || 'unknown type',
-    `${number(record.characters)} characters${record.truncated ? ` (cut off at ${number(MAX_EVIDENCE_CHARACTERS)})` : ''}`,
-    `fetched ${record.fetchedAt}`,
-  ].join(', ');
-}
-
 function notRequestedWarning(reason: string): string {
   return `WARNING: this is probably not the page you asked for: ${reason}. A source that cites it is rejected at submit. Look for the real page (--links on a page that links to it may find it) or choose another source.`;
-}
-
-function printChunk(record: EvidenceRecord, options: FetchOptions, deps: AgentDeps): number {
-  const { text } = record;
-  if (options.offset < 0 || (options.offset > 0 && options.offset >= text.length)) {
-    deps.out(`--offset must be between 0 and ${number(Math.max(0, text.length - 1))}.`);
-    return 1;
-  }
-  const end = Math.min(text.length, options.offset + CHUNK_CHARACTERS);
-  const next =
-    end < text.length
-      ? ` Next part: ${command(`fetch ${options.countryId} "${options.url}" --offset ${end}`)}`
-      : ' This is the end of the text.';
-  deps.out(
-    `Characters ${number(options.offset)} to ${number(end)} of ${number(text.length)}.${next}`,
-  );
-  deps.out('-----');
-  deps.out(text.slice(options.offset, end));
-  deps.out('-----');
-  return 0;
-}
-
-function formatLink({ url, text }: { url: string; text: string }): string {
-  return `${text || '(no text)'} | ${url}`;
-}
-
-/** Print links from the `offset`-th on, as many as fit in one chunk of output. */
-function printLinks(record: EvidenceRecord, options: FetchOptions, deps: AgentDeps): number {
-  const { links } = record;
-  if (!links) {
-    deps.out('This stored copy was fetched before links were kept. Fetch it again with --refresh.');
-    return 1;
-  }
-  if (!links.length) {
-    deps.out('The page has no links.');
-    return 0;
-  }
-  if (options.offset < 0 || options.offset >= links.length) {
-    deps.out(`With --links, --offset counts links: between 0 and ${links.length - 1}.`);
-    return 1;
-  }
-  let end = options.offset;
-  let size = 0;
-  while (end < links.length && (end === options.offset || size < CHUNK_CHARACTERS)) {
-    size += formatLink(links[end]).length + 1;
-    end += 1;
-  }
-  const next =
-    end < links.length
-      ? ` Next part: ${command(`fetch ${options.countryId} "${options.url}" --links --offset ${end}`)}`
-      : ' This is the end of the links.';
-  deps.out(`Links ${options.offset + 1} to ${end} of ${links.length}, as "text | URL".${next}`);
-  deps.out('-----');
-  for (const link of links.slice(options.offset, end)) deps.out(formatLink(link));
-  deps.out('-----');
-  return 0;
-}
-
-function printMatches(record: EvidenceRecord, options: FetchOptions, deps: AgentDeps): number {
-  const needle = options.find!.toLowerCase();
-  const haystack = record.text.toLowerCase();
-  const offsets: number[] = [];
-  let index = haystack.indexOf(needle);
-  while (index !== -1 && offsets.length <= MAX_FIND_MATCHES) {
-    offsets.push(index);
-    index = haystack.indexOf(needle, index + needle.length);
-  }
-  if (!offsets.length) {
-    deps.out(`"${options.find}" does not appear in the text. Try another word or spelling.`);
-    return 0;
-  }
-  const shown = offsets.slice(0, MAX_FIND_MATCHES);
-  deps.out(
-    offsets.length > shown.length
-      ? `"${options.find}" appears more than ${shown.length} times; the first ${shown.length}:`
-      : `"${options.find}" appears ${shown.length} ${shown.length === 1 ? 'time' : 'times'}:`,
-  );
-  for (const offset of shown) {
-    const around = record.text
-      .slice(Math.max(0, offset - 150), offset + needle.length + 150)
-      .replace(/\s+/g, ' ');
-    deps.out(`- offset ${offset}: ...${around}...`);
-  }
-  deps.out(
-    `Read around a match with ${command(`fetch ${options.countryId} "${options.url}" --offset <n>`)}`,
-  );
-  return 0;
 }
 
 /**
@@ -299,21 +200,9 @@ export async function fetchCommand(options: FetchOptions, deps: AgentDeps): Prom
     deps.out(`${options.url} (stored copy in ${stored.file})`);
   } else {
     try {
-      const page = await fetchPage(options.url, {
-        pdf: true,
-        maxCharacters: MAX_EVIDENCE_CHARACTERS,
-        maxBytes: MAX_FETCH_BYTES,
-        timeoutMs: FETCH_TIMEOUT_MS,
-        fetch: deps.fetch,
-      });
-      stored = saveEvidence(dir, page, now());
+      stored = saveEvidence(dir, await fetchForReading(options.url, deps.fetch), now());
     } catch (error) {
-      const reason =
-        error instanceof Error && error.name === 'TimeoutError'
-          ? `no answer within ${FETCH_TIMEOUT_MS / 1000} seconds`
-          : error instanceof Error
-            ? error.message
-            : String(error);
+      const reason = fetchFailure(error);
       session.failedFetches.push({ url: options.url, attemptedAt: now(), reason });
       writeSession(dir, session);
       deps.out(
@@ -334,8 +223,16 @@ export async function fetchCommand(options: FetchOptions, deps: AgentDeps): Prom
     );
   }
   if (notRequested) deps.out(notRequestedWarning(notRequested));
-  if (options.links) return printLinks(record, options, deps);
-  return options.find ? printMatches(record, options, deps) : printChunk(record, options, deps);
+  const read = (offset: number | string, links = false) =>
+    command(
+      `fetch ${options.countryId} "${options.url}"${links ? ' --links' : ''} --offset ${offset}`,
+    );
+  if (options.links) {
+    return printLinks(record, options.offset, (offset) => read(offset, true), deps.out);
+  }
+  return options.find
+    ? printMatches(record, options.find, read('<n>'), deps.out)
+    : printChunk(record, options.offset, read, deps.out);
 }
 
 export type PlacesOptions = {

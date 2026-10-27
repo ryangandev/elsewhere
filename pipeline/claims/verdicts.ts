@@ -232,6 +232,19 @@ export type VerdictContext = {
   texts: Map<string, string[]>;
   /** Recorded on every result. */
   stamp: Pick<ClaimCheck, 'checkedAt' | 'model' | 'effort' | 'promptVersion'>;
+  /**
+   * How pages are read in this check, for problems: "with web_fetch or fetch_page in this
+   * conversation" unless given.
+   */
+  fetchedWith?: string;
+  /** What `texts` holds, for problems: "the text fetched from" unless given. */
+  textFrom?: string;
+  /**
+   * When given, every quote must be checked: a quote from a page without text in `texts` fails,
+   * with this explanation. Without it, such a quote (a PDF the API served as a document) is taken
+   * as given.
+   */
+  missingText?: (url: string) => string;
 };
 
 /**
@@ -292,7 +305,7 @@ export function checkVerdicts(input: unknown, context: VerdictContext): VerdictR
     if (reading.status === 'read' && !context.fetched.has(normalizeUrl(source.url))) {
       sourceIssue(
         reading.id,
-        `sources.${reading.id}: marked read, but ${source.url} was not fetched with web_fetch or fetch_page in this conversation. Fetch it, or mark it unreachable and say why.`,
+        `sources.${reading.id}: marked read, but ${source.url} was not fetched ${context.fetchedWith ?? 'with web_fetch or fetch_page in this conversation'}. Fetch it, or mark it unreachable and say why.`,
       );
     }
     if (reading.status === 'unreachable' && !reading.note?.trim()) {
@@ -315,6 +328,7 @@ export function checkVerdicts(input: unknown, context: VerdictContext): VerdictR
     return normalizedPages.get(key);
   };
 
+  const textFrom = context.textFrom ?? 'the text fetched from';
   const units = new Map(context.units.map((unit) => [unit.id, unit]));
   const seen = new Set<string>();
   const checks: Record<string, ClaimCheck> = {};
@@ -361,12 +375,18 @@ export function checkVerdicts(input: unknown, context: VerdictContext): VerdictR
       }
       const url = declared.get(item.sourceId)!.url;
       const pages = pagesOf(url);
+      if (!pages && context.missingText) {
+        unitIssues.push(
+          `${at}: the quote "${item.quote}" cannot be checked: ${context.missingText(url)}`,
+        );
+        continue;
+      }
       const matches = pages?.map((page) => matchNormalized(item.quote, page, QUOTE_MAX_GAP));
       if (matches && !matches.includes('found')) {
         unitIssues.push(
           matches.includes('too_far_apart')
-            ? `${at}: the parts of the quote "${item.quote}" are more than ${QUOTE_MAX_GAP} characters apart in the text fetched from ${url}; a "..." may skip only a few words within one passage, so quote one passage or give each part as its own quote`
-            : `${at}: the quote "${item.quote}" is not in the text fetched from ${url}; copy the words exactly (use "..." for a gap) or leave the quote out`,
+            ? `${at}: the parts of the quote "${item.quote}" are more than ${QUOTE_MAX_GAP} characters apart in ${textFrom} ${url}; a "..." may skip only a few words within one passage, so quote one passage or give each part as its own quote`
+            : `${at}: the quote "${item.quote}" is not in ${textFrom} ${url}; copy the words exactly (use "..." for a gap) or leave the quote out`,
         );
       }
     }

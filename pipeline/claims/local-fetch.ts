@@ -6,6 +6,8 @@
 //   server returns them; it runs no scripts and does not read PDFs.
 // - Agent drafting (pipeline/agent) reads every page it cites through fetchPage with PDFs on,
 //   and keeps the text as evidence.
+// - The agent claim check (pipeline/claims-agent) reads cited pages the same way, and fetches every
+//   quoted page again at submission to verify its quotes against the live text.
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';

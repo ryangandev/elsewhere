@@ -93,11 +93,18 @@ const recordUrls = (record: Pick<EvidenceRecord, 'requestedUrl' | 'finalUrl'>) =
 ];
 
 /** One file per requested URL, so fetching a page again replaces its record. */
-const evidencePath = (dir: string, url: string) =>
-  join(evidenceDir(dir), `${sha256(normalizeUrl(url)).slice(0, 16)}.json`);
+const recordPath = (folder: string, url: string) =>
+  join(folder, `${sha256(normalizeUrl(url)).slice(0, 16)}.json`);
 
-export function saveEvidence(
-  dir: string,
+export const saveEvidence = (dir: string, page: FetchedPage, fetchedAt: string) =>
+  savePageRecord(evidenceDir(dir), page, fetchedAt);
+
+/**
+ * Store a fetched page as a record in `folder`. Agent drafting keeps its evidence this way; the
+ * agent claim check keeps reading copies the same way, which it never uses to verify a quote.
+ */
+export function savePageRecord(
+  folder: string,
   page: FetchedPage,
   fetchedAt: string,
 ): { file: string; record: EvidenceRecord } {
@@ -114,8 +121,8 @@ export function saveEvidence(
     links: page.links,
     text: page.text,
   };
-  const file = evidencePath(dir, page.url);
-  mkdirSync(evidenceDir(dir), { recursive: true });
+  const file = recordPath(folder, page.url);
+  mkdirSync(folder, { recursive: true });
   writeJson(file, record);
   return { file, record };
 }
@@ -174,9 +181,11 @@ export function loadEvidence(dir: string): { records: StoredEvidence[]; problems
   return { records, problems };
 }
 
-/** The stored record that a URL normalizes to, if any, whether or not it still checks out. */
-export function findEvidence(dir: string, url: string): StoredEvidence | undefined {
-  const folder = evidenceDir(dir);
+/** The stored evidence record that a URL normalizes to, if any, whether or not it still checks out. */
+export const findEvidence = (dir: string, url: string) => findPageRecord(evidenceDir(dir), url);
+
+/** The record in `folder` that a URL normalizes to, if any, whether or not it still checks out. */
+export function findPageRecord(folder: string, url: string): StoredEvidence | undefined {
   if (!existsSync(folder)) return undefined;
   const wanted = normalizeUrl(url);
   for (const name of readdirSync(folder).filter((entry) => entry.endsWith('.json'))) {

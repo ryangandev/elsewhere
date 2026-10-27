@@ -43,7 +43,7 @@ export function submissionSchema(): Record<string, unknown> {
  * JSON with two-space indentation, except that arrays of plain values stay on one line, so the
  * enum of 258 country codes takes one line instead of 258.
  */
-function readableJson(value: unknown, indent = ''): string {
+export function readableJson(value: unknown, indent = ''): string {
   const inner = `${indent}  `;
   if (Array.isArray(value)) {
     if (value.every((item) => item === null || typeof item !== 'object')) {
