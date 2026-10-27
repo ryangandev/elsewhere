@@ -24,6 +24,7 @@ const eslintConfig = defineConfig([
     'test-results/**',
     'next-env.d.ts',
     '.claude/**',
+    '.vercel/**',
   ]),
   {
     files: clientCode,
@@ -42,10 +43,14 @@ const eslintConfig = defineConfig([
               allowTypeImports: true,
             },
             {
-              group: ['slugs', 'paths', 'page-views', 'client-indexes'].flatMap((module) => [
-                `@/domain/${module}`,
-                `./${module}`,
-              ]),
+              group: [
+                'slugs',
+                'paths',
+                'page-views',
+                'client-indexes',
+                'legacy-redirects',
+                'site',
+              ].flatMap((module) => [`@/domain/${module}`, `./${module}`]),
               message: SERVER_ONLY_MESSAGE,
             },
           ],

@@ -21,7 +21,8 @@
     "content:generate": "node --import tsx pipeline/generate/cli.ts",
     "content:verify": "node --import tsx pipeline/validate/cli.ts",
     "content:review": "node --import tsx pipeline/review/cli.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "redirects:build": "NODE_ENV=production node --conditions=react-server --import tsx scripts/build-redirects.ts"
   },
   "dependencies": {
     "class-variance-authority": "0.7.1",
@@ -49,6 +50,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@types/three": "^0.180.0",
+    "@vercel/routing-utils": "^6.6.0",
     "d3-geo": "^3.1.1",
     "eslint": "9.39.4",
     "eslint-config-next": "^16.4.3",

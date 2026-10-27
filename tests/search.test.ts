@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { createAtlasLookup, legacyQueryToPath, linkFor } from '@/domain/atlas-index';
+import { createAtlasLookup, linkFor } from '@/domain/atlas-index';
 import { buildAtlasIndex, extractKeywords } from '@/domain/client-indexes';
 import { isPlaceQuery, searchAtlas, tokenize } from '@/domain/search';
 
@@ -86,20 +86,4 @@ test('stored destinations resolve to links, and removed ones to nothing', () => 
   );
   assert.equal(linkFor(lookup, { countryId: 'SGP', storyId: 'gone' }), undefined);
   assert.equal(linkFor(lookup, { countryId: 'XXX' }), undefined);
-});
-
-test('prototype query URLs translate to path URLs and degrade to a valid page', () => {
-  const redirect = (search: string) => legacyQueryToPath(search, lookup);
-  assert.equal(redirect('?country=sgp&topic=shipping'), '/singapore/shipping');
-  assert.equal(
-    redirect('?country=sgp&topic=shipping&trail=water-connects'),
-    '/singapore/shipping?trail=water-connects',
-  );
-  assert.equal(redirect('?country=sgp'), '/singapore');
-  assert.equal(redirect('?country=jpn&topic=shipping'), '/japan');
-  assert.equal(redirect('?country=can&topic=shipping'), '/canada');
-  assert.equal(redirect('?country=sgp&topic=wealth&trail=water-connects'), '/singapore/wealth');
-  assert.equal(redirect('?country=unknown&topic=shipping'), null);
-  assert.equal(redirect(''), null);
-  assert.equal(redirect('?other=1'), null);
 });

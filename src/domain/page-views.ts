@@ -26,6 +26,7 @@ import type { MapScene } from '@/globe/scene';
 import { destinationKey, type Destination } from './destination';
 import { destinationPath } from './paths';
 import { countryFromSegment, storyFromSegment } from './slugs';
+import { pageDestination } from './view-models';
 import type {
   CountryPageView,
   HomeView,
@@ -307,19 +308,21 @@ export function buildHomeView(): HomeView {
   return { suggestions: getHome().suggestedQuestions.map((ref) => storyLink(ref)) };
 }
 
-export type PageSummary = { title: string; description: string };
+export type PageSummary = { title: string; description: string; path: string };
 
-/** The title and description of a page, for metadata and link previews. */
+/** The title, description and canonical path of a page, for metadata and link previews. */
 export function describePage(view: PageView): PageSummary {
+  const path = destinationPath(pageDestination(view));
   switch (view.kind) {
     case 'story':
-      return { title: view.title, description: view.summary };
+      return { title: view.title, description: view.summary, path };
     case 'country':
-      return { title: view.title, description: view.summary };
+      return { title: view.title, description: view.summary, path };
     case 'map':
       return {
         title: view.title,
         description: `${view.title} in ${view.country.region}: where it is on the map, with Natural Earth basics and the edited stories nearby.`,
+        path,
       };
   }
 }

@@ -30,6 +30,7 @@ app/                       Next.js routes; the root layout owns the persistent g
   [country]/[story]/page.tsx  one answered question
   atlas/labels.json/       build-time client index: country labels for the globe
   atlas/index.json/        build-time client index: countries, questions, trails
+  robots.ts, sitemap.ts    robots.txt and sitemap.xml, generated at build time
 src/
   content/                 schema (zod), typed loaders, validation; server-only
   domain/                  view models, routing, client indexes, search and ask, library
@@ -41,7 +42,9 @@ content/en/                generated and reviewed content, one file per country,
 data/geo/                  Natural Earth derived map identities and gazetteer
 pipeline/                  content generation, validation and review (step 5)
 scripts/                   geo data builds and content:check
-tests/                     unit tests; e2e/ for Playwright
+tests/                     unit tests
+e2e/                       Playwright end-to-end tests against out/
+vercel.json                Vercel redirects and response headers
 ```
 
 ## Platform
@@ -71,19 +74,48 @@ How it is built:
 - The globe is loaded with `next/dynamic` and `ssr: false`, because it needs `window` and WebGL.
 - Trail context stays a search parameter (`/singapore/shipping?trail=water-connects`).
   Pages are prerendered without it and the panel shows trail progress once the page hydrates, which keeps the page itself static.
-- Each page sets its own title and description with `generateMetadata`.
+- Each page sets its own title, description, canonical path and Open Graph preview with `generateMetadata`, through `pageMetadata` in `src/domain/site.ts`.
+  Next.js replaces `openGraph` as a whole instead of merging it with the layout's, so the helper always sets all of it.
+  The not-found page has no canonical link.
+- Absolute URLs (canonical links, `og:url`, robots.txt, the sitemap) are built on `siteOrigin()`: the production domain Vercel sets in `VERCEL_PROJECT_PRODUCTION_URL` for every deployment, or `http://localhost:3000` elsewhere.
+  Previews therefore point search engines at production, and Vercel also marks previews `noindex`.
+  The value changes when a custom domain is added, on the next deployment, so nothing needs configuring.
+- `app/robots.ts` allows all crawling and names the sitemap; `app/sitemap.ts` lists the home page and every published country and question, dated by their review.
+  Map-only country pages are left out, because they hold Natural Earth basics rather than edited content.
 - The tab icon is a file convention: `app/icon.svg`, plus `app/favicon.ico` for the browser's automatic `/favicon.ico` request, which would otherwise reach `app/[country]`.
   `app/apple-icon.png` is the full-bleed home screen icon for iOS, which rounds the corners itself.
+
+How Vercel serves it:
+
+- The Vercel project uses the Next.js framework preset; its builder detects `output: 'export'` and deploys `out/` as static files, with no functions.
+  A local `vercel build` shows what that means: pages are served without `.html` (`/singapore`), a trailing slash redirects to the path without one, and any path that is not a file answers 404 with `out/404.html`, the designed not-found page.
+- `vercel.json` holds what static files cannot: response headers, and the prototype query URL redirects described below.
+- Caching is left to Vercel's defaults, which already fit.
+  Content-hashed files under `/_next/static` are served as `public, max-age=31536000, immutable`.
+  Every other file, HTML included, gets Vercel's static default, so the browser revalidates it (a cheap 304) and sees a new deployment at once.
+  The basemap, the country geometry and the atlas indexes keep fixed URLs, so they are not marked immutable: a long browser cache would keep stale geometry, or an index whose paths no longer match the pages.
+  The site uses system fonts, so there are no font files to cache.
+- Every response carries a Content Security Policy that allows same-origin resources only, plus `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and a `Permissions-Policy` that turns off camera, microphone, geolocation, payment, USB and topics.
+  Inline scripts and styles are allowed, because a static export carries the React Server Components payload in inline scripts and there is no server to add nonces.
+  Framing is allowed, so the site can be embedded in a portfolio; it has no sign-in or actions to clickjack.
+  Vercel adds HSTS itself.
+- The e2e tests add the headers from `vercel.json` to every page they load (`e2e/fixtures.ts`) and fail on any Content Security Policy violation, so a change that needs another origin fails there first.
 
 What changed from the prototype:
 
 - `vinext` (a beta reimplementation of Next.js on Vite) was replaced by Next.js itself.
 - The ChatGPT Sites and Cloudflare Worker template, D1/drizzle scaffolding, and unused shadcn components were removed.
   The three shadcn components in use (dialog, sheet, command) and button live in `src/ui/primitives/`.
-- Query-string URLs (`/?country=sgp&topic=shipping`) redirect to path URLs in the browser.
-  A static site cannot see query strings when it builds, so the home page runs a small client redirect (`LegacyUrlRedirect`).
-  It loads the atlas index only when the query names a country, and falls back to the country page when the question or trail no longer exists.
-  Follow-up: once the site is on Vercel, move it to `redirects` in the Vercel config so it becomes a real 308 response.
+- Query-string URLs (`/?country=sgp&topic=shipping&trail=water-connects`) answer with a permanent 308 redirect to the path URL, from `redirects` in `vercel.json`.
+  A static page cannot see the query string of the request that loaded it, so the redirect has to happen in front of the files.
+  Each rule matches the home path and the query by permanent ID: the country case-insensitively (the prototype accepted `sgp` and `SGP`), the question and trail exactly.
+  Rules are ordered most specific first, because Vercel applies the first match: a trail stop keeps its trail, any other question drops it, and any other country URL opens the country, so a question that no longer exists still lands on its country.
+  `src/domain/legacy-redirects.ts` builds the rules through `destinationPath`, from the frozen list of questions and trails the prototype published plus every map identity (the prototype had the same 258), and `npm run redirects:build` writes them into `vercel.json`.
+  Content added since never had a query URL, so new questions do not add rules.
+  `tests/deployment.test.ts` compiles `vercel.json` with Vercel's own routing utilities, matches requests against the result, and fails when the committed rules differ from what the builder produces.
+  Vercel passes the original query string on to the destination, so a redirected URL can keep `country` and `topic`; pages ignore them, and a trail the question is not on is ignored too.
+  There is no in-browser fallback: Vercel is the only host, and keeping a second copy of the mapping in the client would cost a script and an index fetch on the home page for links that only ever pointed at the prototype.
+  Serving `out/` locally (`npm start`, the e2e tests) therefore shows the home page for these URLs.
 
 ## Content model
 
@@ -439,7 +471,7 @@ Client indexes are static route handlers (`dynamic = 'force-static'`), written t
 | Index | Built by | Used by | Size (raw / gzip) |
 | --- | --- | --- | --- |
 | `/atlas/labels.json` | `buildCountryLabels` | globe labels; the globe mounts once it loads | 29 KB / 9 KB |
-| `/atlas/index.json` | `buildAtlasIndex` | question input and search, library, recent history, trail drawer, resume, old-URL redirect | 45 KB / 11 KB |
+| `/atlas/index.json` | `buildAtlasIndex` | question input and search, library, recent history, trail drawer, resume | 45 KB / 11 KB |
 
 The atlas index holds every country, every question with its path, category, summary and build-time keywords (TF-IDF over the story text), every trail with its stop paths, and the home screen's suggested questions (offered when a query is not answered).
 It grows with the question bank, so it can be split by country if it gets too large to load whole.
@@ -481,7 +513,7 @@ Reading:
 - A map-only country shows its basics and the nearest edited countries, measured between label anchors.
 - Bookmarks and recent history stay in localStorage, behind a small `library` interface so Stage 2 can add sync.
   They store destinations by ID and resolve titles and links through the atlas index; entries whose question no longer exists are hidden.
-- Old URLs redirect in the browser; see [Platform](#platform).
+- Prototype query URLs redirect on Vercel; see [Platform](#platform).
 
 ## Styling
 
@@ -507,8 +539,10 @@ Adding Chinese later means adding a catalog and a `content/zh/` tree, with no co
 - Unit tests (Vitest) for pure logic: schema rules, navigation, search, cartography, picking.
 - Content validation runs in CI on every change to `content/`.
 - Pipeline tests in `tests/pipeline/` run plan, draft, verify, review and redraft end to end on replayed model responses.
-- Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, back and forward, trails, saving a story to your atlas, share, and the About sheet.
+- Playwright e2e in `e2e/` drives Chromium against the static export in `out/`, as shipped: ask, read an answer and its sources, follow a next question, Cmd/Ctrl K, deep links, not-found, robots.txt, the sitemap and canonical links, back and forward, trails, saving a story to your atlas, share, and the About sheet.
   A phone project runs the core loop (home, ask, story, follow), the reading panel collapsing to a strip and giving the globe its room, and share through a stubbed system share sheet at 390 by 844 with touch.
+  Every page loads with the production response headers from `vercel.json`, and a Content Security Policy violation fails the test, like an uncaught error does.
+  `npx serve` cannot apply the prototype query URL redirects, so `tests/deployment.test.ts` covers those against the compiled Vercel routes instead.
   The specs find things by role and visible text, read expected questions and sources from `content/en/`, and never depend on globe pixels or on WebGL (one spec runs with WebGL disabled).
   Run `npm run build` first, then `npm run test:e2e`; CI runs it as its own `e2e` job and keeps the Playwright report when it fails.
   CI runners have no GPU and render the globe in software, so tests there get twice the local time limits.

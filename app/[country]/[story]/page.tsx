@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { describePage, matchStoryRoute, storyStaticParams } from '@/domain/page-views';
+import { pageMetadata } from '@/domain/site';
 import { ShellBridge } from '@/ui/atlas/ShellBridge';
 import { DestinationPanel } from '@/ui/panel/DestinationPanel';
 
@@ -16,12 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { country, story } = await params;
   const view = matchStoryRoute(country, story);
   if (!view) return {};
-  const summary = describePage(view);
-  return {
-    title: summary.title,
-    description: summary.description,
-    openGraph: { title: summary.title, description: summary.description, type: 'article' },
-  };
+  return pageMetadata({ ...describePage(view), type: 'article' });
 }
 
 export default async function StoryPage({ params }: Props) {

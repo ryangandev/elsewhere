@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { countryStaticParams, describePage, matchCountryRoute } from '@/domain/page-views';
+import { pageMetadata } from '@/domain/site';
 import { ShellBridge } from '@/ui/atlas/ShellBridge';
 import { DestinationPanel } from '@/ui/panel/DestinationPanel';
 
@@ -15,12 +16,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const view = matchCountryRoute((await params).country);
   if (!view) return {};
-  const summary = describePage(view);
-  return {
-    title: summary.title,
-    description: summary.description,
-    openGraph: { title: summary.title, description: summary.description },
-  };
+  return pageMetadata(describePage(view));
 }
 
 export default async function CountryPage({ params }: Props) {
