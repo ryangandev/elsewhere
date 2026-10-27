@@ -11,7 +11,7 @@ The globe workstream (step 4) replaced the prototype globe with the controller i
 The content workstream (step 3) added the schema, the English edition in `content/en/` (files are discovered, not registered), and the gazetteer with sea passages.
 Pages read only `content/en/` through server-only loaders, hand the shell serializable view models, and the browser loads two build-time indexes instead of content modules.
 URLs use readable slugs; prototype query URLs get permanent redirects from `vercel.json`.
-The content pipeline workstream (step 5) added generation, verification, claim check and review commands in `pipeline/`; no content has been generated with them yet.
+The content pipeline workstream (step 5) added generation, verification, claim check and review commands in `pipeline/`, and agent drafting, which drafts a country in a Claude Code subagent with the same checks; no content has been committed from them yet.
 The question-first experience (step 6) made the home a question input with suggested questions from `content/en/home.json`, shared with Cmd K.
 Search also matches paraphrases of each question, written offline by `npm run content:paraphrase`, so a question in a reader's own words finds its story; every story has them.
 Step 7 has started: Playwright e2e tests cover the core loop on desktop and phone, and a visual polish pass covered every surface at 1440, 1024 and 390 pixels wide.
@@ -30,7 +30,8 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
   1. Fill in `ANTHROPIC_API_KEY` in `.env.local` at the repository root (a git-ignored copy of `.env.example`); it is never printed.
   2. Check the country list and reasons in `pipeline/batches/pilot.json`.
   3. Run `npm run content:generate -- --batch pilot --plan-only`, then read and edit `pipeline/batches/pilot.plan.json` (about $1).
-  4. Run `npm run content:generate -- --batch pilot` (about $20 to $60; add `--mode batch` for roughly half the token cost and a slower run).
+  4. Run `npm run content:generate -- --batch pilot` (about $9 a country at `max` effort, measured on the pilot, less at the default `high`; add `--mode batch` for roughly half the token cost and a slower run).
+     Or draft without API credit: ask Claude Code to run the `content-drafter` subagent for each country in the batch, which drafts through `npm run content:agent` from the same plan; see [Agent drafting](architecture.md#agent-drafting).
   5. Run `npm run content:verify`, then `npm run content:claims -- --drafts` to check the drafted text against its sources (roughly $1 to $3 a country, more when a source is a long PDF).
   6. Run `npm run content:paraphrase -- --all` to write search phrasings for the new stories (a few cents per country).
   7. Review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back.
