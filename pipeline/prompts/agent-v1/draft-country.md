@@ -13,6 +13,7 @@ Run these from the repository root, and put each URL in quotes.
 - `npm run content:agent -- fetch {{countryId}} "<url>"` reads a page and prints its first part with a header that says how long it is. Add `--offset <n>` to print the part that starts at character n, or `--find "<words>"` to list where the words appear. Later reads of the same URL come from the stored copy.
 - `npm run content:agent -- places {{countryId}} --query "<name>"` searches the gazetteer by name. Add `--country <map ID>` to search within one country, or `--near <place ID>` to sort by distance from a place; either works without `--query` too.
 - `npm run content:agent -- submit {{countryId}}` checks {{draftFile}} with every rule the pipeline applies. Problems come back as a numbered list; fix all of them and submit again until it passes.
+- `npm run content:agent -- submit {{countryId}} --dry-run` runs the same checks and prints the same problems, or says the draft would pass, but writes nothing and does not count as a submission. Use it to check a draft, for example its map routes, before you submit.
 - `npm run content:agent -- status {{countryId}}` lists the pages you have fetched and your submissions so far.
 
 ## Editor's notes on the previous draft

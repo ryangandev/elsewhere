@@ -38,12 +38,18 @@ type Page = {
   finalUrl?: string;
 };
 
+/** A network failure as Node's fetch reports it: "fetch failed", with the reason in the cause. */
+function networkFailure(reason: string, code?: string): Error {
+  return new TypeError('fetch failed', { cause: Object.assign(new Error(reason), { code }) });
+}
+
 /** A fetch stub that serves the given pages by URL and counts requests. */
-function stubFetch(pages: Record<string, Page>) {
+function stubFetch(pages: Record<string, Page>, failures: Record<string, Error> = {}) {
   const requested: string[] = [];
   const stub = (async (input: string | URL | Request) => {
     const url = String(input);
     requested.push(url);
+    if (failures[url]) throw failures[url];
     const page = pages[url];
     if (!page) return new Response('Not found', { status: 404 });
     const response = new Response(page.body, {
@@ -69,11 +75,17 @@ function chilePages(): Record<string, Page> {
   );
 }
 
-function setup(options: { plan?: AgentDeps['plan']; pages?: Record<string, Page> } = {}) {
+function setup(
+  options: {
+    plan?: AgentDeps['plan'];
+    pages?: Record<string, Page>;
+    failures?: Record<string, Error>;
+  } = {},
+) {
   const contentDir = tempContentTree();
   const root = tempDir();
   const lines: string[] = [];
-  const fetcher = stubFetch(options.pages ?? {});
+  const fetcher = stubFetch(options.pages ?? {}, options.failures);
   const deps: AgentDeps = {
     root,
     // The fixture draft answers its own questions, not the pilot plan's.
@@ -253,6 +265,90 @@ describe('agent fetch command', () => {
     expect(requested.filter((url) => url === 'https://example.org/long')).toHaveLength(1);
   });
 
+  it('says why a request failed at the network level, and records the attempt', async () => {
+    const refused = new AggregateError([Object.assign(new Error(''), { code: 'ECONNREFUSED' })]);
+    const failures = {
+      'https://loop.example/a': networkFailure('redirect count exceeded'),
+      'https://wrong.example/': networkFailure(
+        "Hostname/IP does not match certificate's altnames: Host: wrong.example",
+        'ERR_TLS_CERT_ALTNAME_INVALID',
+      ),
+      'https://reset.example/': networkFailure('read ECONNRESET', 'ECONNRESET'),
+      'https://refused.example/': new TypeError('fetch failed', { cause: refused }),
+      'https://odd.example/': new TypeError('fetch failed'),
+    };
+    const { dir, begin, read, output, deps } = setup({ pages, failures });
+    begin();
+    output();
+    for (const [url, reason] of [
+      ['https://loop.example/a', 'fetch failed (redirect count exceeded)'],
+      [
+        'https://wrong.example/',
+        "fetch failed (ERR_TLS_CERT_ALTNAME_INVALID: Hostname/IP does not match certificate's altnames: Host: wrong.example)",
+      ],
+      ['https://reset.example/', 'fetch failed (read ECONNRESET)'],
+      ['https://refused.example/', 'fetch failed (ECONNREFUSED)'],
+      ['https://odd.example/', 'Could not read https://odd.example/: fetch failed.'],
+    ]) {
+      expect(await read(url)).toBe(1);
+      expect(output()).toContain(reason);
+    }
+
+    const session = readSession(dir, 'CHL');
+    expect(session.failedFetches.map(({ url }) => url)).toEqual(Object.keys(failures));
+    expect(session.failedFetches[0]).toEqual({
+      url: 'https://loop.example/a',
+      attemptedAt: '2026-10-26T12:00:00.000Z',
+      reason: 'fetch failed (redirect count exceeded)',
+    });
+    // A failed attempt is a note for the drafter, never evidence.
+    expect(loadEvidence(dir).records).toEqual([]);
+
+    status({ countryId: 'CHL' }, deps);
+    const printed = output();
+    expect(printed).toContain('Failed fetches: 5');
+    expect(printed).toContain(
+      'https://reset.example/ (2026-10-26T12:00:00.000Z): fetch failed (read ECONNRESET)',
+    );
+  });
+
+  it('records a server error and shows none for a session without failures', async () => {
+    const { dir, begin, read, output, deps } = setup({ pages });
+    begin();
+    await read('https://example.org/article');
+    output();
+    status({ countryId: 'CHL' }, deps);
+    expect(output()).toContain('Failed fetches: none');
+
+    await read('https://example.org/blocked');
+    expect(readSession(dir, 'CHL').failedFetches).toMatchObject([
+      { url: 'https://example.org/blocked', reason: 'the server answered 403' },
+    ]);
+  });
+
+  it('keeps failed fetches when a session continues, and reads sessions without them', async () => {
+    const { dir, begin, read, output } = setup({ pages });
+    begin();
+    await read('https://example.org/blocked');
+    output();
+    expect(begin()).toBe(0);
+    expect(readSession(dir, 'CHL').failedFetches).toHaveLength(1);
+
+    const file = join(dir, 'session.json');
+    const older = JSON.parse(readFileSync(file, 'utf8'));
+    delete older.failedFetches;
+    writeFileSync(file, JSON.stringify(older));
+    expect(readSession(dir, 'CHL').failedFetches).toEqual([]);
+  });
+
+  it('adds the cause to the claim check fetch as well', async () => {
+    const reset = { 'https://reset.example/': networkFailure('read ECONNRESET', 'ECONNRESET') };
+    const { stub } = stubFetch({}, reset);
+    await expect(fetchPage('https://reset.example/', { fetch: stub })).rejects.toThrow(
+      'fetch failed (read ECONNRESET)',
+    );
+  });
+
   it('leaves the claim check reading HTML and plain text only', async () => {
     const { stub } = stubFetch(pages);
     await expect(fetchPage(PDF_URL, { fetch: stub })).rejects.toThrow(
@@ -309,6 +405,52 @@ describe('agent submit command', () => {
       expect(printed).toContain('its text no longer matches the hash');
       expect(printed).toContain(`(${target.record.requestedUrl}) was not retrieved in this task`);
       expect(existsSync(countryFilePath(contentDir, 'chile'))).toBe(false);
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
+
+  it(
+    'checks a draft with --dry-run without writing or recording anything',
+    async () => {
+      const { contentDir, dir, begin, read, writeDraft, output, deps } = setup({
+        pages: chilePages(),
+      });
+      begin();
+      const [unfetched, ...fetched] = chileDraft().sources;
+      for (const source of fetched) await read(source.url);
+      output();
+      writeDraft(chileDraft());
+      const sessionBefore = readFileSync(join(dir, 'session.json'), 'utf8');
+
+      // The same problems as a real submission, and no trace of the attempt.
+      expect(submit({ countryId: 'CHL', dryRun: true }, deps)).toBe(1);
+      const dryProblems = output();
+      expect(dryProblems).toContain('Dry run: the draft has');
+      expect(dryProblems).toContain(`"${unfetched.id}" (${unfetched.url}) was not retrieved`);
+      expect(existsSync(join(dir, 'submissions'))).toBe(false);
+      expect(readFileSync(join(dir, 'session.json'), 'utf8')).toBe(sessionBefore);
+
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      const realProblems = output();
+      const numbered = (text: string) => text.split('\n').filter((line) => /^\d+\. /.test(line));
+      expect(numbered(dryProblems)).toEqual(numbered(realProblems));
+      expect(readSession(dir, 'CHL').submissions).toHaveLength(1);
+
+      // Once the draft passes, the dry run says so and still writes nothing.
+      await read(unfetched.url);
+      output();
+      expect(submit({ countryId: 'CHL', dryRun: true }, deps)).toBe(0);
+      const passed = output();
+      expect(passed).toContain('Dry run: the draft would pass. Nothing was written');
+      expect(passed).toContain('4 stories, 4 sources, 0 pending references.');
+      expect(existsSync(countryFilePath(contentDir, 'chile'))).toBe(false);
+      expect(readSession(dir, 'CHL').written).toBeUndefined();
+      expect(readSession(dir, 'CHL').submissions).toHaveLength(1);
+      expect(existsSync(join(dir, 'submissions', '2.json'))).toBe(false);
+
+      // It did not finish the session, so a real submission still works.
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(0);
+      expect(existsSync(countryFilePath(contentDir, 'chile'))).toBe(true);
     },
     SUBMIT_TIMEOUT_MS,
   );

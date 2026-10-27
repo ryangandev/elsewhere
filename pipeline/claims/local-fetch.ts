@@ -155,6 +155,37 @@ export async function pdfToText(data: Uint8Array): Promise<string> {
   return cleaned.map((page, index) => `[Page ${index + 1}]\n${page}`).join('\n\n');
 }
 
+/** What a failed request says in `error.cause`: its error code and message, if it has either. */
+function causeDetail(cause: unknown): string | undefined {
+  if (!cause || typeof cause !== 'object') return undefined;
+  const { code, message, errors } = cause as {
+    code?: unknown;
+    message?: unknown;
+    errors?: unknown;
+  };
+  const text = typeof message === 'string' ? message : '';
+  const name = typeof code === 'string' ? code : '';
+  if (text) return !name || text.includes(name) ? text : `${name}: ${text}`;
+  // A connection refused on every address is an AggregateError with no message of its own.
+  return name || (Array.isArray(errors) ? causeDetail(errors[0]) : undefined);
+}
+
+/**
+ * Node's fetch reports every network failure as "fetch failed" and keeps the real reason (a
+ * redirect loop, a certificate for another name, a reset connection, an unknown host) in the
+ * error's cause. The reason is added to the message so a person or an agent can tell a page that
+ * will never load from one that may load later.
+ */
+async function request(fetchImpl: typeof fetch, url: string, init: RequestInit) {
+  try {
+    return await fetchImpl(url, init);
+  } catch (error) {
+    const detail = error instanceof Error ? causeDetail(error.cause) : undefined;
+    if (!(error instanceof Error) || !detail) throw error;
+    throw new Error(`${error.message} (${detail})`, { cause: error });
+  }
+}
+
 /** Fetch a page and extract its text, or throw with the reason it could not be read. */
 export async function fetchPage(url: string, options: FetchPageOptions = {}): Promise<FetchedPage> {
   const {
@@ -163,7 +194,7 @@ export async function fetchPage(url: string, options: FetchPageOptions = {}): Pr
     maxBytes = MAX_BYTES,
     timeoutMs = TIMEOUT_MS,
   } = options;
-  const response = await (options.fetch ?? fetch)(url, {
+  const response = await request(options.fetch ?? fetch, url, {
     redirect: 'follow',
     headers: {
       'user-agent': USER_AGENT,

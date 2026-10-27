@@ -1,6 +1,7 @@
 // An agent drafting session on disk, one directory per country in pipeline/.cache/agent/:
 //
-//   session.json    what is drafted, with which model, prompts and date, and every submission
+//   session.json    what is drafted, with which model, prompts and date, every submission and
+//                   every fetch that failed
 //   brief.md        the complete instructions the subagent follows
 //   evidence/       one record per page read through the fetch command, with its text
 //   submissions/    every draft submitted, numbered, for audit
@@ -34,6 +35,10 @@ export const AgentSession = z.strictObject({
   submissions: z.array(
     z.strictObject({ file: z.string(), submittedAt: z.string(), issues: z.array(z.string()) }),
   ),
+  /** Pages the fetch command could not read. Never evidence: only a stored record is. */
+  failedFetches: z
+    .array(z.strictObject({ url: z.string(), attemptedAt: z.string(), reason: z.string() }))
+    .default([]),
   written: z.strictObject({ file: z.string(), writtenAt: z.string() }).optional(),
 });
 export type AgentSession = z.infer<typeof AgentSession>;

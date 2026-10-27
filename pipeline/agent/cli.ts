@@ -23,6 +23,7 @@ Commands:
     --country <id>        only places in this map country
     --near <place id>     sort by distance from this place
   submit <country> [file] check the draft (default draft.json in the session) and write it
+    --dry-run             run the same checks but write and record nothing
   status <country>        what the session has fetched and submitted
 `;
 
@@ -46,7 +47,7 @@ const OPTIONS: Record<string, Options> = {
     country: { type: 'string' },
     near: { type: 'string' },
   },
-  submit: {},
+  submit: { 'dry-run': { type: 'boolean', default: false } },
   status: {},
 };
 
@@ -115,7 +116,7 @@ async function main(): Promise<number> {
         deps,
       );
     case 'submit':
-      return submit({ countryId, file: argument }, deps);
+      return submit({ countryId, file: argument, dryRun: values['dry-run'] === true }, deps);
     default:
       return status({ countryId }, deps);
   }

@@ -26,6 +26,7 @@ Run every command from the repository root.
    If a page cannot be fetched, choose another source.
 4. Choose map places only from the brief's gazetteer listings and `npm run content:agent -- places <ID> --query "<name>"`.
 5. Write the draft as JSON to `pipeline/.cache/agent/<ID>/draft.json`, following the submission schema in the brief.
+   Optionally run `npm run content:agent -- submit <ID> --dry-run` first, for example to check map routes: it runs every check and prints the problems, but writes nothing and does not count as a submission.
 6. Run `npm run content:agent -- submit <ID>`.
    If it lists problems, fix every one in the draft (fetch more sources where a claim lacks one) and submit again, until it passes.
 7. Report the result: the file written, the number of stories and sources, any pending references, and anything you could not source and left out.
