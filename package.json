@@ -23,6 +23,7 @@
     "content:claims": "node --import tsx pipeline/claims/cli.ts",
     "content:review": "node --import tsx pipeline/review/cli.ts",
     "content:paraphrase": "node --import tsx pipeline/paraphrase/cli.ts",
+    "content:agent": "node --import tsx pipeline/agent/cli.ts",
     "test:e2e": "playwright test",
     "redirects:build": "NODE_ENV=production node --conditions=react-server --import tsx scripts/build-redirects.ts"
   },
