@@ -17,9 +17,10 @@ Commands:
   fetch <country> <url>   read a page on this computer, keep it as evidence, print a part
     --offset <n>          print the part starting at character n
     --find <words>        list where the words appear instead
+    --links               list the page's links (text | URL) instead; --offset counts links
     --refresh             fetch again even when the page is stored
   places <country>        search the gazetteer
-    --query <name>        part of a place name
+    --query <name>        part of a place name; repeat it to search several names at once
     --country <id>        only places in this map country
     --near <place id>     sort by distance from this place
   submit <country> [file] check the draft (default draft.json in the session) and write it
@@ -40,10 +41,11 @@ const OPTIONS: Record<string, Options> = {
   fetch: {
     offset: { type: 'string', default: '0' },
     find: { type: 'string' },
+    links: { type: 'boolean', default: false },
     refresh: { type: 'boolean', default: false },
   },
   places: {
-    query: { type: 'string' },
+    query: { type: 'string', multiple: true },
     country: { type: 'string' },
     near: { type: 'string' },
   },
@@ -105,6 +107,7 @@ async function main(): Promise<number> {
           url: argument,
           offset,
           find: string('find'),
+          links: values.links === true,
           refresh: values.refresh === true,
         },
         deps,
@@ -112,7 +115,12 @@ async function main(): Promise<number> {
     }
     case 'places':
       return places(
-        { countryId, query: string('query'), country: string('country'), near: string('near') },
+        {
+          countryId,
+          queries: (values.query as string[] | undefined) ?? [],
+          country: string('country'),
+          near: string('near'),
+        },
         deps,
       );
     case 'submit':

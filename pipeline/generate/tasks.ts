@@ -249,13 +249,19 @@ export function countryTaskValues(
 
 /**
  * Parse, assemble and check a country draft. `evidence` holds the normalized URLs the drafter
- * retrieved; `evidenceRule` tells it, in a problem, which pages it may cite.
+ * retrieved; `evidenceRule` tells it, in a problem, which pages it may cite; `unusableEvidence`
+ * explains the retrieved pages it may not.
  */
 export function submitCountryDraft(
   context: DraftingContext,
   countryId: string,
   input: unknown,
-  options: { model: string; evidence: Set<string>; evidenceRule?: string },
+  options: {
+    model: string;
+    evidence: Set<string>;
+    evidenceRule?: string;
+    unusableEvidence?: Map<string, string>;
+  },
 ): Submission {
   const parsed = CountryDraft.safeParse(input);
   if (!parsed.success) return { ok: false, issues: zodIssues(parsed.error), draft: input };
@@ -274,6 +280,7 @@ export function submitCountryDraft(
     submittedSources: parsed.data.sources,
     evidence: options.evidence,
     evidenceRule: options.evidenceRule,
+    unusableEvidence: options.unusableEvidence,
     storyCount: context.storyCount,
     land: context.land,
   });

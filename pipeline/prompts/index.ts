@@ -47,8 +47,11 @@ export function loadPrompts(version: string = CURRENT_PROMPT_VERSION): PromptSet
  * the pipeline's fetch command instead of the API's server tools, so the research and submission
  * instructions differ; every content, tone and sourcing rule is copied unchanged from the drafting
  * version it started from (agent-v1 from v3). It holds only the prompts agent drafting uses.
+ * agent-v1 stays as it was for the drafts that recorded it. agent-v2 recommends sources the fetch
+ * command can read, documents `--links`, and forbids other HTTP tools and personal information in
+ * requests.
  */
-export const CURRENT_AGENT_PROMPT_VERSION = 'agent-v1';
+export const CURRENT_AGENT_PROMPT_VERSION = 'agent-v2';
 
 const AGENT_NAMES = ['system', 'link-targets', 'draft-country', 'repair'] as const;
 export type AgentPromptSet = { version: string } & Record<(typeof AGENT_NAMES)[number], string>;

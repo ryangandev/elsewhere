@@ -25,6 +25,8 @@ export type CheckInput = {
   evidence: Set<string>;
   /** Which pages may be cited, told to the drafter when a source was not retrieved. */
   evidenceRule?: string;
+  /** Normalized URLs that were retrieved but cannot be cited, with the reason. */
+  unusableEvidence?: Map<string, string>;
   storyCount: { min: number; max: number };
   land?: LandIndex;
 };
@@ -54,11 +56,14 @@ export function checkCandidate(input: CheckInput): string[] {
   }
 
   for (const source of input.submittedSources) {
-    if (!input.evidence.has(normalizeUrl(source.url))) {
-      issues.push(
-        `sources: "${source.id}" (${source.url}) was not retrieved in this task. ${input.evidenceRule ?? DEFAULT_EVIDENCE_RULE}`,
-      );
-    }
+    const url = normalizeUrl(source.url);
+    if (input.evidence.has(url)) continue;
+    const unusable = input.unusableEvidence?.get(url);
+    issues.push(
+      unusable
+        ? `sources: "${source.id}" (${source.url}) is not the page it should be: ${unusable}. It cannot support a claim; read the real page or choose another source.`
+        : `sources: "${source.id}" (${source.url}) was not retrieved in this task. ${input.evidenceRule ?? DEFAULT_EVIDENCE_RULE}`,
+    );
   }
 
   const others = parsedCountryFiles(contentDir);
