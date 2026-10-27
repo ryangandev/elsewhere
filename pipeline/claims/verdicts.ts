@@ -105,37 +105,120 @@ export function fetchedTexts(content: BetaContentBlock[]): Map<string, string> {
   return texts;
 }
 
-/** Text compared loosely: case, spacing, quote, apostrophe, dash and ellipsis styles do not matter. */
-const loose = (text: string) =>
-  text
-    .toLowerCase()
-    .replace(/[‘’‚′`]/g, "'")
-    .replace(/[“”„″]/g, '"')
-    .replace(/[‐-―−]/g, '-')
-    .replace(/…/g, '...')
-    .replace(/\s+/g, ' ')
-    .trim();
+/**
+ * Quotation marks and apostrophes in every style, full-width ones included. They are folded before
+ * NFKC, which would turn the acute accent into a space and a combining mark.
+ */
+const QUOTE_MARKS = /["'`´‘’‚‛“”„‟′″‴‵‶‷«»‹›＂＇]/g;
+/** Hyphens, dashes and minus signs. */
+const DASHES = /[\u2010-\u2015\u2212\u2e3a\u2e3b\ufe58\ufe63]/g;
+/** Characters that take no space: zero-width spaces and joiners, the word joiner, the byte order mark, soft hyphens. */
+const INVISIBLE = /[\u00ad\u200b-\u200d\u2060\ufeff]/g;
 
 /**
- * Whether a quote appears in a page's text: compared loosely, without quotation marks around it,
- * and with "..." standing for a gap, so each part must appear, in order.
+ * Text as quotes are compared: what changes between a page and a faithful copy of its words is
+ * folded away, and the words themselves are kept.
+ *
+ * - Escapes a model sometimes writes in place of a character (`\u2212`, `\"`) are decoded.
+ * - Unicode compatibility forms are folded (NFKC): non-breaking and other Unicode spaces, the
+ *   ellipsis character as "...", ligatures, full-width forms.
+ * - Markdown, which web_fetch serves pages as, is reduced to its words: link targets, emphasis
+ *   and table borders go.
+ * - Every quotation mark and apostrophe is one mark, kept only between letters or digits, where it
+ *   is part of a word ("world’s"); elsewhere it only marks a quotation, which a quote may add or drop.
+ * - Hyphens, dashes and minus signs are one dash, without spaces around it.
+ * - Case does not matter, and any run of whitespace is one space.
  */
-export function quoteInText(quote: string, text: string): boolean {
-  const page = loose(text);
-  const parts = loose(quote)
-    .replace(/^["']+|["']+$/g, '')
-    .split(/\s*\.\.\.\s*/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (!parts.length) return false;
-  let from = 0;
-  for (const part of parts) {
-    const at = page.indexOf(part, from);
-    if (at < 0) return false;
-    from = at + part.length;
-  }
-  return true;
+export function normalizeForMatch(text: string): string {
+  return text
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/\\(["'\\/])/g, '$1')
+    .replace(QUOTE_MARKS, "'")
+    .normalize('NFKC')
+    .replace(INVISIBLE, '')
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*_]/g, '')
+    .replace(/\|/g, ' ')
+    .replace(/(?<![\p{L}\p{N}])'|'(?![\p{L}\p{N}])/gu, '')
+    .replace(DASHES, '-')
+    .replace(/\s*-[\s-]*/g, '-')
+    .replace(/\.\s*\.\s*\./g, '...')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
 }
+
+/**
+ * The parts of a quote that must appear in order: "..." (or "[...]") stands for a gap, and
+ * punctuation at the edges of a part does not count.
+ */
+function quoteParts(quote: string): string[] {
+  return normalizeForMatch(quote)
+    .split(/\s*[[(]?\.\.\.[\])]?\s*/)
+    .map((part) => part.replace(/^[\s.,;:!?]+|[\s.,;:!?]+$/g, ''))
+    .filter(Boolean);
+}
+
+/**
+ * Most normalized characters a "..." may skip between two parts of a quote: about 50 words, two or
+ * three sentences, so a gap can drop a clause, a parenthesis or a few table cells, but cannot
+ * stitch together words from different passages of a page. On the recorded runs of nine
+ * countries, 33 distinct quotes with a gap matched a fetched page, and the widest gap was 30
+ * characters (a list of towns); most skip one word or an apostrophe the model garbled. The bound
+ * is ten times that, so a faithful quote is not sent back, and still small enough to keep both
+ * parts in one passage.
+ */
+export const QUOTE_MAX_GAP = 300;
+
+/**
+ * found: the parts appear in order with every gap within the bound. too_far_apart: they appear in
+ * order, but only with a gap wider than the bound. missing: they do not appear in order.
+ */
+export type QuoteMatch = 'found' | 'too_far_apart' | 'missing';
+
+/** Every position where `part` starts in `page`, in order, overlapping ones included. */
+function occurrences(page: string, part: string): number[] {
+  const starts: number[] = [];
+  for (let at = page.indexOf(part); at >= 0; at = page.indexOf(part, at + 1)) starts.push(at);
+  return starts;
+}
+
+/**
+ * Match a quote against text that went through normalizeForMatch. A part can appear several times,
+ * and its first appearance is not always the one that keeps the next gap within the bound, so
+ * every placement is followed: `ends` holds where the parts so far can end with every gap within
+ * the bound, both lists in ascending order.
+ */
+function matchNormalized(quote: string, page: string, maxGap: number): QuoteMatch {
+  const parts = quoteParts(quote);
+  if (!parts.length) return 'missing';
+  let ends = occurrences(page, parts[0]).map((at) => at + parts[0].length);
+  if (!ends.length) return 'missing';
+  // The earliest end of the parts in order with any gaps, which tells too far apart from missing.
+  let anyGap = ends[0];
+  for (const part of parts.slice(1)) {
+    const starts = occurrences(page, part);
+    const next: number[] = [];
+    let index = 0;
+    for (const start of starts) {
+      while (index < ends.length && ends[index] < start - maxGap) index += 1;
+      if (index < ends.length && ends[index] <= start) next.push(start + part.length);
+    }
+    ends = next;
+    const loose = starts.find((start) => start >= anyGap);
+    if (loose === undefined) return 'missing';
+    anyGap = loose + part.length;
+  }
+  return ends.length ? 'found' : 'too_far_apart';
+}
+
+/** Match a quote against a page's text, compared as normalizeForMatch describes. */
+export const matchQuote = (quote: string, text: string, maxGap = QUOTE_MAX_GAP): QuoteMatch =>
+  matchNormalized(quote, normalizeForMatch(text), maxGap);
+
+/** Whether a quote appears in a page's text, compared as normalizeForMatch describes. */
+export const quoteInText = (quote: string, text: string): boolean =>
+  matchQuote(quote, text) === 'found';
 
 export type VerdictContext = {
   units: ClaimUnit[];
@@ -151,43 +234,86 @@ export type VerdictContext = {
   stamp: Pick<ClaimCheck, 'checkedAt' | 'model' | 'effort' | 'promptVersion'>;
 };
 
-export type VerdictResult =
-  { ok: true; checks: Record<string, ClaimCheck> } | { ok: false; issues: string[] };
+/**
+ * A submission judged unit by unit, so one bad verdict does not discard the good ones.
+ * `checks` holds every unit whose verdict passed every check, and `failures` the problems of every
+ * unit that did not (a problem with a source counts against each unit that cites it). `issues` is
+ * everything to send back, including problems that belong to no unit; it is empty only when every
+ * unit passed.
+ */
+export type VerdictResult = {
+  ok: boolean;
+  checks: Record<string, ClaimCheck>;
+  failures: Map<string, string[]>;
+  issues: string[];
+};
 
 /** Validate a submission against the scope it was asked about and turn it into results by unit key. */
 export function checkVerdicts(input: unknown, context: VerdictContext): VerdictResult {
   const parsed = SubmitVerdicts.safeParse(input);
   if (!parsed.success) {
+    const issues = parsed.error.issues.map(
+      (issue) => `${issue.path.map(String).join('.') || '(root)'}: ${issue.message}`,
+    );
+    const failure = ['the submission did not match the submit_verdicts schema'];
     return {
       ok: false,
-      issues: parsed.error.issues.map(
-        (issue) => `${issue.path.map(String).join('.') || '(root)'}: ${issue.message}`,
-      ),
+      checks: {},
+      failures: new Map(context.units.map((unit) => [unit.id, failure])),
+      issues,
     };
   }
   const { sources, verdicts } = parsed.data;
   const issues: string[] = [];
+  const failures = new Map<string, string[]>();
+  const fail = (unitId: string, issue: string) => {
+    failures.set(unitId, [...(failures.get(unitId) ?? []), issue]);
+  };
 
   const declared = new Map(context.sources.map((source) => [source.id, source]));
+  /** Problems with how a source was reported, which hold back every unit citing it. */
+  const sourceIssues = new Map<string, string[]>();
+  const sourceIssue = (id: string, issue: string) => {
+    issues.push(issue);
+    sourceIssues.set(id, [...(sourceIssues.get(id) ?? []), issue]);
+  };
   const readings = new Map<string, SubmitVerdicts['sources'][number]>();
   for (const reading of sources) {
     const source = declared.get(reading.id);
-    if (!source) issues.push(`sources: "${reading.id}" is not a source in this task`);
-    else if (readings.has(reading.id)) issues.push(`sources: "${reading.id}" is listed twice`);
-    else readings.set(reading.id, reading);
-    if (!source) continue;
+    if (!source) {
+      issues.push(`sources: "${reading.id}" is not a source in this task`);
+      continue;
+    }
+    if (readings.has(reading.id)) {
+      sourceIssue(reading.id, `sources: "${reading.id}" is listed twice`);
+      continue;
+    }
+    readings.set(reading.id, reading);
     if (reading.status === 'read' && !context.fetched.has(normalizeUrl(source.url))) {
-      issues.push(
+      sourceIssue(
+        reading.id,
         `sources.${reading.id}: marked read, but ${source.url} was not fetched with web_fetch or fetch_page in this conversation. Fetch it, or mark it unreachable and say why.`,
       );
     }
     if (reading.status === 'unreachable' && !reading.note?.trim()) {
-      issues.push(`sources.${reading.id}: say why the page could not be read`);
+      sourceIssue(reading.id, `sources.${reading.id}: say why the page could not be read`);
     }
   }
   for (const id of declared.keys()) {
-    if (!readings.has(id)) issues.push(`sources: report whether "${id}" could be read`);
+    if (!readings.has(id)) sourceIssue(id, `sources: report whether "${id}" could be read`);
   }
+
+  // Each page's text is normalized once, however many quotes are checked against it.
+  const normalizedPages = new Map<string, string[]>();
+  const pagesOf = (url: string) => {
+    const key = normalizeUrl(url);
+    if (!normalizedPages.has(key)) {
+      const pages = context.texts.get(key);
+      if (!pages) return undefined;
+      normalizedPages.set(key, pages.map(normalizeForMatch));
+    }
+    return normalizedPages.get(key);
+  };
 
   const units = new Map(context.units.map((unit) => [unit.id, unit]));
   const seen = new Set<string>();
@@ -201,51 +327,64 @@ export function checkVerdicts(input: unknown, context: VerdictContext): VerdictR
     }
     if (seen.has(unit.id)) {
       issues.push(`${at}: give one verdict per unit`);
+      fail(unit.id, `${at}: give one verdict per unit`);
       continue;
     }
     seen.add(unit.id);
+    const unitIssues: string[] = [];
     const unitSources = unit.sources.map((source) => source.id);
     const read = unitSources.filter((id) => readings.get(id)?.status === 'read');
     const unreachable = unitSources.filter((id) => readings.get(id)?.status === 'unreachable');
     const { verdict } = entry;
 
     if ((verdict === 'supported') !== (entry.unsupported.length === 0)) {
-      issues.push(
+      unitIssues.push(
         verdict === 'supported'
           ? `${at}: a supported unit has no unsupported phrases; use partly_supported if some text is not stated`
           : `${at}: list the phrases the sources do not state in unsupported`,
       );
     }
     for (const phrase of entry.unsupported) {
-      if (!loose(unit.text).includes(loose(phrase))) {
-        issues.push(`${at}: "${phrase}" is not in the unit text; copy the phrase exactly`);
+      if (!quoteInText(phrase, unit.text)) {
+        unitIssues.push(`${at}: "${phrase}" is not in the unit text; copy the phrase exactly`);
       }
     }
     if ((verdict === 'supported' || verdict === 'partly_supported') && !entry.evidence.length) {
-      issues.push(`${at}: give a short quote from a source for what is supported`);
+      unitIssues.push(`${at}: give a short quote from a source for what is supported`);
     }
     for (const item of entry.evidence) {
       if (!read.includes(item.sourceId)) {
-        issues.push(
+        unitIssues.push(
           `${at}: evidence from "${item.sourceId}" must come from a source this unit cites and you read (${read.join(', ') || 'none read'})`,
         );
         continue;
       }
       const url = declared.get(item.sourceId)!.url;
-      const pages = context.texts.get(normalizeUrl(url));
-      if (pages && !pages.some((page) => quoteInText(item.quote, page))) {
-        issues.push(
-          `${at}: the quote "${item.quote}" is not in the text fetched from ${url}; copy the words exactly (use "..." for a gap) or leave the quote out`,
+      const pages = pagesOf(url);
+      const matches = pages?.map((page) => matchNormalized(item.quote, page, QUOTE_MAX_GAP));
+      if (matches && !matches.includes('found')) {
+        unitIssues.push(
+          matches.includes('too_far_apart')
+            ? `${at}: the parts of the quote "${item.quote}" are more than ${QUOTE_MAX_GAP} characters apart in the text fetched from ${url}; a "..." may skip only a few words within one passage, so quote one passage or give each part as its own quote`
+            : `${at}: the quote "${item.quote}" is not in the text fetched from ${url}; copy the words exactly (use "..." for a gap) or leave the quote out`,
         );
       }
     }
     if (verdict === 'source_unreachable' && !unreachable.length) {
-      issues.push(
+      unitIssues.push(
         `${at}: source_unreachable needs one of its sources (${unitSources.join(', ')}) marked unreachable`,
       );
     }
     if (verdict !== 'source_unreachable' && !read.length) {
-      issues.push(`${at}: none of its sources could be read, so the verdict is source_unreachable`);
+      unitIssues.push(
+        `${at}: none of its sources could be read, so the verdict is source_unreachable`,
+      );
+    }
+    issues.push(...unitIssues);
+    const blocked = [...unitIssues, ...unitSources.flatMap((id) => sourceIssues.get(id) ?? [])];
+    if (blocked.length) {
+      blocked.forEach((issue) => fail(unit.id, issue));
+      continue;
     }
 
     checks[unit.key] = {
@@ -258,14 +397,18 @@ export function checkVerdicts(input: unknown, context: VerdictContext): VerdictR
       sources: unit.sources.map((source) => ({
         id: source.id,
         url: source.url,
-        status: readings.get(source.id)?.status ?? 'unreachable',
-        note: readings.get(source.id)?.note ?? null,
+        status: readings.get(source.id)!.status,
+        note: readings.get(source.id)!.note,
       })),
       ...context.stamp,
     };
   }
   for (const unit of context.units) {
-    if (!seen.has(unit.id)) issues.push(`verdicts: give a verdict for "${unit.id}"`);
+    if (seen.has(unit.id)) continue;
+    issues.push(`verdicts: give a verdict for "${unit.id}"`);
+    fail(unit.id, `verdicts: give a verdict for "${unit.id}"`);
   }
-  return issues.length ? { ok: false, issues } : { ok: true, checks };
+  // A unit that passed but was also answered twice is not trusted either.
+  for (const unit of context.units) if (failures.has(unit.id)) delete checks[unit.key];
+  return { ok: issues.length === 0, checks, failures, issues };
 }

@@ -260,19 +260,37 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
 4. **Claims.**
    `content:claims -- <country> [story]` (or `--all`, or `--drafts`) asks Claude whether the cited sources state each piece of text.
    A unit is one claim-bearing piece with its source IDs: the overview's summary and geography together, each why-it-matters point, each quick fact (with its as-of date), and each section of a story.
-   A country is one conversation with Claude Opus 5.5 at `high` effort (`--model`, `--effort`) covering every overview and story that is due, so a source shared by several of them is read once; checking one story alone is its own conversation.
+   A conversation with Claude Opus 5.5 at `high` effort (`--model`, `--effort`) checks the due units of one country; checking one story alone is its own conversation.
+   Every cited page stays in the conversation's context, so a country's due units are packed into conversations that cite at most `CLAIM_SOURCES_PER_SESSION` sources each (10, `--sources-per-session` to change), with overviews and stories that share sources kept together so a shared source is read once.
+   The bound leaves room in the 1M-token context window: 10 pages at the 60k-token fetch cap are at most 600k tokens, while the pilot's pages averaged 15k to 39k tokens each, so Russia's 24 sources in one conversation reached about 930k tokens and Nigeria's 37 did not fit.
+   Packing is greedy: a conversation starts from the overview or story citing the most sources and keeps taking the one that adds the fewest new sources while it fits; one that cites more than the bound on its own is split by its units.
+   Most countries need one to six conversations; their tags are `claims-<country>-part<n>`.
    Claude reads every cited source with the server-side web fetch tool in its basic version, which puts the page in context; the newer version with dynamic filtering reads pages from code and kept too little text to judge a claim.
    Some sites refuse Anthropic's fetcher but answer an ordinary request, so a strict `fetch_page` tool fetches a cited URL of the task from the editor's computer and returns the page's visible text; it reads HTML and plain text, not PDFs, and runs no scripts.
    Verdicts come back through a strict tool, `submit_verdicts`: for each source whether it was read (with a note when not), and for each unit `supported`, `partly_supported`, `not_supported` or `source_unreachable`, the phrases the sources do not state, short quotes from the sources that support the rest, and a note.
    The pipeline checks the submission and sends problems back like a draft's: every unit and source answered once, a source reported read was actually fetched in the conversation, `supported` has no unsupported phrases and the others do, every unsupported phrase is copied from the unit, quotes come from the unit's own read sources, and `source_unreachable` names an unreadable source.
-   Every quote must also appear in the text the conversation was given for its source (a web fetch served as text, or `fetch_page`'s text), compared without regard to case, spacing, quotation marks, apostrophes or dashes, with "..." for a gap.
+   Every quote must also appear in the text the conversation was given for its source (a web fetch served as text, or `fetch_page`'s text).
+   Both sides are normalized before matching (`normalizeForMatch` in `pipeline/claims/verdicts.ts`), so only the words and numbers must agree.
+   Literal `\uXXXX` and backslash escapes the model sometimes writes are decoded; every quotation mark and apostrophe variant is folded, and kept only inside a word (`it's`), so a quote may add or drop the quotation marks around a phrase.
+   Unicode compatibility forms are folded (no-break and narrow spaces, `…`, superscripts), soft hyphens and zero-width characters are dropped, every dash and the minus sign become a hyphen with no space around it, and case and whitespace are ignored.
+   Web fetch serves pages as Markdown, so link targets, emphasis marks and table pipes are dropped too: a quote of "Capital: Moscow" matches `Capital: [Moscow](https://...)`.
+   "..." (or "[...]") marks a gap: the pieces must appear in order, with at most `QUOTE_MAX_GAP` (300) normalized characters, about 50 words, between consecutive pieces, so a quote cannot stitch together words from distant passages of a page; a quote whose pieces are farther apart goes back with that reason.
+   On the recorded runs of nine countries the widest gap in a matching quote was 30 characters.
    A PDF comes back from the server as a document whose text the pipeline does not extract, so quotes from a PDF are not checked.
    On the recorded Singapore and Japan runs, 38 of the 39 checkable quotes matched; the other was a description of a table row, which the check now sends back.
+   On the recorded United Kingdom, Russia and Netherlands runs, the Markdown and quotation mark folding removed 16 rejections, each a real match, and introduced none; all three now pass on replay.
+   Problems are tied to the units they affect: a unit whose own answer has a problem, or that cites a source answered wrongly, fails, and the others pass.
+   Each submission's passing verdicts are saved at once, and a unit keeps its latest passing verdict even if a later submission garbles it, which happens on repair turns, where the model sometimes mangles non-ASCII characters in a quote.
    Results are committed with the content in `content/en/claims/<slug>.json`, keyed by a hash of the unit's text and its sources' IDs and URLs, with the verdict, model, effort, prompt version and date; `--claims-dir` points a scratch run elsewhere.
-   Changed text or sources make a new key, so the old result no longer counts and the unit shows as not checked; a run checks only overviews and stories with such a unit, and `--recheck` checks them anyway.
+   Changed text or sources make a new key, so the old result no longer counts and the unit shows as not checked; a run checks only units without a result for their current text, with their overview or story as context, and `--recheck` checks every selected unit anyway.
    Every write keeps only the results of the file's current units, in content order, with fields in a fixed order and the content tree's JSON formatting, so a recheck or an approval makes a small, readable diff.
-   The command prints every flagged unit and exits with an error when one is flagged or a check failed; a failed check saves its log in `pipeline/.cache/claims-failed/`.
-   `--mode batch` sends each round through the Batches API at half price; unlike drafting it has no `--resume`: results are saved as each country finishes, and an interrupted run checks only what is still due.
+   A conversation that ends without a verdict for every unit (repairs exhausted, an API error, the request limit) is `partial`: its passing verdicts stay saved, and each remaining unit is reported as not checked with its reason.
+   Its log goes to `pipeline/.cache/claims-failed/<tag>.json` with the reason, the unchecked units and their reasons, the conversation and the last submission.
+   Running the same command again checks only the unchecked units.
+   A conversation that outgrows the context window ("prompt is too long") is not fatal to the run: its verdicts so far are saved and its unchecked units go to two or more smaller conversations in the same run, each citing about half the sources (`<tag>-split<n>`), until they fit or a unit cannot be split further and is reported as not checked.
+   A submission in the last allowed request still counts.
+   The command prints every flagged unit, groups the unchecked units by reason, and exits with an error when a unit is flagged or not checked.
+   `--mode batch` sends each round through the Batches API at half price; unlike drafting it has no `--resume`: verdicts are saved as each submission passes, and an interrupted run checks only what is still due.
    The prompts live in `pipeline/prompts/claims-v<n>/` on their own version line, so changing them never changes the drafting prompt version.
 5. **Paraphrase.**
    `content:paraphrase -- <country>...` (or `--all`) writes [paraphrases](#content-model) for every story that has none or whose question changed since they were written; `--regenerate` replaces current ones too, and `--dry-run` lists the stories without calling the API.
@@ -318,9 +336,10 @@ Cost controls:
 - Every job prints its token usage, searches and estimated cost, and the run prints the total.
   Measured on the pilot at `max` effort in synchronous mode, a country cost about $9 (from about $7.30 to $12), with cache writes counted from every iteration of a server tool loop; that is about $180 for a 20-country batch, less at `high` effort, and batch mode about halves the token part.
 - A claim check costs what its fetched pages cost to read.
-  Measured at `high` effort: Singapore (14 units, 13 fetches, a 125k-token statistics PDF among them) about $2.50 with one conversation per overview and story, and Japan (13 units) about $9.70, because each of its four conversations read the same 475k-token statistics handbook PDF; one conversation per country reads it once, an estimated $2.40 (not yet measured).
-  Its limits in `pipeline/config.ts`: one fetch per cited page plus 4 retries per request (at least 16), with at most 60k tokens of text each, 2 repairs, 2 reminders, 3 continuations and 10 requests per conversation, 4 countries at a time.
-  PDFs ignore the 60k cap, so a long statistics PDF can cost far more than a web page.
+  Measured at `high` effort: Singapore (14 units, 13 fetches, a 125k-token statistics PDF among them) about $2.50 with one conversation per overview and story, and Japan (13 units) about $9.70, because each of its four conversations read the same 475k-token statistics handbook PDF; packing by shared sources reads such a page once.
+  Every request rereads the whole conversation, so a conversation of 10 sources costs less per request than one of 30, and smaller conversations repay the few sources two of them share.
+  Its limits in `pipeline/config.ts`: at most 10 cited sources per conversation, one fetch per cited page plus 4 retries per request (at least 16), with at most 60k tokens of text each, 2 repairs, 2 reminders, 3 continuations and 10 requests per conversation, 4 conversations at a time.
+  PDFs ignore the 60k cap, so a long statistics PDF can cost far more than a web page, and can still overflow a conversation, which is then split again.
 
 The API key comes from `ANTHROPIC_API_KEY` in the git-ignored `.env.local` (copy `.env.example`); without it a real run stops before doing any work and says so.
 Only the pipeline uses it: the site, its build and CI need no keys, so it is never set on Vercel or GitHub.
@@ -378,6 +397,7 @@ What can go wrong:
 - A URL that resolves does not prove it supports the claim; the claim check reads the page, and review still decides.
 - The claim check is a model reading pages, so it can miss a statement or misread one.
   Quotes from PDFs are not checked, and a page that needs scripts to show its text, or that blocks both fetchers, comes back unreachable and needs a person.
+  Quote matching ignores case, quotation marks, dashes and Markdown, so a quote can differ from the page in those and still pass; its words and numbers must match exactly.
   A flag means "open this source", not "this is false": most flags on the hand-converted countries are true facts cited to a page that does not state them.
 
 ### Agent drafting
