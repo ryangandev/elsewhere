@@ -74,6 +74,27 @@ export function loadClaimsPrompts(
 }
 
 /**
+ * The agent claim check (pipeline/claims-agent) has its own version line, claims-agent-v<n>,
+ * recorded on each result it saves. A Claude Code subagent reads the cited pages through the
+ * pipeline's fetch command and writes a verdict file instead of calling the API's tools, so the
+ * reading and submission instructions differ; every judging rule is copied unchanged from the
+ * claim check version it started from (claims-agent-v1 from claims-v1).
+ */
+export const CURRENT_CLAIMS_AGENT_PROMPT_VERSION = 'claims-agent-v1';
+
+const CLAIMS_AGENT_NAMES = ['system', 'task', 'repair'] as const;
+export type ClaimsAgentPromptSet = { version: string } & Record<
+  (typeof CLAIMS_AGENT_NAMES)[number],
+  string
+>;
+
+export function loadClaimsAgentPrompts(
+  version: string = CURRENT_CLAIMS_AGENT_PROMPT_VERSION,
+): ClaimsAgentPromptSet {
+  return loadPromptFiles(version, CLAIMS_AGENT_NAMES);
+}
+
+/**
  * The paraphrase step (npm run content:paraphrase) has its own prompts and versions in
  * pipeline/prompts/paraphrase/, so they change without touching the drafting prompts or a
  * drafting run in progress. The version is recorded in each story's paraphrases.promptVersion.
