@@ -311,7 +311,7 @@ describe('partial results', () => {
       [first.id, 'supported'],
       [second.id, undefined],
     ]);
-    const reason = `verdicts.${second.id}: the quote "Chile is long" is not in the text fetched from https://example.org/elsewhere-fixture/chile/geography; copy the words exactly (use "..." for a gap) or leave the quote out`;
+    const reason = `verdicts.${second.id}: the quote "Chile is long" is not in the text fetched from https://example.org/elsewhere-fixture/chile/geography: nothing on the page starts like "chile is long". Copy the words exactly (use "..." for a gap) or leave the quote out.`;
     expect(result.unchecked.map(({ unit, reason }) => [unit.id, reason])).toEqual([
       [second.id, reason],
     ]);

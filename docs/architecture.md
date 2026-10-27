@@ -276,10 +276,18 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Every quote must also appear in the text the conversation was given for its source (a web fetch served as text, or `fetch_page`'s text).
    Both sides are normalized before matching (`normalizeForMatch` in `pipeline/claims/verdicts.ts`), so only the words and numbers must agree.
    Literal `\uXXXX` and backslash escapes the model sometimes writes are decoded; every quotation mark and apostrophe variant is folded, and kept only inside a word (`it's`), so a quote may add or drop the quotation marks around a phrase.
-   Unicode compatibility forms are folded (no-break and narrow spaces, `…`, superscripts), soft hyphens and zero-width characters are dropped, every dash and the minus sign become a hyphen with no space around it, and case and whitespace are ignored.
+   Unicode compatibility forms are folded (no-break and narrow spaces, `…`, superscripts), soft hyphens, zero-width characters and private-use characters are dropped, every dash and the minus sign become a hyphen with no space around it, and case and whitespace are ignored.
+   Private-use characters have no standard meaning; a PDF font may draw a symbol with one (a Gawecki paper has U+F0AB in its text), and a quote copied from a display leaves it out.
+   A space before closing punctuation (`, . ; : ! ? % ) ] }`) or after an opening bracket is dropped on both sides, since some pages write "1990 , and" and a quote that drops the space is the same words.
    Web fetch serves pages as Markdown, so link targets, emphasis marks and table pipes are dropped too: a quote of "Capital: Moscow" matches `Capital: [Moscow](https://...)`.
    "..." (or "[...]") marks a gap: the pieces must appear in order, with at most `QUOTE_MAX_GAP` (300) normalized characters, about 50 words, between consecutive pieces, so a quote cannot stitch together words from distant passages of a page; a quote whose pieces are farther apart goes back with that reason.
    On the recorded runs of nine countries the widest gap in a matching quote was 30 characters.
+   Three rules apply only to the marks the local fetcher leaves in a PDF's text (see the `fetch` command in [Agent drafting](#agent-drafting)), so they change nothing on a page without them.
+   A `[Page n]` line on a line of its own is skipped, so a quote may run across a page break.
+   A word hyphenated at a line break (a letter, a hyphen, a line break, a letter) matches the quote with the hyphen or without it, since the text cannot tell "govern-ment" from "self-government".
+   A NUL, which some PDFs give for the "fi" and "fl" ligatures, matches "fi" or "fl" in the quote.
+   A quote must be under 30 words (`QUOTE_MAX_WORDS`, 29, counting the runs that hold a letter or digit), as the prompts and the schema have always asked, and a longer one goes back with the request to quote only the words that state the claim.
+   A quote that is not on the page goes back with where it parts from the page: the longest start of its first missing piece that is on the page, what the page has next and what the quote has instead, shown as compared (lowercase, with spacing, quotation marks and dashes folded); or that each piece is on the page but not in that order; or that nothing on the page starts like it.
    A PDF comes back from the server as a document whose text the pipeline does not extract, so quotes from a PDF are not checked.
    On the recorded Singapore and Japan runs, 38 of the 39 checkable quotes matched; the other was a description of a table row, which the check now sends back.
    On the recorded United Kingdom, Russia and Netherlands runs, the Markdown and quotation mark folding removed 16 rejections, each a real match, and introduced none; all three now pass on replay.
@@ -402,6 +410,7 @@ What can go wrong:
 - The claim check is a model reading pages, so it can miss a statement or misread one.
   Quotes from PDFs are not checked, and a page that needs scripts to show its text, or that blocks both fetchers, comes back unreachable and needs a person.
   Quote matching ignores case, quotation marks, dashes and Markdown, so a quote can differ from the page in those and still pass; its words and numbers must match exactly.
+  In a PDF's text a NUL matches either "fi" or "fl", so a quote could read "flat" where the page has "fiat"; the letters around it must still match, and the subagent is asked to write the real word.
   A flag means "open this source", not "this is false": most flags on the hand-converted countries are true facts cited to a page that does not state them.
 
 ### Agent drafting

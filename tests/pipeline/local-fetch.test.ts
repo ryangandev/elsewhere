@@ -10,6 +10,7 @@ import {
   pdfToText,
   type PdfTextItem,
 } from '../../pipeline/claims/local-fetch';
+import { quoteInText } from '../../pipeline/claims/verdicts';
 import { minimalPdf } from './helpers';
 
 afterEach(() => {
@@ -101,7 +102,7 @@ describe('PDF running headers and footers', () => {
     expect(dropRunningLines(pages)).toEqual(pages);
   });
 
-  it('reads a sentence across a page break with only the page line between', async () => {
+  it('lets a quote run on across a page break', async () => {
     const pdf = minimalPdf([
       ['Brief 1', 'In 2013, the Philippines decided to submit the dispute to the'],
       ['Brief 2', 'Permanent Court of Arbitration in the Hague.'],
@@ -114,6 +115,9 @@ describe('PDF running headers and footers', () => {
         '[Page 2]\nPermanent Court of Arbitration in the Hague.',
         '[Page 3]\nChina refuses to recognize the decision.',
       ].join('\n\n'),
+    );
+    expect(quoteInText('submit the dispute to the Permanent Court of Arbitration', text)).toBe(
+      true,
     );
   });
 });
