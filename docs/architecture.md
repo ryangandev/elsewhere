@@ -261,6 +261,9 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Some sites refuse Anthropic's fetcher but answer an ordinary request, so a strict `fetch_page` tool fetches a cited URL of the task from the editor's computer and returns the page's visible text; it reads HTML and plain text, not PDFs, and runs no scripts.
    Verdicts come back through a strict tool, `submit_verdicts`: for each source whether it was read (with a note when not), and for each unit `supported`, `partly_supported`, `not_supported` or `source_unreachable`, the phrases the sources do not state, short quotes from the sources that support the rest, and a note.
    The pipeline checks the submission and sends problems back like a draft's: every unit and source answered once, a source reported read was actually fetched in the conversation, `supported` has no unsupported phrases and the others do, every unsupported phrase is copied from the unit, quotes come from the unit's own read sources, and `source_unreachable` names an unreadable source.
+   Every quote must also appear in the text the conversation was given for its source (a web fetch served as text, or `fetch_page`'s text), compared without regard to case, spacing, quotation marks, apostrophes or dashes, with "..." for a gap.
+   A PDF comes back from the server as a document whose text the pipeline does not extract, so quotes from a PDF are not checked.
+   On the recorded Singapore and Japan runs, 38 of the 39 checkable quotes matched; the other was a description of a table row, which the check now sends back.
    Results are committed with the content in `content/en/claims/<slug>.json`, keyed by a hash of the unit's text and its sources' IDs and URLs, with the verdict, model, effort, prompt version and date; `--claims-dir` points a scratch run elsewhere.
    Changed text or sources make a new key, so the old result no longer counts and the unit shows as not checked; a run checks only overviews and stories with such a unit, and `--recheck` checks them anyway.
    Every write keeps only the results of the file's current units, in content order, with fields in a fixed order and the content tree's JSON formatting, so a recheck or an approval makes a small, readable diff.
@@ -370,7 +373,7 @@ What can go wrong:
 - Ocean label points are far from coasts, so a route that starts in an ocean (the South Atlantic into the Strait of Magellan) can cross land on its way to the passage; start from the nearest marginal sea or island instead.
 - A URL that resolves does not prove it supports the claim; the claim check reads the page, and review still decides.
 - The claim check is a model reading pages, so it can miss a statement or misread one.
-  Its quotes are not checked against the fetched text, and a page that needs scripts to show its text, or that blocks both fetchers, comes back unreachable and needs a person.
+  Quotes from PDFs are not checked, and a page that needs scripts to show its text, or that blocks both fetchers, comes back unreachable and needs a person.
   A flag means "open this source", not "this is false": most flags on the hand-converted countries are true facts cited to a page that does not state them.
 
 ## Globe

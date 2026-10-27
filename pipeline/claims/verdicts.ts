@@ -43,7 +43,7 @@ export const SubmitVerdicts = z.strictObject({
               quote: z
                 .string()
                 .describe(
-                  'Under 30 words copied exactly from the page, or a pointer such as "Table 2, 2024 column" when the support is a table or figure.',
+                  'Under 30 words copied exactly from the page text, with "..." for a gap. For a table, copy the words of the row as they appear. It is checked against the fetched text.',
                 ),
             }),
           )
@@ -80,21 +80,73 @@ export function fetchedUrls(content: BetaContentBlock[]): Set<string> {
   return urls;
 }
 
-/** Text compared loosely: case, spacing, quote and dash styles do not matter. */
+/**
+ * The text of each page fetched directly in one response, by normalized URL (requested and final).
+ * Only documents the server returns as text are here: a PDF arrives as base64 and the pipeline
+ * does not extract its text, so quotes from a PDF cannot be checked and are taken as given.
+ */
+export function fetchedTexts(content: BetaContentBlock[]): Map<string, string> {
+  const direct = new Map<string, string>();
+  for (const block of content) {
+    if (block.type !== 'server_tool_use' || block.name !== 'web_fetch') continue;
+    const caller = (block as { caller?: { type?: string } | null }).caller;
+    if (caller && caller.type !== 'direct') continue;
+    direct.set(block.id, String((block.input as { url?: unknown }).url ?? ''));
+  }
+  const texts = new Map<string, string>();
+  for (const block of content) {
+    if (block.type !== 'web_fetch_tool_result' || !direct.has(block.tool_use_id)) continue;
+    if (block.content.type !== 'web_fetch_result') continue;
+    const source = block.content.content?.source;
+    if (source?.type !== 'text') continue;
+    texts.set(normalizeUrl(block.content.url), source.data);
+    texts.set(normalizeUrl(direct.get(block.tool_use_id)!), source.data);
+  }
+  return texts;
+}
+
+/** Text compared loosely: case, spacing, quote, apostrophe, dash and ellipsis styles do not matter. */
 const loose = (text: string) =>
   text
     .toLowerCase()
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[‐-―]/g, '-')
+    .replace(/[‘’‚′`]/g, "'")
+    .replace(/[“”„″]/g, '"')
+    .replace(/[‐-―−]/g, '-')
+    .replace(/…/g, '...')
     .replace(/\s+/g, ' ')
     .trim();
+
+/**
+ * Whether a quote appears in a page's text: compared loosely, without quotation marks around it,
+ * and with "..." standing for a gap, so each part must appear, in order.
+ */
+export function quoteInText(quote: string, text: string): boolean {
+  const page = loose(text);
+  const parts = loose(quote)
+    .replace(/^["']+|["']+$/g, '')
+    .split(/\s*\.\.\.\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.length) return false;
+  let from = 0;
+  for (const part of parts) {
+    const at = page.indexOf(part, from);
+    if (at < 0) return false;
+    from = at + part.length;
+  }
+  return true;
+}
 
 export type VerdictContext = {
   units: ClaimUnit[];
   sources: Source[];
   /** Normalized URLs fetched directly in this conversation. */
   fetched: Set<string>;
+  /**
+   * The text the model was given for each fetched page, by normalized URL. Quotes from a page
+   * with text here must appear in it; a page without (a PDF) is not checked.
+   */
+  texts: Map<string, string[]>;
   /** Recorded on every result. */
   stamp: Pick<ClaimCheck, 'checkedAt' | 'model' | 'effort' | 'promptVersion'>;
 };
@@ -170,12 +222,20 @@ export function checkVerdicts(input: unknown, context: VerdictContext): VerdictR
       }
     }
     if ((verdict === 'supported' || verdict === 'partly_supported') && !entry.evidence.length) {
-      issues.push(`${at}: give a short quote or pointer from a source for what is supported`);
+      issues.push(`${at}: give a short quote from a source for what is supported`);
     }
     for (const item of entry.evidence) {
       if (!read.includes(item.sourceId)) {
         issues.push(
           `${at}: evidence from "${item.sourceId}" must come from a source this unit cites and you read (${read.join(', ') || 'none read'})`,
+        );
+        continue;
+      }
+      const url = declared.get(item.sourceId)!.url;
+      const pages = context.texts.get(normalizeUrl(url));
+      if (pages && !pages.some((page) => quoteInText(item.quote, page))) {
+        issues.push(
+          `${at}: the quote "${item.quote}" is not in the text fetched from ${url}; copy the words exactly (use "..." for a gap) or leave the quote out`,
         );
       }
     }

@@ -46,7 +46,9 @@ Light framing and connecting words ("deliberate choices", "on its way between") 
 A section title is a heading for its text; judge the text.
 
 In unsupported, copy the exact words of the unit (a phrase or a whole sentence), so the editor can find them.
-For supported and partly supported units, give evidence: a quote of under 30 words copied exactly from the page, or a pointer such as "Table 2, 2024 column" when the support is a table or figure.
+For supported and partly supported units, give evidence: a quote of under 30 words copied exactly from the page text, with "..." for a gap.
+For a table, copy the words of the row as they appear on the page, and put any explanation in the note.
+Quotes are checked against the text you fetched, so do not paraphrase or describe where the support is.
 Add a short note when the verdict needs explaining, for example that a figure on the page is for a different year, or that the claim is true but this page does not say it.
 Be precise and fair in both directions: do not flag what the page clearly states, and do not pass what it does not.
 

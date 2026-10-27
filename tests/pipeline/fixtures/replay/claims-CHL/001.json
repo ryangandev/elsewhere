@@ -65,9 +65,9 @@
         "content": {
           "type": "document",
           "source": {
-            "type": "text",
-            "media_type": "text/plain",
-            "data": "Placeholder text about the economy page for the pipeline tests. It is not real content."
+            "type": "base64",
+            "media_type": "application/pdf",
+            "data": "JVBERi0xLjQK"
           },
           "title": "Fixture page chile/economy",
           "citations": null

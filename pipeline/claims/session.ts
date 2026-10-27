@@ -14,7 +14,7 @@ import type { SessionSetup } from '../generate/session';
 import { render, type ClaimsPromptSet } from '../prompts';
 import type { PageFetcher } from './local-fetch';
 import type { ClaimCheck } from './store';
-import { checkVerdicts, fetchedUrls, SubmitVerdicts } from './verdicts';
+import { checkVerdicts, fetchedTexts, fetchedUrls, SubmitVerdicts } from './verdicts';
 import { citedSources, scopesLabel, scopeUnits, type ClaimScope, type ClaimUnit } from './units';
 
 export type ClaimsContext = {
@@ -113,6 +113,12 @@ export function claimSession(
   const sourceUrls = new Map(sources.map((source) => [normalizeUrl(source.url), source.url]));
   /** Source pages fetch_page read, which count as fetched like web_fetch results. */
   const fetchedLocally = new Set<string>();
+  /**
+   * The text of every page read in the conversation, to check quotes against. It lives only in
+   * this session: claim checks are not resumed from a snapshot.
+   */
+  const texts = new Map<string, string[]>();
+  const addText = (url: string, text: string) => texts.set(url, [...(texts.get(url) ?? []), text]);
   const ttl = context.cacheTtl === '1h' ? { ttl: '1h' as const } : {};
   const task = render(context.prompts.task, {
     ...scopeText(file, scopes),
@@ -153,6 +159,7 @@ export function claimSession(
       try {
         const text = await context.fetchPage(url);
         fetchedLocally.add(normalizeUrl(url));
+        addText(normalizeUrl(url), text);
         return `Text of ${url}, fetched from the editor's computer:\n\n${text}`;
       } catch (error) {
         throw new Error(
@@ -160,12 +167,16 @@ export function claimSession(
         );
       }
     },
-    evidence: fetchedUrls,
+    evidence: (content) => {
+      for (const [url, text] of fetchedTexts(content)) addText(url, text);
+      return fetchedUrls(content);
+    },
     submit: (input, { model, evidence }) => {
       const result = checkVerdicts(input, {
         units,
         sources,
         fetched: new Set([...evidence, ...fetchedLocally]),
+        texts,
         stamp: {
           checkedAt: context.date,
           model,

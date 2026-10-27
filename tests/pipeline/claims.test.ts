@@ -21,7 +21,12 @@ import {
   replayPages,
   type PageFetcher,
 } from '../../pipeline/claims/local-fetch';
-import { checkVerdicts, fetchedUrls } from '../../pipeline/claims/verdicts';
+import {
+  checkVerdicts,
+  fetchedTexts,
+  fetchedUrls,
+  quoteInText,
+} from '../../pipeline/claims/verdicts';
 import { CLAIM_LIMITS } from '../../pipeline/config';
 import { readCountryFile, writeCountryFile } from '../../pipeline/content-tree';
 import { assembleCountry } from '../../pipeline/generate/assemble';
@@ -120,6 +125,7 @@ describe('verdict validation', () => {
   const units = scopeUnits(file, { kind: 'story', storyId: 'length' });
   const sources = citedSources(units);
   const fetched = new Set(['example.org/elsewhere-fixture/chile/geography']);
+  const texts = new Map<string, string[]>();
   const stamp = {
     checkedAt: RUN_DATE,
     model: 'claude-opus-5-5',
@@ -138,7 +144,7 @@ describe('verdict validation', () => {
   };
 
   it('accepts a complete submission and keys results by unit', () => {
-    const result = checkVerdicts(valid, { units, sources, fetched, stamp });
+    const result = checkVerdicts(valid, { units, sources, fetched, texts, stamp });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(Object.keys(result.checks)).toEqual(units.map((unit) => unit.key));
@@ -166,7 +172,7 @@ describe('verdict validation', () => {
     };
     bad.verdicts[1] = { ...bad.verdicts[1], verdict: 'source_unreachable', evidence: [] };
     bad.verdicts.push({ ...bad.verdicts[0], unitId: 'section-9' });
-    const result = checkVerdicts(bad, { units, sources, fetched: new Set(), stamp });
+    const result = checkVerdicts(bad, { units, sources, fetched: new Set(), texts, stamp });
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.issues).toEqual([
@@ -186,11 +192,45 @@ describe('verdict validation', () => {
       unsupported: ['FIRST   part of length'],
     };
     partial.verdicts.pop();
-    const result = checkVerdicts(partial, { units, sources, fetched, stamp });
+    const result = checkVerdicts(partial, { units, sources, fetched, texts, stamp });
     expect(result).toEqual({
       ok: false,
       issues: ['verdicts: give a verdict for "length-section-2"'],
     });
+  });
+
+  it('checks quotes against the text fetched from their source', () => {
+    const page = 'The Andes run the length of Chile \u2014 from the Atacama to Patagonia.';
+    const withPage = new Map([['example.org/elsewhere-fixture/chile/geography', [page]]]);
+    const quoted = structuredClone(valid);
+    quoted.verdicts[0].evidence = [
+      {
+        sourceId: 'fixture-geography',
+        quote: '"the andes run the length of Chile - from ... Patagonia"',
+      },
+    ];
+    quoted.verdicts[1].evidence = [{ sourceId: 'fixture-geography', quote: 'Chile is long' }];
+    const result = checkVerdicts(quoted, { units, sources, fetched, texts: withPage, stamp });
+    expect(result).toEqual({
+      ok: false,
+      issues: [
+        'verdicts.length-section-2: the quote "Chile is long" is not in the text fetched from https://example.org/elsewhere-fixture/chile/geography; copy the words exactly (use "..." for a gap) or leave the quote out',
+      ],
+    });
+    // Without the page's text (a PDF), quotes are taken as given.
+    expect(checkVerdicts(quoted, { units, sources, fetched, texts, stamp }).ok).toBe(true);
+  });
+});
+
+describe('quotes', () => {
+  it('match loosely, with "..." for a gap in order', () => {
+    const page = 'It’s the “Pacific   Ring of Fire” – about 1,500 volcanoes.\nMost are dormant.';
+    expect(quoteInText('it\'s the "pacific ring of fire" - about', page)).toBe(true);
+    expect(quoteInText('Ring of Fire … dormant', page)).toBe(true);
+    expect(quoteInText('“1,500 volcanoes. Most are dormant.”', page)).toBe(true);
+    expect(quoteInText('dormant ... Ring of Fire', page)).toBe(false);
+    expect(quoteInText('2,000 volcanoes', page)).toBe(false);
+    expect(quoteInText('...', page)).toBe(false);
   });
 });
 
@@ -228,6 +268,26 @@ describe('fetched pages', () => {
       },
     ] as unknown as BetaContentBlock[];
     expect([...fetchedUrls(content)]).toEqual(['a.org/x']);
+  });
+
+  it('keep the text of pages served as text, not of PDFs', () => {
+    const result = (id: string, url: string, source: object) => [
+      { type: 'server_tool_use', id, name: 'web_fetch', input: { url } },
+      {
+        type: 'web_fetch_tool_result',
+        tool_use_id: id,
+        content: { type: 'web_fetch_result', url, content: { type: 'document', source } },
+      },
+    ];
+    const content = [
+      ...result('a', 'https://a.org/x', { type: 'text', media_type: 'text/plain', data: 'Page A' }),
+      ...result('b', 'https://b.org/y.pdf', {
+        type: 'base64',
+        media_type: 'application/pdf',
+        data: 'JVBERi0xLjQK',
+      }),
+    ] as unknown as BetaContentBlock[];
+    expect([...fetchedTexts(content)]).toEqual([['a.org/x', 'Page A']]);
   });
 });
 
@@ -358,6 +418,11 @@ describe('checking claims on replayed responses', () => {
     const repair = lastTurn(requests[3]);
     expect(repair).toContain('sources.fixture-history: marked read');
     expect(repair).toContain('give a verdict for \\"quick-fact-2\\"');
+    // A quote the page does not contain is sent back; the PDF's quote cannot be checked.
+    expect(repair).toContain(
+      'verdicts.overview: the quote \\"Chile is the longest country\\" is not in the text fetched from https://example.org/elsewhere-fixture/chile/overview',
+    );
+    expect(repair).not.toContain('verdicts.why-it-matters-1');
 
     // The flagged unit is reported with what the sources do not state.
     const report = log.find((line) => line.startsWith('CHL: checked'))!;

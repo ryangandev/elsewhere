@@ -111,6 +111,29 @@ function webFetch(path: string, text: string | null) {
   ];
 }
 
+/** A direct web_fetch of a PDF: the server returns it as base64, so its text is not checked. */
+function webFetchPdf(path: string) {
+  const id = nextId('srvtoolu');
+  return [
+    { type: 'server_tool_use', id, name: 'web_fetch', input: { url: url(path) } },
+    {
+      type: 'web_fetch_tool_result',
+      tool_use_id: id,
+      content: {
+        type: 'web_fetch_result',
+        url: url(path),
+        retrieved_at: '2026-10-26T00:00:00Z',
+        content: {
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: 'JVBERi0xLjQK' },
+          title: `Fixture page ${path}`,
+          citations: null,
+        },
+      },
+    },
+  ];
+}
+
 const toolUse = (name: string, input: unknown) => ({
   type: 'tool_use',
   id: nextId('toolu'),
@@ -326,7 +349,15 @@ function revisedAndes() {
 
 const read = (id: string) => ({ id, status: 'read', note: null });
 
-const supported = (unitId: string, sourceId: string) => ({
+type FixtureVerdict = {
+  unitId: string;
+  verdict: string;
+  unsupported: string[];
+  evidence: { sourceId: string; quote: string }[];
+  note: string | null;
+};
+
+const supported = (unitId: string, sourceId: string): FixtureVerdict => ({
   unitId,
   verdict: 'supported',
   unsupported: [],
@@ -338,7 +369,10 @@ const supported = (unitId: string, sourceId: string) => ({
  * Verdicts on the Chile overview and the "length" story: one page could not be read, and one
  * quick fact is unsupported.
  */
-function chileVerdicts() {
+function chileVerdicts(): {
+  sources: { id: string; status: string; note: string | null }[];
+  verdicts: FixtureVerdict[];
+} {
   return {
     sources: [
       read('fixture-overview'),
@@ -347,8 +381,21 @@ function chileVerdicts() {
       { id: 'fixture-history', status: 'unreachable', note: 'The fetch failed.' },
     ],
     verdicts: [
-      supported('overview', 'fixture-overview'),
-      supported('why-it-matters-1', 'fixture-economy'),
+      // Quotes are matched loosely: case, quotation marks, dashes and a gap marked "...".
+      {
+        ...supported('overview', 'fixture-overview'),
+        evidence: [
+          {
+            sourceId: 'fixture-overview',
+            quote: '“placeholder TEXT about the overview page … It is not real content.”',
+          },
+        ],
+      },
+      // The economy page is a PDF, whose text is not available to check the quote against.
+      {
+        ...supported('why-it-matters-1', 'fixture-economy'),
+        evidence: [{ sourceId: 'fixture-economy', quote: 'Table 3, 2024 column' }],
+      },
       {
         unitId: 'why-it-matters-2',
         verdict: 'source_unreachable',
@@ -370,9 +417,16 @@ function chileVerdicts() {
   };
 }
 
-/** The first submission: claims a page it never fetched was read, and skips a unit. */
+/**
+ * The first submission: claims a page it never fetched was read, skips a unit, and quotes words
+ * the overview page does not contain.
+ */
 function invalidChileVerdicts() {
   const verdicts = chileVerdicts();
+  verdicts.verdicts[0] = {
+    ...verdicts.verdicts[0],
+    evidence: [{ sourceId: 'fixture-overview', quote: 'Chile is the longest country' }],
+  };
   verdicts.sources[3] = read('fixture-history');
   verdicts.verdicts = verdicts.verdicts.filter((entry) => entry.unitId !== 'quick-fact-2');
   return verdicts;
@@ -502,7 +556,7 @@ export function replayFixtures(): Record<string, unknown[]> {
         [
           ...webFetch('chile/overview', placeholder('the overview page')),
           ...webFetch('chile/geography', null),
-          ...webFetch('chile/economy', placeholder('the economy page')),
+          ...webFetchPdf('chile/economy'),
           ...webFetch('chile/history', null),
           toolUse('fetch_page', { url: url('chile/geography') }),
         ],
