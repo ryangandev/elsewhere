@@ -32,7 +32,9 @@ import {
   checkVerdicts,
   fetchedTexts,
   fetchedUrls,
+  matchQuote,
   normalizeForMatch,
+  QUOTE_MAX_GAP,
   quoteInText,
 } from '../../pipeline/claims/verdicts';
 import { CLAIM_FETCH_RETRIES, CLAIM_LIMITS } from '../../pipeline/config';
@@ -222,6 +224,23 @@ describe('verdict validation', () => {
     // Without the page's text (a PDF), quotes are taken as given.
     expect(checkVerdicts(quoted, { units, sources, fetched, texts, stamp }).ok).toBe(true);
   });
+
+  it('says when the parts of a quote are too far apart', () => {
+    const page = `The Andes run the length of Chile. ${'Snow falls on the peaks. '.repeat(20)}They end in Patagonia.`;
+    const withPage = new Map([['example.org/elsewhere-fixture/chile/geography', [page]]]);
+    const quoted = structuredClone(valid);
+    quoted.verdicts[0].evidence = [
+      { sourceId: 'fixture-geography', quote: 'The Andes run ... end in Patagonia' },
+    ];
+    quoted.verdicts[1].evidence = [
+      { sourceId: 'fixture-geography', quote: 'snow falls on the peaks' },
+    ];
+    const result = checkVerdicts(quoted, { units, sources, fetched, texts: withPage, stamp });
+    expect(result.issues).toEqual([
+      `verdicts.length-section-1: the parts of the quote "The Andes run ... end in Patagonia" are more than ${QUOTE_MAX_GAP} characters apart in the text fetched from https://example.org/elsewhere-fixture/chile/geography; a "..." may skip only a few words within one passage, so quote one passage or give each part as its own quote`,
+    ]);
+    expect(Object.keys(result.checks)).toEqual([units[1].key]);
+  });
 });
 
 describe('quotes', () => {
@@ -233,6 +252,31 @@ describe('quotes', () => {
     expect(quoteInText('dormant ... Ring of Fire', page)).toBe(false);
     expect(quoteInText('2,000 volcanoes', page)).toBe(false);
     expect(quoteInText('...', page)).toBe(false);
+  });
+
+  it('bound each "..." gap, so a quote cannot stitch distant passages together', () => {
+    // Normalized, each filler sentence is 50 characters with the space after it.
+    const filler = (sentences: number) =>
+      'The river floods its banks every single summer. '.repeat(sentences);
+    const near = `Copper is the main export. ${filler(5)}It earns half of all revenue.`;
+    expect(matchQuote('Copper is the main export ... half of all revenue', near)).toBe('found');
+    const far = `Copper is the main export. ${filler(7)}It earns half of all revenue.`;
+    expect(matchQuote('Copper is the main export ... half of all revenue', far)).toBe(
+      'too_far_apart',
+    );
+    expect(quoteInText('Copper is the main export ... half of all revenue', far)).toBe(false);
+    expect(matchQuote('half of all revenue ... Copper', far)).toBe('missing');
+    // Exactly at the bound passes, one character over fails.
+    const gap = (length: number) => `alpha ${'x'.repeat(length - 2)} omega`;
+    expect(matchQuote('alpha ... omega', gap(QUOTE_MAX_GAP))).toBe('found');
+    expect(matchQuote('alpha ... omega', gap(QUOTE_MAX_GAP + 1))).toBe('too_far_apart');
+    // Every gap counts, not only the first.
+    expect(matchQuote('alpha ... omega ... end', `${gap(10)} ${'y'.repeat(400)} end`)).toBe(
+      'too_far_apart',
+    );
+    // The first appearance of a part is not always the one that keeps the next gap short.
+    const repeated = `Copper is the main export. ${filler(10)}Copper is the main export. It earns half of all revenue.`;
+    expect(matchQuote('Copper is the main export ... half of all revenue', repeated)).toBe('found');
   });
 
   // The quotes that failed the pilot run, with the page text they were checked against.

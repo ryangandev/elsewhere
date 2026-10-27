@@ -274,7 +274,8 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Literal `\uXXXX` and backslash escapes the model sometimes writes are decoded; every quotation mark and apostrophe variant is folded, and kept only inside a word (`it's`), so a quote may add or drop the quotation marks around a phrase.
    Unicode compatibility forms are folded (no-break and narrow spaces, `…`, superscripts), soft hyphens and zero-width characters are dropped, every dash and the minus sign become a hyphen with no space around it, and case and whitespace are ignored.
    Web fetch serves pages as Markdown, so link targets, emphasis marks and table pipes are dropped too: a quote of "Capital: Moscow" matches `Capital: [Moscow](https://...)`.
-   "..." (or "[...]") marks a gap, and the pieces must appear in order.
+   "..." (or "[...]") marks a gap: the pieces must appear in order, with at most `QUOTE_MAX_GAP` (300) normalized characters, about 50 words, between consecutive pieces, so a quote cannot stitch together words from distant passages of a page; a quote whose pieces are farther apart goes back with that reason.
+   On the recorded runs of nine countries the widest gap in a matching quote was 30 characters.
    A PDF comes back from the server as a document whose text the pipeline does not extract, so quotes from a PDF are not checked.
    On the recorded Singapore and Japan runs, 38 of the 39 checkable quotes matched; the other was a description of a table row, which the check now sends back.
    On the recorded United Kingdom, Russia and Netherlands runs, the Markdown and quotation mark folding removed 16 rejections, each a real match, and introduced none; all three now pass on replay.

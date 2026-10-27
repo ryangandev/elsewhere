@@ -159,22 +159,66 @@ function quoteParts(quote: string): string[] {
     .filter(Boolean);
 }
 
-/** Whether a quote appears in text that went through normalizeForMatch. */
-function quoteInNormalized(quote: string, page: string): boolean {
-  const parts = quoteParts(quote);
-  if (!parts.length) return false;
-  let from = 0;
-  for (const part of parts) {
-    const at = page.indexOf(part, from);
-    if (at < 0) return false;
-    from = at + part.length;
-  }
-  return true;
+/**
+ * Most normalized characters a "..." may skip between two parts of a quote: about 50 words, two or
+ * three sentences, so a gap can drop a clause, a parenthesis or a few table cells, but cannot
+ * stitch together words from different passages of a page. On the recorded runs of nine
+ * countries, 33 distinct quotes with a gap matched a fetched page, and the widest gap was 30
+ * characters (a list of towns); most skip one word or an apostrophe the model garbled. The bound
+ * is ten times that, so a faithful quote is not sent back, and still small enough to keep both
+ * parts in one passage.
+ */
+export const QUOTE_MAX_GAP = 300;
+
+/**
+ * found: the parts appear in order with every gap within the bound. too_far_apart: they appear in
+ * order, but only with a gap wider than the bound. missing: they do not appear in order.
+ */
+export type QuoteMatch = 'found' | 'too_far_apart' | 'missing';
+
+/** Every position where `part` starts in `page`, in order, overlapping ones included. */
+function occurrences(page: string, part: string): number[] {
+  const starts: number[] = [];
+  for (let at = page.indexOf(part); at >= 0; at = page.indexOf(part, at + 1)) starts.push(at);
+  return starts;
 }
+
+/**
+ * Match a quote against text that went through normalizeForMatch. A part can appear several times,
+ * and its first appearance is not always the one that keeps the next gap within the bound, so
+ * every placement is followed: `ends` holds where the parts so far can end with every gap within
+ * the bound, both lists in ascending order.
+ */
+function matchNormalized(quote: string, page: string, maxGap: number): QuoteMatch {
+  const parts = quoteParts(quote);
+  if (!parts.length) return 'missing';
+  let ends = occurrences(page, parts[0]).map((at) => at + parts[0].length);
+  if (!ends.length) return 'missing';
+  // The earliest end of the parts in order with any gaps, which tells too far apart from missing.
+  let anyGap = ends[0];
+  for (const part of parts.slice(1)) {
+    const starts = occurrences(page, part);
+    const next: number[] = [];
+    let index = 0;
+    for (const start of starts) {
+      while (index < ends.length && ends[index] < start - maxGap) index += 1;
+      if (index < ends.length && ends[index] <= start) next.push(start + part.length);
+    }
+    ends = next;
+    const loose = starts.find((start) => start >= anyGap);
+    if (loose === undefined) return 'missing';
+    anyGap = loose + part.length;
+  }
+  return ends.length ? 'found' : 'too_far_apart';
+}
+
+/** Match a quote against a page's text, compared as normalizeForMatch describes. */
+export const matchQuote = (quote: string, text: string, maxGap = QUOTE_MAX_GAP): QuoteMatch =>
+  matchNormalized(quote, normalizeForMatch(text), maxGap);
 
 /** Whether a quote appears in a page's text, compared as normalizeForMatch describes. */
 export const quoteInText = (quote: string, text: string): boolean =>
-  quoteInNormalized(quote, normalizeForMatch(text));
+  matchQuote(quote, text) === 'found';
 
 export type VerdictContext = {
   units: ClaimUnit[];
@@ -317,9 +361,12 @@ export function checkVerdicts(input: unknown, context: VerdictContext): VerdictR
       }
       const url = declared.get(item.sourceId)!.url;
       const pages = pagesOf(url);
-      if (pages && !pages.some((page) => quoteInNormalized(item.quote, page))) {
+      const matches = pages?.map((page) => matchNormalized(item.quote, page, QUOTE_MAX_GAP));
+      if (matches && !matches.includes('found')) {
         unitIssues.push(
-          `${at}: the quote "${item.quote}" is not in the text fetched from ${url}; copy the words exactly (use "..." for a gap) or leave the quote out`,
+          matches.includes('too_far_apart')
+            ? `${at}: the parts of the quote "${item.quote}" are more than ${QUOTE_MAX_GAP} characters apart in the text fetched from ${url}; a "..." may skip only a few words within one passage, so quote one passage or give each part as its own quote`
+            : `${at}: the quote "${item.quote}" is not in the text fetched from ${url}; copy the words exactly (use "..." for a gap) or leave the quote out`,
         );
       }
     }
