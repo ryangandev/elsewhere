@@ -155,7 +155,7 @@ Home        suggestedQuestions[{countryId, storyId}] (3 to 4, distinct, shown in
 ```
 
 Content stores a `SceneSpec`, which only names places.
-`resolveScene(spec)` turns it into the globe's `MapScene`: coordinates from the gazetteer, notes from `places.json`, and route polylines along great circles.
+`resolveScene(spec)` turns it into the globe's `MapScene`: coordinates from the gazetteer, notes from `places.json`, and route polylines along great circles, following the path of any passage or river the route names.
 A country place marks the part of the country the scene looks at.
 Its gazetteer point is Natural Earth's label point, which for a country in several parts can sit far from the story: Malaysia's is on Borneo, while the Singapore stories are about the peninsula.
 `countryPlacePoint` in `src/content/geo.ts` takes the label point unless one of the country's interior label candidates (the same points the globe names it at, from `label-candidates.ts` over `public/maps/countries.geojson`) is less than half as far from the scene's center, which is the scene's camera or else the focus country's label point.
@@ -172,7 +172,7 @@ Rules:
 - Every section, overview item and quick fact lists the source IDs that support it, and every declared source is cited.
 - `placeIds` and route `via` lists reference gazetteer IDs; coordinates are looked up from `data/geo`, never written by hand or by the model.
 - `sea` routes must stay at sea (see [Content pipeline](#content-pipeline)).
-  `land` and `river` routes follow their named places.
+  `land` and `river` routes follow their named places; a route through a river follows the river's course.
   `flow` routes are illustrative arcs for a relationship such as trade or language, and are not checked against land.
 - Each story leads to at least one next question in the same country and one elsewhere.
   A draft may lead to a planned story in a country that has no file yet (see [pending references](#content-pipeline)); reviewed stories may not.
@@ -386,7 +386,7 @@ The claim check fixtures cover only the Chile overview and one story, so they ru
 Geo data in `data/geo/` is generated from Natural Earth 10m datasets, which are cached in `.map-sources/` and recorded with URL and SHA-256 in `data/geo/sources.json`:
 
 - `countries.json` (`npm run maps:countries`) holds all 258 map identities: ID, slug, English name and short map name, region, population and label anchor.
-- `gazetteer.json` (`npm run maps:gazetteer`) holds about 1,280 named places (38 KB gzipped): every country, named seas and straits, major rivers, physical regions, and major cities and capitals.
+- `gazetteer.json` (`npm run maps:gazetteer`) holds about 1,290 named places (244 KB, 58 KB gzipped, read only on the server and by the scripts): every country, named seas and straits, major rivers, physical regions, and major cities and capitals.
   IDs are slugs of the English name; when two kinds share a name, the lower-priority one gets a suffix, so `singapore` is the country and `singapore-city` the city.
 - `gazetteer-overrides.json` is the only hand-maintained input: a short list of extra Natural Earth features to include, renames to common English names, extra rivers, extra passages, canals, and the few features Natural Earth lacks.
   Added features are anchored to Natural Earth geometry, never to typed coordinates, and every entry gives a reason.
@@ -396,6 +396,9 @@ Geo data in `data/geo/` is generated from Natural Earth 10m datasets, which are 
   Cabot Strait is the middle of the shortest line between the Cape Breton Island and Newfoundland region polygons, and the Celtic Sea is the part of the North Atlantic polygon near where the Irish Sea, the Bristol Channel and the English Channel meet it.
   Natural Earth has the Saint Lawrence twice (the estuary polygon and the river centerline); a rename merges them into one ID, `saint-lawrence-river`, the estuary with its passage path.
   Rivers join by their renamed name, so the Rhine, which Natural Earth draws under both "Rhein" and "Rhine", is one `rhine-river`; rivers below the default scalerank cutoff (the Rhine, Vaal, Orange, Blue Nile, Meuse, Scheldt and Thames) are added by name in the overrides' `rivers` list.
+  A river's `path` is its course, so a route through it follows the river instead of a straight line through its label point: the longest way along its Natural Earth centerline pieces and the lake centerlines of the same name (the Rhine through Lake Constance), joined across gaps of up to 25 km and simplified to within 3 km, a fraction of a texel of the 4K basemap.
+  That longest way runs from source to mouth, but follows Natural Earth's naming: its "Paraná" at scalerank 2 includes the Paraguay River, where the label point already sits.
+  The build fails when a river's label point is not on that course, and prints the pieces too far from it to join (the Yarlung stretch of the Brahmaputra, the Chinese Irtysh and the upper Angara, each beyond a differently named stretch or a reservoir).
   Lakes come from Natural Earth's separate lakes dataset, read only for the lakes the overrides include (Lake Victoria, which Natural Earth names "Nyanza" in English, and Lakes Albert, Kyoga and Tana, which it gives only their bare names in English).
   Admin-1 regions are included one at a time by `ne_id`: Sabah, Sarawak, French Guiana and the nine provinces of South Africa (the North West province is `north-west-province`).
   Each carries the map country Natural Earth files it under (`adm0_a3`), so country searches find it.
@@ -411,6 +414,7 @@ Sea routes are checked against `public/maps/countries-detail.geojson`, the detai
   Where the axis does not reach the real entrances (the Northwest Passage archipelago, the bending Strait of Magellan), the overrides set the ends where the polygon meets two named water bodies.
   Where the polygon is unusable (the Drake Passage), the path runs through the two oceans' water within 500 km of where they meet.
   A canal's path is its centerline.
+- A river is followed like a passage: a city or region next to it in a route joins or leaves its course at the nearest point (Rotterdam on the Rhine), and in a sea route the segments along its course are not checked, since they run over land by definition.
 - A route is sampled along great circles every 2 km.
   Land within 50 km of a land waypoint (a port) is allowed, and crossings of 15 km or less are ignored, so small islands do not fail a route.
 - Segments between points of one passage path are not sampled: the build traced them through the passage's water.

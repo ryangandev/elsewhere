@@ -96,7 +96,7 @@ export const SceneRouteSpec = z.strictObject({
   kind: RouteKind,
   /**
    * Gazetteer places the route passes, in order. Consecutive places are joined by great circles;
-   * a strait or channel with a passage path is followed along its length.
+   * a strait, channel or canal with a passage path, and a river, are followed along their length.
    */
   via: z.array(PlaceId).min(2),
 });
@@ -291,7 +291,7 @@ export const GazetteerPlace = z.strictObject({
   surface: z.enum(['sea', 'land']),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
-  /** Passage along a strait or channel, as [lat, lng] points. */
+  /** Passage along a strait, channel or canal, or a river's course, as [lat, lng] points. */
   path: z
     .array(z.tuple([z.number(), z.number()]))
     .min(2)

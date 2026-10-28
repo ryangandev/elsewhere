@@ -36,7 +36,7 @@
     },
     "filters": {
       "marine": "all named features except river mouths",
-      "rivers": "featurecla River, scalerank <= 2 or named in gazetteer-overrides.json; canals named in gazetteer-overrides.json",
+      "rivers": "featurecla River, scalerank <= 2 or named in gazetteer-overrides.json, with lake centerlines of the same name in the course; canals named in gazetteer-overrides.json",
       "regions": "scalerank <= 3",
       "places": "scalerank <= 2, or a national capital",
       "admin1": "only features listed in gazetteer-overrides.json",

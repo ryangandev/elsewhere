@@ -134,7 +134,7 @@ export function countryPlacePoint(place: GazetteerPlace, center: LatLng): LatLng
   return best;
 }
 
-/** The stops of a route, with passage paths for straits and channels. */
+/** The stops of a route, with the paths of straits, channels, canals and rivers. */
 export function routeStops(route: Pick<SceneRouteSpec, 'via'>): RouteStop[] {
   return route.via.map((id) => {
     const place = requirePlace(id);

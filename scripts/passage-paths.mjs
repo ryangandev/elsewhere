@@ -404,6 +404,125 @@ export function joinLines(lines, gapKm = 2) {
   return chain;
 }
 
+/**
+ * The main stem of a river drawn as several line pieces (as [lng, lat] coordinate lists), as
+ * [lat, lng] points from one end to the other: the longest way along the pieces between two of
+ * their vertices. Natural Earth splits a river into pieces that meet at shared vertices, and draws
+ * side channels, delta branches and the centerlines of lakes the river flows through under the
+ * same name; the longest way through them runs from the source to the mouth.
+ *
+ * Pieces that share no vertex are joined where they come within `gapKm` of each other. Pieces
+ * that stay apart from the longest connected stretch are left out; `leftOutKm` is their length.
+ */
+export function mainStem(lines, gapKm) {
+  const keys = new Map();
+  const points = [];
+  const edges = [];
+  const node = ([lng, lat]) => {
+    const key = `${lng},${lat}`;
+    if (!keys.has(key)) {
+      keys.set(key, points.length);
+      points.push([lat, lng]);
+      edges.push([]);
+    }
+    return keys.get(key);
+  };
+  const connect = (a, b) => {
+    const km = distanceKm(points[a], points[b]);
+    edges[a].push({ to: b, km });
+    edges[b].push({ to: a, km });
+  };
+  for (const line of lines) {
+    for (let index = 1; index < line.length; index += 1) {
+      const [a, b] = [node(line[index - 1]), node(line[index])];
+      if (a !== b) connect(a, b);
+    }
+  }
+
+  // Connected pieces, then the shortest gaps between them, joined shortest first.
+  const parent = points.map((_, index) => index);
+  const find = (index) => {
+    while (parent[index] !== index) index = parent[index] = parent[parent[index]];
+    return index;
+  };
+  for (const [a, list] of edges.entries()) for (const { to } of list) parent[find(a)] = find(to);
+  const groups = new Map();
+  for (const index of points.keys()) {
+    const root = find(index);
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(index);
+  }
+  const pieces = [...groups.values()];
+  const gaps = [];
+  for (let i = 0; i < pieces.length; i += 1) {
+    for (let j = i + 1; j < pieces.length; j += 1) {
+      let best;
+      for (const a of pieces[i]) {
+        for (const b of pieces[j]) {
+          const km = distanceKm(points[a], points[b]);
+          if (!best || km < best.km) best = { a, b, km };
+        }
+      }
+      if (best.km <= gapKm) gaps.push(best);
+    }
+  }
+  gaps.sort((x, y) => x.km - y.km || x.a - y.a || x.b - y.b);
+  for (const { a, b } of gaps) {
+    if (find(a) === find(b)) continue;
+    parent[find(a)] = find(b);
+    connect(a, b);
+  }
+
+  /** Shortest distances from `start` along the pieces, with the previous vertex of each. */
+  const shortest = (start) => {
+    const distance = new Float64Array(points.length).fill(Infinity);
+    const previous = new Int32Array(points.length).fill(-1);
+    const heap = createHeap();
+    distance[start] = 0;
+    heap.push(start, 0);
+    while (heap.size) {
+      const { cell, cost } = heap.pop();
+      if (cost > distance[cell]) continue;
+      for (const { to, km } of edges[cell]) {
+        if (cost + km < distance[to]) {
+          distance[to] = cost + km;
+          previous[to] = cell;
+          heap.push(to, cost + km);
+        }
+      }
+    }
+    return { distance, previous };
+  };
+  const farthest = (distance) => {
+    let best = -1;
+    for (const [index, km] of distance.entries()) {
+      if (Number.isFinite(km) && (best === -1 || km > distance[best])) best = index;
+    }
+    return best;
+  };
+
+  // The longest stretch: the farthest vertex from any vertex is one end of the longest way
+  // through a tree, and the farthest vertex from that end is the other.
+  const lengthOf = (root) =>
+    edges.reduce(
+      (sum, list, index) =>
+        find(index) === root ? sum + list.reduce((total, { km }) => total + km, 0) / 2 : sum,
+      0,
+    );
+  const roots = [...new Set(points.map((_, index) => find(index)))];
+  const lengths = new Map(roots.map((root) => [root, lengthOf(root)]));
+  const main = roots.reduce((best, root) => (lengths.get(root) > lengths.get(best) ? root : best));
+  const leftOutKm = roots.reduce((sum, root) => (root === main ? sum : sum + lengths.get(root)), 0);
+  const first = points.findIndex((_, index) => find(index) === main);
+  const start = farthest(shortest(first).distance);
+  const { distance, previous } = shortest(start);
+  const path = [];
+  for (let index = farthest(distance); index !== -1; index = previous[index]) {
+    path.push(points[index]);
+  }
+  return { path: path.reverse(), leftOutKm };
+}
+
 /** A centerline simplified to within `toleranceKm`, as [lat, lng] points. */
 export function simplifyLine(points, toleranceKm) {
   const noLand = { isLand: () => false };
