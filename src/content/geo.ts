@@ -9,7 +9,7 @@ import {
   distanceKm,
   expandRouteStops,
   findSeaRouteLandCrossings,
-  routePolyline,
+  routeLine,
   type LandCrossing,
   type LandIndex,
   type LatLng,
@@ -165,8 +165,20 @@ const round = (value: number) => Math.round(value * 1e4) / 1e4;
  * along the paths of the passages and rivers a sea or river route names.
  */
 export function routePoints(route: Pick<SceneRouteSpec, 'kind' | 'via'>): LatLng[] {
-  const waypoints = expandRouteStops(routeStops(route)).map((waypoint) => waypoint.point);
-  return routePolyline(waypoints, ROUTE_STEP_KM).map(([lat, lng]) => [round(lat), round(lng)]);
+  return drawnRoute(route).points;
+}
+
+function drawnRoute(route: Pick<SceneRouteSpec, 'kind' | 'via'>) {
+  const waypoints = expandRouteStops(routeStops(route));
+  const line = routeLine(
+    waypoints.map((waypoint) => waypoint.point),
+    ROUTE_STEP_KM,
+  );
+  return {
+    waypoints,
+    points: line.points.map(([lat, lng]): LatLng => [round(lat), round(lng)]),
+    waypointIndices: line.waypointIndices,
+  };
 }
 
 /**
@@ -188,21 +200,27 @@ export function isDirection(place: GazetteerPlace, focusCountryId?: string): boo
 }
 
 /**
- * The points a route is drawn through before the great-circle steps between them: its stops, and
- * the path points of the passages and rivers a sea or river route follows. Stops that are only a
- * direction (see `isDirection`) are marked.
+ * A route as the globe draws and frames it: its polyline, the indices into `points` of the points
+ * it is drawn through before the great-circle steps between them (its stops, and the path points
+ * of the passages and rivers a sea or river route follows), and which of those stops are only a
+ * direction (see `isDirection`). The camera frames the stops, since a step between two points of
+ * a cap smaller than a hemisphere stays inside it.
  */
-export function routeWaypoints(
+export function resolveRoute(
   route: Pick<SceneRouteSpec, 'kind' | 'via'>,
   focusCountryId?: string,
-): { lat: number; lng: number; direction?: true }[] {
-  return expandRouteStops(routeStops(route)).map(({ id, point: [lat, lng], passage }) => ({
-    lat: round(lat),
-    lng: round(lng),
-    ...(passage === undefined && isDirection(requirePlace(id), focusCountryId)
-      ? { direction: true as const }
-      : {}),
-  }));
+): { points: LatLng[]; stops: number[]; directions?: number[] } {
+  const { waypoints, points, waypointIndices } = drawnRoute(route);
+  const directions = waypointIndices.filter(
+    (_, index) =>
+      waypoints[index].passage === undefined &&
+      isDirection(requirePlace(waypoints[index].id), focusCountryId),
+  );
+  return {
+    points,
+    stops: waypointIndices,
+    ...(directions.length ? { directions } : {}),
+  };
 }
 
 /**

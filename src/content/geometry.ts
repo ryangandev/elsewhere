@@ -29,17 +29,30 @@ export function interpolateGreatCircle(a: LatLng, b: LatLng, maxStepKm = 50): La
   return points;
 }
 
-/** A polyline through every waypoint, following great circles between consecutive waypoints. */
-export function routePolyline(waypoints: LatLng[], maxStepKm = 50): LatLng[] {
+/**
+ * A polyline through every waypoint, following great circles between consecutive waypoints, and
+ * the index of each waypoint among its points.
+ */
+export function routeLine(
+  waypoints: LatLng[],
+  maxStepKm = 50,
+): { points: LatLng[]; waypointIndices: number[] } {
   const points: LatLng[] = [];
+  const waypointIndices: number[] = [];
   waypoints.forEach((waypoint, index) => {
     if (index === 0) {
       points.push(waypoint);
-      return;
+    } else {
+      points.push(...interpolateGreatCircle(waypoints[index - 1], waypoint, maxStepKm).slice(1));
     }
-    points.push(...interpolateGreatCircle(waypoints[index - 1], waypoint, maxStepKm).slice(1));
+    waypointIndices.push(points.length - 1);
   });
-  return points;
+  return { points, waypointIndices };
+}
+
+/** A polyline through every waypoint, following great circles between consecutive waypoints. */
+export function routePolyline(waypoints: LatLng[], maxStepKm = 50): LatLng[] {
+  return routeLine(waypoints, maxStepKm).points;
 }
 
 export interface LandIndex {

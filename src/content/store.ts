@@ -8,8 +8,7 @@ import {
   getMapCountry,
   getPlace,
   isDirection,
-  routePoints,
-  routeWaypoints,
+  resolveRoute,
   type LatLng,
 } from './geo';
 import type { MapScene } from './map-scene';
@@ -213,8 +212,7 @@ export function resolveScene(
     routes: spec.routes.map((route) => ({
       id: route.id,
       kind: route.kind,
-      points: routePoints(route),
-      waypoints: routeWaypoints(route, spec.focusCountryId),
+      ...resolveRoute(route, spec.focusCountryId),
     })),
   };
 }

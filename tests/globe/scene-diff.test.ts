@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EMPTY_SCENE, type MapScene, type ScenePlace } from '../../src/globe/scene';
-import { diffKeyed, diffScene, samePlace } from '../../src/globe/scene-diff';
+import { diffKeyed, diffScene, samePlace, sameRoute } from '../../src/globe/scene-diff';
 
 const place = (id: string, overrides: Partial<ScenePlace> = {}): ScenePlace => ({
   id,
@@ -27,10 +27,8 @@ const shipping: MapScene = {
         [8, 89],
         [1.2, 103.5],
       ],
-      waypoints: [
-        { lat: 8, lng: 89 },
-        { lat: 1.2, lng: 103.5 },
-      ],
+      stops: [0, 1],
+      directions: [0],
     },
   ],
 };
@@ -116,6 +114,31 @@ describe('scene diff', () => {
       places: true,
       routes: true,
     });
+  });
+
+  it('sees the inputs that frame the camera', () => {
+    const direction = copy(shipping);
+    direction.places[0].direction = true;
+    expect(diffScene(shipping, direction)).toMatchObject({ places: true, routes: false });
+    // A direction that is not set equals one set to nothing.
+    expect(samePlace(place('a'), { ...place('a'), direction: undefined })).toBe(true);
+    expect(samePlace(place('a'), place('a', { direction: true }))).toBe(false);
+
+    const restopped = copy(shipping);
+    restopped.routes[0].stops = [1];
+    expect(diffScene(shipping, restopped)).toMatchObject({ routes: true, places: false });
+
+    const redirected = copy(shipping);
+    redirected.routes[0].directions = [1];
+    expect(diffScene(shipping, redirected)).toMatchObject({ routes: true, places: false });
+
+    // A route with no directions equals one with an empty list.
+    const none = copy(shipping);
+    delete none.routes[0].directions;
+    const empty = copy(shipping);
+    empty.routes[0].directions = [];
+    expect(sameRoute(none.routes[0], empty.routes[0])).toBe(true);
+    expect(sameRoute(shipping.routes[0], none.routes[0])).toBe(false);
   });
 
   it('treats a reordered place list as a change', () => {
