@@ -16,7 +16,12 @@ import {
   viewOffset,
   zoomView,
 } from '../../src/globe/camera';
-import { EMPTY_SCENE, type MapScene, type ScenePlace } from '../../src/globe/scene';
+import {
+  EMPTY_SCENE,
+  type MapScene,
+  type SceneRoute,
+  type ScenePlace,
+} from '../../src/globe/scene';
 
 const countries = new Map([
   ['RUS', { lat: 61.98, lng: 96.69, area: 0.4 }],
@@ -25,6 +30,14 @@ const countries = new Map([
 ]);
 
 const scene = (overrides: Partial<MapScene>): MapScene => ({ ...EMPTY_SCENE, ...overrides });
+
+const place = (id: string, lat: number, lng: number): ScenePlace => ({
+  id,
+  name: id,
+  lat,
+  lng,
+  kind: 'place',
+});
 
 describe('camera framing', () => {
   it('frames countries by area within readable bounds', () => {
@@ -69,11 +82,68 @@ describe('camera framing', () => {
       kind: 'water' as const,
     };
     const focused = scene({ focusCountryId: 'SGP', places: [strait], focusPlaceId: 'malacca' });
-    expect(sceneTarget(focused, countries)).toEqual(
-      placeView(sceneView(focused, countries), strait),
-    );
+    // Singapore's own view is 0.16 high; the close-up is three quarters of it, down to the floor.
+    expect(sceneTarget(focused, countries)).toEqual({ lat: 3, lng: 99, altitude: 0.12 });
     const missing = scene({ focusCountryId: 'SGP', places: [], focusPlaceId: 'malacca' });
     expect(sceneTarget(missing, countries)).toEqual(sceneView(missing, countries));
+  });
+
+  it('zooms to the same close-up however wide the scene is framed', () => {
+    const colombo = place('colombo', 6.93, 79.85);
+    const taipei = place('taipei', 25.03, 121.57);
+    const narrow = scene({ focusCountryId: 'SGP', places: [colombo], focusPlaceId: 'colombo' });
+    const wide = scene({
+      focusCountryId: 'SGP',
+      places: [colombo, taipei],
+      focusPlaceId: 'colombo',
+    });
+    // The wide scene's overview is framed out past Singapore's own view, so it is not the base.
+    const overview = sceneView({ ...wide, focusPlaceId: undefined }, countries);
+    expect(overview.altitude).toBeGreaterThan(0.4);
+    for (const focused of [narrow, wide]) {
+      const target = sceneTarget(focused, countries);
+      expect(target).toMatchObject({ lat: colombo.lat, lng: colombo.lng });
+      expect(target.altitude).toBe(0.12);
+    }
+    // A larger country keeps its larger close-up, which is how it was before scenes were framed.
+    const france = scene({
+      focusCountryId: 'FRA',
+      places: [place('lyon', 45.76, 4.84)],
+      focusPlaceId: 'lyon',
+    });
+    expect(sceneTarget(france, countries).altitude).toBeCloseTo(countryAltitude(0.0137) * 0.75);
+  });
+
+  it('never zooms out when it focuses a place', () => {
+    const focused = scene({
+      focusCountryId: 'SGP',
+      places: [place('colombo', 6.93, 79.85), place('taipei', 25.03, 121.57)],
+      focusPlaceId: 'colombo',
+    });
+    const overview = sceneView({ ...focused, focusPlaceId: undefined }, countries);
+    const target = sceneTarget(focused, countries);
+    expect(target.altitude).toBeLessThan(overview.altitude);
+    expect(target.altitude).toBeLessThan(countryView(countries.get('SGP')!).altitude);
+  });
+
+  it('closes in on a focused place from an explicit camera, not from the framed country', () => {
+    const camera = { lat: 1.3, lng: 103.8, altitude: 0.4 };
+    const johor = place('johor', 1.5, 103.7);
+    const focused = scene({
+      camera,
+      focusCountryId: 'SGP',
+      places: [johor, place('taipei', 25.03, 121.57)],
+      focusPlaceId: 'johor',
+    });
+    // Three quarters of the camera's altitude, centered on the place; the camera's own center and
+    // the far place do not matter.
+    const target = sceneTarget(focused, countries);
+    expect(target).toMatchObject({ lat: johor.lat, lng: johor.lng });
+    expect(target.altitude).toBeCloseTo(0.3);
+    // Without a focused place the explicit camera is the target.
+    expect(sceneTarget({ ...focused, focusPlaceId: undefined }, countries)).toEqual(camera);
+    // A focused place the scene does not show leaves the camera where it was set.
+    expect(sceneTarget({ ...focused, focusPlaceId: 'elsewhere' }, countries)).toEqual(camera);
   });
 
   it('zooms by steps and clamps at the limits', () => {
@@ -87,13 +157,13 @@ describe('camera framing', () => {
 
 describe('scene framing', () => {
   const egypt = new Map([['EGY', getMapCountry('EGY')!]]);
-  const place = (id: string, lat: number, lng: number): ScenePlace => ({
-    id,
-    name: id,
-    lat,
-    lng,
-    kind: 'place',
-  });
+  // A route's stops as the camera reads them: points of the polyline, some only a direction.
+  const stopsOf = (route: SceneRoute) =>
+    route.stops.map((index) => ({
+      lat: route.points[index][0],
+      lng: route.points[index][1],
+      direction: route.directions?.includes(index) ?? false,
+    }));
   const pointsOf = (scene: MapScene) => [
     ...scene.places,
     ...scene.routes.flatMap((route) => route.points.map(([lat, lng]) => ({ lat, lng }))),
@@ -131,6 +201,21 @@ describe('scene framing', () => {
       },
       { id: 'blue-nile', kind: 'river', via: ['lake-tana', 'blue-nile-river', 'khartoum'] },
     ],
+  });
+
+  it("carries a route's stops as indices into its points", () => {
+    for (const route of nileSource.routes) {
+      expect(route.stops[0]).toBe(0);
+      expect(route.stops.at(-1)).toBe(route.points.length - 1);
+      expect(route.stops).toEqual([...route.stops].sort((a, b) => a - b));
+      expect(route).not.toHaveProperty('waypoints');
+      expect(route.directions).toBeUndefined();
+    }
+    // The river routes follow the Nile's course, so there are more stops than named places.
+    const [whiteNile] = nileSource.routes;
+    expect(whiteNile.stops.length).toBeGreaterThan(11);
+    expect(whiteNile.stops.length).toBeLessThan(whiteNile.points.length);
+    expect(stopsOf(whiteNile).at(-1)!.lat).toBeCloseTo(30.04, 0);
   });
 
   it('frames a scene that reaches beyond its country, from Lake Victoria to Cairo', () => {
@@ -189,12 +274,14 @@ describe('scene framing', () => {
       'north-sea',
       'belgium',
     ]);
-    const [start, ...rest] = scene.routes[0].waypoints;
+    const [start, ...rest] = stopsOf(scene.routes[0]);
     expect(start).toMatchObject({ lat: 29.241, lng: -37.31, direction: true });
     expect(rest.length).toBeGreaterThan(2);
     expect(rest.every((point) => !point.direction)).toBe(true);
+    expect(scene.routes[0].directions).toEqual([0]);
     // Another country as a route stop is a direction too; the focus country is not.
-    expect(scene.routes[1].waypoints.map((point) => point.direction)).toEqual([true, undefined]);
+    expect(stopsOf(scene.routes[1]).map((point) => point.direction)).toEqual([true, false]);
+    expect(scene.routes[1].directions).toEqual([0]);
   });
 
   it('reaches exactly the set distance past the rest of the scene toward a direction', () => {
@@ -276,7 +363,7 @@ describe('scene framing', () => {
     });
     const view = sceneView(egyptRoute, egypt);
     expect(view.altitude).toBeLessThan(1.3);
-    const ocean = egyptRoute.routes[0].waypoints[0];
+    const ocean = stopsOf(egyptRoute.routes[0])[0];
     expect(viewOffset(view, ocean)).toBeGreaterThan(1);
   });
 
@@ -300,7 +387,7 @@ describe('scene framing', () => {
     // The Channel, the Strait of Dover, Rotterdam and the Rhine and Meuse count in full.
     const full = [
       ...rotterdam.places.filter((item) => !item.direction),
-      ...rotterdam.routes.flatMap((route) => route.waypoints.filter((point) => !point.direction)),
+      ...rotterdam.routes.flatMap((route) => stopsOf(route).filter((point) => !point.direction)),
     ];
     for (const point of full)
       expect(viewOffset(view, point)).toBeLessThanOrEqual(SCENE_FILL + 1e-6);
@@ -319,9 +406,12 @@ describe('scene framing', () => {
     const camera = { lat: 26, lng: 30, altitude: 0.8 };
     expect(sceneView({ ...nileSource, camera }, egypt)).toEqual(camera);
     const focused = { ...nileSource, focusPlaceId: 'lake-victoria' };
-    expect(sceneTarget(focused, egypt)).toEqual(
-      placeView(sceneView(nileSource, egypt), nileSource.places[0]),
-    );
+    const closeUp = sceneTarget(focused, egypt);
+    const lake = nileSource.places[0];
+    expect(closeUp).toMatchObject({ lat: lake.lat, lng: lake.lng });
+    // Egypt's own view is wide, so its close-up is too, and the framed overview is wider still.
+    expect(closeUp.altitude).toBeCloseTo(countryView(egypt.get('EGY')!).altitude * 0.75);
+    expect(closeUp.altitude).toBeLessThan(sceneView(nileSource, egypt).altitude);
     expect(sceneView({ ...nileSource, focusCountryId: undefined }, egypt)).toEqual(HOME_VIEW);
   });
 

@@ -14,6 +14,7 @@ import {
   listMapCountries,
   listPlaces,
   placeCoordinates,
+  resolveRoute,
   routePoints,
   routePolyline,
 } from '../../src/content/geo';
@@ -623,5 +624,25 @@ describe('routes', () => {
     for (const route of seaRoutes) {
       expect(findRouteLandCrossings(route, landIndex()), route.id).toEqual([]);
     }
+  });
+
+  it('gives a route its stops as indices into its points, and marks the directions', () => {
+    const via = ['north-atlantic-ocean', 'strait-of-dover', 'rotterdam'];
+    const route = resolveRoute({ kind: 'sea', via }, 'NLD');
+    expect(route.points).toEqual(routePoints({ kind: 'sea', via }));
+    // The strait's path points are stops too, so there are more stops than named places.
+    expect(route.stops.length).toBeGreaterThan(via.length);
+    expect(route.stops[0]).toBe(0);
+    expect(route.stops.at(-1)).toBe(route.points.length - 1);
+    expect(route.stops).toEqual([...route.stops].sort((a, b) => a - b));
+    // The ocean's label point is a direction; the strait, its path and the port are not.
+    expect(route.directions).toEqual([0]);
+    const [lat, lng] = route.points[route.stops.at(-1)!];
+    const port = getPlace('rotterdam')!;
+    expect([lat, lng]).toEqual([port.lat, port.lng]);
+    // A route that names no direction has none to carry.
+    expect(
+      resolveRoute({ kind: 'river', via: ['rotterdam', 'rhine-river'] }, 'NLD'),
+    ).not.toHaveProperty('directions');
   });
 });

@@ -36,12 +36,22 @@ export function diffKeyed<T extends { id: string }>(
 }
 
 export const samePlace = (a: ScenePlace, b: ScenePlace) =>
-  a.name === b.name && a.lat === b.lat && a.lng === b.lng && a.kind === b.kind && a.note === b.note;
+  a.name === b.name &&
+  a.lat === b.lat &&
+  a.lng === b.lng &&
+  a.kind === b.kind &&
+  a.note === b.note &&
+  !a.direction === !b.direction;
+
+const sameNumbers = (a: readonly number[] = [], b: readonly number[] = []) =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
 
 export const sameRoute = (a: SceneRoute, b: SceneRoute) =>
   a.kind === b.kind &&
   a.points.length === b.points.length &&
-  a.points.every(([lat, lng], index) => lat === b.points[index][0] && lng === b.points[index][1]);
+  a.points.every(([lat, lng], index) => lat === b.points[index][0] && lng === b.points[index][1]) &&
+  sameNumbers(a.stops, b.stops) &&
+  sameNumbers(a.directions, b.directions);
 
 const sameList = <T extends { id: string }>(
   a: readonly T[],
