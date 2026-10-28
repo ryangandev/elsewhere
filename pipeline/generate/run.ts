@@ -12,18 +12,34 @@ import {
   writeCountryFile,
   writeJson,
 } from '../content-tree';
-import { replaceStory } from './assemble';
+import { replaceCountryPart, replaceStory } from './assemble';
 import { MissingApiKeyError, type ModelClient } from './model-client';
-import { replaceConflict } from './replace';
+import { overviewRevision, replaceConflict } from './replace';
 import { DraftSession, type SessionSetup, type SessionSnapshot } from './session';
-import { countrySession, storySession, type RunContext } from './tasks';
+import {
+  countrySession,
+  overviewJobTag,
+  overviewSession,
+  storySession,
+  type RunContext,
+} from './tasks';
 import { emptyUsage, formatUsage, sumUsage, type Usage } from './usage';
 
+/**
+ * A country drafted whole, one story review sent back, or the country part of a country whose
+ * overview review sent back alone.
+ */
 export type Job =
-  { kind: 'country'; countryId: string } | { kind: 'story'; countryId: string; storyId: string };
+  | { kind: 'country'; countryId: string }
+  | { kind: 'overview'; countryId: string }
+  | { kind: 'story'; countryId: string; storyId: string };
 
 export const jobTag = (job: Job) =>
-  job.kind === 'country' ? job.countryId : `${job.countryId}-${job.storyId}`;
+  job.kind === 'country'
+    ? job.countryId
+    : job.kind === 'overview'
+      ? overviewJobTag(job.countryId)
+      : `${job.countryId}-${job.storyId}`;
 
 export type JobResult = {
   tag: string;
@@ -76,6 +92,10 @@ function skipReason(job: Job, options: GenerateOptions): string | undefined {
     if (!story) return 'no such story';
     return story.provenance.revision ? undefined : 'no revision requested';
   }
+  if (job.kind === 'overview') {
+    if (!existing) return 'no content file';
+    return overviewRevision(existing) ? undefined : 'no overview revision requested';
+  }
   switch (replaceConflict(existing, options)) {
     case 'reviewed':
       return 'contains reviewed content; pass --force to replace it';
@@ -91,6 +111,7 @@ function setupFor(job: Job, context: RunContext): SessionSetup {
   const existing = readCountryFile(context.contentDir, slug);
   if (job.kind === 'country') return countrySession(context, job.countryId, existing);
   if (!existing) throw new Error(`No content file for ${job.countryId}`);
+  if (job.kind === 'overview') return overviewSession(context, existing);
   return storySession(context, existing, job.storyId);
 }
 
@@ -127,13 +148,17 @@ function finish(session: DraftSession, job: Job, options: GenerateOptions): JobR
   const state = session.state;
   if (state.status === 'done') {
     let file = state.file;
+    // Re-read the file for a revision: another revision in the same run may have changed it since,
+    // and only the revised part is replaced.
     if (job.kind === 'story') {
-      // Re-read the file: another revision in the same run may have changed it since.
       const current = readCountryFile(contentDir, file.country.slug)!;
       file = replaceStory(
         current,
         file.stories.find((story) => story.id === job.storyId)!,
       );
+    } else if (job.kind === 'overview') {
+      const current = readCountryFile(contentDir, file.country.slug)!;
+      file = replaceCountryPart(current, file.country);
     }
     const path = writeCountryFile(contentDir, file);
     return { ...base, outcome: 'written', detail: `${path} (${state.model})` };

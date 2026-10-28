@@ -334,13 +334,25 @@ export function validateContent(input: ContentInput): ContentIssue[] {
     for (const slug of duplicates(stories.map((story) => story.slug)))
       report(file, 'stories', `Story slug "${slug}" is used twice`);
 
-    // A source ID means the same document everywhere in a file.
-    const urls = new Map<string, string>();
-    for (const source of [...country.sources, ...stories.flatMap((story) => story.sources)]) {
-      const known = urls.get(source.id);
-      if (known && known !== source.url)
-        report(file, 'sources', `Source "${source.id}" points to two different URLs`);
-      urls.set(source.id, source.url);
+    // A source ID means the same document everywhere in a file. The problem names where each
+    // URL is declared, so a revision that changed one of them can tell which part keeps the other.
+    const declared = new Map<string, { url: string; where: string }>();
+    const declarations = [
+      ...country.sources.map((source) => ({ source, where: 'the overview' })),
+      ...stories.flatMap((story) =>
+        story.sources.map((source) => ({ source, where: `story "${story.id}"` })),
+      ),
+    ];
+    for (const { source, where } of declarations) {
+      const known = declared.get(source.id);
+      if (known && known.url !== source.url) {
+        report(
+          file,
+          'sources',
+          `Source "${source.id}" points to two different URLs: ${known.where} declares ${known.url} and ${where} declares ${source.url}. One source ID names one document in a file, so use the same URL in both or give the other document its own ID`,
+        );
+      }
+      if (!known) declared.set(source.id, { url: source.url, where });
     }
 
     stories.forEach((story, storyIndex) => {

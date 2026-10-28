@@ -13,6 +13,7 @@ import {
   type Effort,
 } from '../config';
 import { landIndex, parsedCountryFiles, requireMapCountry } from '../content-tree';
+import { overviewRevision, wholeCountryRevision } from './replace';
 import { loadPrompts } from '../prompts';
 import {
   AnthropicModelClient,
@@ -30,7 +31,7 @@ const USAGE = `Usage: npm run content:generate -- <what> [options]
 What to draft (one of):
   --batch <id>          every country in pipeline/batches/<id>.json; plans questions first
   --country <id>        one country by map ID, e.g. CHL (repeatable)
-  --revisions           every country or story that review sent back
+  --revisions           every country, overview or story that review sent back
 
 Options:
   --plan-only           with --batch: write the question plan and stop, for review
@@ -50,13 +51,19 @@ Options:
 
 const EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
 
+/**
+ * A job for everything review sent back: a whole country is drafted again, and otherwise the
+ * country part (when its overview is sent back) and each story are redrafted in place, each in its
+ * own conversation.
+ */
 function revisionJobs(contentDir: string): Job[] {
   const jobs: Job[] = [];
   for (const file of parsedCountryFiles(contentDir).values()) {
-    if (file.country.provenance.revision) {
+    if (wholeCountryRevision(file)) {
       jobs.push({ kind: 'country', countryId: file.country.id });
       continue;
     }
+    if (overviewRevision(file)) jobs.push({ kind: 'overview', countryId: file.country.id });
     for (const story of file.stories) {
       if (story.provenance.revision) {
         jobs.push({ kind: 'story', countryId: file.country.id, storyId: story.id });

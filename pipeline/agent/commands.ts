@@ -28,7 +28,7 @@ import { allPlans } from '../generate/plan';
 import { replaceConflict } from '../generate/replace';
 import { StoryRevisionsDraft } from '../generate/draft-schema';
 import {
-  checkStoryRevisions,
+  checkRevisions,
   renderLinkTargets,
   submitCountryDraft,
   zodIssues,
@@ -443,14 +443,14 @@ function checkRevisionSubmission(
   existing: CountryFile,
   storyIds: string[],
   input: unknown,
-  options: Parameters<typeof checkStoryRevisions>[4],
+  options: Parameters<typeof checkRevisions>[4],
 ): Checked {
   const parsed = StoryRevisionsDraft.safeParse(input);
   if (!parsed.success) return { ok: false, issues: zodIssues(parsed.error) };
-  return checkStoryRevisions(
+  return checkRevisions(
     drafting,
     existing,
-    storyIds,
+    { overview: false, storyIds },
     {
       stories: parsed.data.stories.map((story, index) => ({ path: `stories[${index}]`, story })),
       sources: parsed.data.sources,

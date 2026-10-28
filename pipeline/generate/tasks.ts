@@ -1,5 +1,5 @@
 // Build drafting sessions: the shared (cached) system prompt and tools, and the per-task
-// first turn for drafting a whole country or revising one story. The prompt texts and the
+// first turn for drafting a whole country, revising one story or revising the country part. The prompt texts and the
 // submission check are also used by agent drafting (pipeline/agent), which hands the same
 // instructions to a Claude Code subagent and checks its submission the same way.
 import { readFileSync } from 'node:fs';
@@ -10,20 +10,32 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages';
 import { z } from 'zod';
 import type { LandIndex } from '../../src/content/geometry';
-import type { CountryFile, Story } from '../../src/content/schema';
+import type { Country, CountryFile, Story } from '../../src/content/schema';
 import { REFERENCE_COUNTRY_FILE, type Effort, type GenerationLimits } from '../config';
 import { parsedCountryFiles, requireMapCountry } from '../content-tree';
 import { render, type PromptSet } from '../prompts';
-import { assembleCountry, assembleStory, replaceStory } from './assemble';
+import {
+  assembleCountry,
+  assembleCountryPart,
+  assembleStory,
+  replaceCountryPart,
+  replaceStory,
+  toDraftCountry,
+  toDraftSources,
+  toDraftStory,
+} from './assemble';
 import { checkCandidate, type Plan } from './check';
 import {
   CountryDraft,
+  OverviewDraft,
   StoryDraft,
   toStrictJsonSchema,
   toToolJsonSchema,
+  type DraftCountry,
   type DraftSource,
   type DraftStory,
 } from './draft-schema';
+import { cleanUrl } from './evidence';
 import { candidateListing, findPlaces, sharedListing } from './gazetteer-context';
 import type { SessionSetup, Submission } from './session';
 
@@ -351,36 +363,138 @@ export function otherStoriesText(existing: CountryFile, storyIds: string[]): str
   );
 }
 
+/**
+ * The country part of a country whose overview review sent back alone, as a revision task shows
+ * it: the notes, and the country part as drafted (everything but the stories) in the shape of a
+ * submission, `{ country, sources }`, so it can be copied as the starting draft.
+ */
+export function countryPartUnderRevision(existing: CountryFile): {
+  country: Country;
+  notes: string;
+  asDrafted: string;
+} {
+  const { country } = existing;
+  if (country.provenance.revision?.scope !== 'overview') {
+    throw new Error(`${country.id} has no revision request for its overview`);
+  }
+  return {
+    country,
+    notes: country.provenance.revision.notes,
+    asDrafted: JSON.stringify(
+      { country: toDraftCountry(country), sources: toDraftSources(country.sources) },
+      null,
+      2,
+    ),
+  };
+}
+
+/**
+ * A story review sent back, as an agent revision brief shows it: in the shape of a submission,
+ * `{ story, sources }`, so it can be copied as the starting draft. The API path's revise-story
+ * task keeps showing the content shape (storyUnderRevision), the text its recorded runs sent.
+ */
+export function storyDraftUnderRevision(existing: CountryFile, storyId: string): string {
+  const { story } = storyUnderRevision(existing, storyId);
+  return JSON.stringify(
+    { story: toDraftStory(story), sources: toDraftSources(story.sources) },
+    null,
+    2,
+  );
+}
+
+/** The country's stories as an overview revision task lists them: the IDs its starters may use. */
+export function storiesText(existing: CountryFile): string {
+  return existing.stories.map((story) => `- ${story.id}: ${story.question}`).join('\n');
+}
+
 /** A revised story as submitted, with where it sits in the submission for problem messages. */
 export type SubmittedRevision = { path: string; story: DraftStory };
 
+/** What review sent back of one country, short of the whole country. */
+export type SentBack = { overview: boolean; storyIds: string[] };
+
+export type RevisionCheckOptions = {
+  model: string;
+  evidence: Set<string>;
+  evidenceRule?: string;
+  unusableEvidence?: Map<string, string>;
+  /**
+   * Whether two URLs were read as one page in this session (one redirected to the other). A
+   * revised source that reuses an ID the kept parts of the file declare with the other URL, on the
+   * same host, then keeps the file's URL, since both name the same page.
+   */
+  samePage?: (a: string, b: string) => boolean;
+};
+
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return undefined;
+  }
+};
+
 /**
- * Assemble and check revised stories. Each must keep the ID of one of the stories sent back
- * (`storyIds`), every one of them must be there once, and each replaces its story in place, so
- * the rest of the file stays as it is. The candidate file passes every check the revision path
- * applies to each revised story. The pipeline's provenance replaces the old one, which clears
- * the revision request.
+ * Where the parts of a file that a revision keeps declare each source ID, with the URL: the
+ * overview when it is not revised, and every story not revised.
  */
-export function checkStoryRevisions(
+function keptDeclarations(
+  existing: CountryFile,
+  sentBack: SentBack,
+): Map<string, { url: string; where: string }> {
+  const kept = new Map<string, { url: string; where: string }>();
+  const add = (sources: { id: string; url: string }[], where: string) => {
+    for (const source of sources) {
+      if (!kept.has(source.id)) kept.set(source.id, { url: source.url, where });
+    }
+  };
+  if (!sentBack.overview) add(existing.country.sources, 'the overview');
+  for (const story of existing.stories) {
+    if (!sentBack.storyIds.includes(story.id)) add(story.sources, `story "${story.id}"`);
+  }
+  return kept;
+}
+
+/**
+ * Assemble and check a revision of what review sent back in one country: the country part, when
+ * the overview is sent back, and the stories sent back. Each story must keep the ID of one of the
+ * stories sent back, every one of them must be there once, and the country part must be there
+ * exactly when the overview is sent back. Each replaces its part in place, so the rest of the file
+ * stays byte for byte as it is, and the candidate file passes every check the revision path
+ * applies to each revised part. The pipeline's provenance replaces the old one, which clears the
+ * revision request. The API path checks one part at a time (one story, or the country part);
+ * agent drafting checks everything a country has sent back in one submission.
+ */
+export function checkRevisions(
   context: DraftingContext,
   existing: CountryFile,
-  storyIds: string[],
-  submission: { stories: SubmittedRevision[]; sources: DraftSource[] },
-  options: {
-    model: string;
-    evidence: Set<string>;
-    evidenceRule?: string;
-    unusableEvidence?: Map<string, string>;
+  sentBack: SentBack,
+  submission: {
+    country?: { path: string; country: DraftCountry };
+    stories: SubmittedRevision[];
+    sources: DraftSource[];
   },
+  options: RevisionCheckOptions,
 ): { ok: true; file: CountryFile } | { ok: false; issues: string[] } {
+  const { storyIds } = sentBack;
   const idIssues: string[] = [];
+  if (submission.country && !sentBack.overview) {
+    idIssues.push(
+      `${submission.country.path}: the overview is not sent back, so leave the country part out`,
+    );
+  }
+  if (!submission.country && sentBack.overview) {
+    idIssues.push('country: the overview is sent back; revise it and submit the country part');
+  }
   const seen = new Set<string>();
   for (const { path, story } of submission.stories) {
     if (!storyIds.includes(story.id)) {
       idIssues.push(
-        storyIds.length === 1
-          ? `${path}.id: keep the story ID "${storyIds[0]}"`
-          : `${path}.id: "${story.id}" is not a story sent back; keep the ID of the story it revises, one of ${storyIds.map((id) => `"${id}"`).join(', ')}`,
+        storyIds.length === 0
+          ? `${path}: no story is sent back, so leave the stories out`
+          : storyIds.length === 1
+            ? `${path}.id: keep the story ID "${storyIds[0]}"`
+            : `${path}.id: "${story.id}" is not a story sent back; keep the ID of the story it revises, one of ${storyIds.map((id) => `"${id}"`).join(', ')}`,
       );
     } else if (seen.has(story.id)) {
       idIssues.push(`${path}.id: "${story.id}" appears more than once; submit each story once`);
@@ -394,27 +508,48 @@ export function checkStoryRevisions(
   }
   if (idIssues.length) return { ok: false, issues: idIssues };
 
-  const countryId = existing.country.id;
+  // A source that the kept parts of the file declare under the same ID, with a URL this session
+  // read as the same page (a redirect on the same host), keeps the file's URL, so the ID still
+  // names one URL in the file.
+  const kept = keptDeclarations(existing, sentBack);
+  const sources = submission.sources.map((source) => {
+    const other = kept.get(source.id);
+    return other &&
+      other.url !== source.url &&
+      hostOf(other.url) === hostOf(source.url) &&
+      options.samePage?.(other.url, source.url)
+      ? { ...source, url: other.url }
+      : source;
+  });
+
+  const assembleContext = {
+    countryId: existing.country.id,
+    slug: existing.country.slug,
+    model: options.model,
+    date: context.date,
+    promptVersion: context.prompts.version,
+  };
   let file = existing;
-  for (const { story } of submission.stories) {
-    file = replaceStory(
+  if (submission.country) {
+    file = replaceCountryPart(
       file,
-      assembleStory(story, submission.sources, {
-        countryId,
-        slug: existing.country.slug,
-        model: options.model,
-        date: context.date,
-        promptVersion: context.prompts.version,
-      }),
+      assembleCountryPart(submission.country.country, sources, assembleContext),
     );
   }
-  const issues = storyIds.flatMap((storyId) =>
+  for (const { story } of submission.stories) {
+    file = replaceStory(file, assembleStory(story, sources, assembleContext));
+  }
+  const scopes = [
+    ...(sentBack.overview ? ['overview' as const] : []),
+    ...storyIds.map((storyId) => ({ storyId })),
+  ];
+  const issues = scopes.flatMap((scope) =>
     checkCandidate({
       contentDir: context.contentDir,
       candidate: file,
-      scope: { storyId },
+      scope,
       plan: context.plan,
-      submittedSources: submission.sources,
+      submittedSources: sources,
       evidence: options.evidence,
       evidenceRule: options.evidenceRule,
       unusableEvidence: options.unusableEvidence,
@@ -422,7 +557,22 @@ export function checkStoryRevisions(
       land: context.land,
     }),
   );
-  return issues.length ? { ok: false, issues: [...new Set(issues)] } : { ok: true, file };
+  // A source ID that a kept part declares with another URL cannot change in this revision. This
+  // problem replaces the content rule's, which names both places but cannot say which one stays.
+  const clashes = sources.flatMap((source) => {
+    const other = kept.get(source.id);
+    return other && other.url !== cleanUrl(source.url) ? [{ source, other }] : [];
+  });
+  const clashing = new Set(clashes.map(({ source }) => `Source "${source.id}" points to`));
+  const problems = issues.filter(
+    (issue) => ![...clashing].some((start) => issue.startsWith(`sources: ${start}`)),
+  );
+  for (const { source, other } of clashes) {
+    problems.push(
+      `sources: "${source.id}" is declared by ${other.where} with ${other.url}, which this revision does not change, and this submission declares it with ${source.url}. Cite ${other.url} here (read it in this task first), or give the other URL its own source ID; to correct the URL everywhere, say so in your report, so the editor sends ${other.where} back too and both are revised together.`,
+    );
+  }
+  return problems.length ? { ok: false, issues: [...new Set(problems)] } : { ok: true, file };
 }
 
 /** Redraft one story that review sent back, following the reviewer's notes. */
@@ -456,10 +606,10 @@ export function storySession(
     submit: (input, { model, evidence }): Submission => {
       const parsed = StoryDraft.safeParse(input);
       if (!parsed.success) return { ok: false, issues: zodIssues(parsed.error), draft: input };
-      const result = checkStoryRevisions(
+      const result = checkRevisions(
         context,
         existing,
-        [storyId],
+        { overview: false, storyIds: [storyId] },
         { stories: [{ path: 'story', story: parsed.data.story }], sources: parsed.data.sources },
         { model, evidence },
       );
@@ -467,3 +617,57 @@ export function storySession(
     },
   };
 }
+
+/**
+ * Redraft the country part of a country whose overview review sent back alone, following the
+ * reviewer's notes. Every story stays as it is.
+ */
+export function overviewSession(context: RunContext, existing: CountryFile): SessionSetup {
+  const { notes, asDrafted } = countryPartUnderRevision(existing);
+  const countryId = existing.country.id;
+  const template = context.prompts['revise-overview'];
+  if (!template) {
+    throw new Error(`The ${context.prompts.version} prompts have no revise-overview template.`);
+  }
+  const task = render(template, {
+    countryName: existing.country.name,
+    countryId,
+    today: context.date,
+    notes,
+    country: asDrafted,
+    stories: storiesText(existing),
+    candidatePlaces: candidateListing(countryId),
+  });
+  return {
+    ...baseSetup(context, overviewJobTag(countryId), 'submit_overview'),
+    tools: tools(context.limits, {
+      name: 'submit_overview',
+      description:
+        'Submit the complete revised country part (overview, quick facts, starter questions and map scene) and every source it cites. Validation problems come back as an error to fix and resubmit.',
+      schema: OverviewDraft,
+    }),
+    task: [linkTargetsBlock(context), { type: 'text', text: task }],
+    submit: (input, { model, evidence }): Submission => {
+      const parsed = OverviewDraft.safeParse(input);
+      if (!parsed.success) return { ok: false, issues: zodIssues(parsed.error), draft: input };
+      const result = checkRevisions(
+        context,
+        existing,
+        { overview: true, storyIds: [] },
+        {
+          country: { path: 'country', country: parsed.data.country },
+          stories: [],
+          sources: parsed.data.sources,
+        },
+        { model, evidence },
+      );
+      return result.ok ? result : { ok: false, issues: result.issues, draft: input };
+    },
+  };
+}
+
+/**
+ * The tag of an overview revision job: its recording directory and batch custom ID. A dot never
+ * appears in a story ID, so it cannot meet a story revision's tag.
+ */
+export const overviewJobTag = (countryId: string) => `${countryId}.overview`;

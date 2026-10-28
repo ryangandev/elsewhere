@@ -30,6 +30,7 @@ import {
   readCountryFile,
   writeCountryFile,
 } from '../content-tree';
+import { wholeCountryRevision } from '../generate/replace';
 import { cachedUrlStatuses, type UrlCheckOptions, type UrlStatus } from '../validate/urls';
 
 export class ReviewError extends Error {}
@@ -169,8 +170,13 @@ export function approve(options: ApproveOptions): {
   ];
   const waiting = entries.filter((entry) => entry.provenance.revision);
   if (waiting.length) {
+    const labels = waiting.map((entry) =>
+      entry.provenance === current.country.provenance
+        ? `${entry.label} (${wholeCountryRevision(current) ? 'the whole country' : 'the overview'})`
+        : entry.label,
+    );
     throw new ReviewError(
-      `Waiting for a revision: ${waiting.map((entry) => entry.label).join(', ')}. Redraft first with npm run content:generate -- --revisions, or in a Claude Code subagent with npm run content:agent -- start ${current.country.id}${current.country.provenance.revision ? '' : ' --revisions'}.`,
+      `Waiting for a revision: ${labels.join(', ')}. Redraft first with npm run content:generate -- --revisions, or in a Claude Code subagent with ${agentRedraftCommand(current)}.`,
     );
   }
 
@@ -268,11 +274,25 @@ const approvedUrls = (file: CountryFile, country: boolean, storyIds: string[]) =
     .flatMap((story) => story.sources.map((source) => source.url)),
 ];
 
+/**
+ * The agent drafting command that redrafts what review sent back in a country: the whole country
+ * is drafted again with `start`, anything else (the overview, stories) in a revision session.
+ */
+export function agentRedraftCommand(file: CountryFile): string {
+  const id = file.country.id;
+  return `npm run content:agent -- start ${id}${wholeCountryRevision(file) ? '' : ' --revisions'}`;
+}
+
 export type ReviseOptions = {
   contentDir: string;
   country: string;
-  /** Send back one story; without it, the whole country is redrafted. */
+  /** Send back one story; without it (and without `overview`), the whole country is redrafted. */
   storyId?: string;
+  /**
+   * Send back only the country part: kicker, overview, quick facts, starter questions and scene.
+   * Every story is kept as it is.
+   */
+  overview?: boolean;
   notes: string;
   by: string;
   date: string;
@@ -280,13 +300,46 @@ export type ReviseOptions = {
 
 /**
  * Ask for a redraft. npm run content:generate -- --revisions consumes the request, or agent
- * drafting (npm run content:agent -- start <country> --revisions for stories).
+ * drafting (npm run content:agent -- start <country> --revisions for the overview and stories,
+ * start <country> for a whole country).
  */
-export function requestRevision(options: ReviseOptions): { file: string; target: string } {
+export function requestRevision(options: ReviseOptions): {
+  file: string;
+  target: string;
+  /** The agent drafting command that redrafts everything now sent back in the country. */
+  agentCommand: string;
+} {
   const current = loadCountry(options.contentDir, options.country);
   const notes = options.notes.trim();
   if (!notes) throw new ReviewError('Say what should change with --notes "...".');
   const revision = { notes, requestedBy: options.by, requestedAt: options.date };
+  const written = (next: CountryFile, target: string) => ({
+    file: writeCountryFile(options.contentDir, next),
+    target,
+    agentCommand: agentRedraftCommand(next),
+  });
+
+  if (options.overview) {
+    if (options.storyId) {
+      throw new ReviewError(
+        '--overview sends back the country part alone; send a story back on its own, without --overview.',
+      );
+    }
+    if (current.country.provenance.status === 'reviewed') {
+      throw new ReviewError(`The overview of ${current.country.id} is already reviewed.`);
+    }
+    const next = {
+      ...current,
+      country: {
+        ...current.country,
+        provenance: {
+          ...current.country.provenance,
+          revision: { ...revision, scope: 'overview' as const },
+        },
+      },
+    };
+    return written(next, `${current.country.id} overview`);
+  }
 
   if (!options.storyId) {
     const reviewedLabels = [
@@ -297,14 +350,14 @@ export function requestRevision(options: ReviseOptions): { file: string; target:
     ];
     if (reviewedLabels.length) {
       throw new ReviewError(
-        `A country redraft replaces the whole file, and ${reviewedLabels.join(', ')} is already reviewed. Send back single stories instead.`,
+        `A country redraft replaces the whole file, and ${reviewedLabels.join(', ')} is already reviewed. Send back the overview alone (--overview) or single stories instead.`,
       );
     }
     const next = {
       ...current,
       country: { ...current.country, provenance: { ...current.country.provenance, revision } },
     };
-    return { file: writeCountryFile(options.contentDir, next), target: current.country.id };
+    return written(next, current.country.id);
   }
 
   const story = current.stories.find((entry) => entry.id === options.storyId);
@@ -318,8 +371,5 @@ export function requestRevision(options: ReviseOptions): { file: string; target:
       entry.id === story.id ? { ...entry, provenance: { ...entry.provenance, revision } } : entry,
     ),
   };
-  return {
-    file: writeCountryFile(options.contentDir, next),
-    target: `${current.country.id}/${story.id}`,
-  };
+  return written(next, `${current.country.id}/${story.id}`);
 }

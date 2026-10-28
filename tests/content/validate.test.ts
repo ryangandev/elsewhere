@@ -76,6 +76,41 @@ describe('references', () => {
   });
 });
 
+describe('source IDs', () => {
+  /** Singapore with the URL of the first source its overview cites declared again by a story. */
+  function withStorySource(url: (overviewUrl: string) => string) {
+    const input = contentInput();
+    let overviewSource: { id: string; url: string } | undefined;
+    const countryFiles = input.countryFiles.map((entry) => {
+      if (!entry.file.endsWith('/singapore.json')) return entry;
+      const data = structuredClone(entry.data) as {
+        country: { sources: { id: string; url: string }[] };
+        stories: { id: string; sources: { id: string; url: string }[] }[];
+      };
+      overviewSource = data.country.sources[0];
+      const story = data.stories[0];
+      story.sources = [
+        ...story.sources.filter((source) => source.id !== overviewSource!.id),
+        { ...overviewSource, url: url(overviewSource.url) },
+      ];
+      return { ...entry, data, story: story.id };
+    });
+    const story = (countryFiles.find((entry) => 'story' in entry) as { story: string }).story;
+    const messages = validateContent({ ...input, countryFiles })
+      .filter((issue) => issue.path === 'sources')
+      .map((issue) => issue.message);
+    return { messages, overviewSource: overviewSource!, story };
+  }
+
+  it('name one document in a file, and a clash says where each URL is declared', () => {
+    expect(withStorySource((url) => url).messages).toEqual([]);
+    const { messages, overviewSource, story } = withStorySource(() => 'https://example.org/other');
+    expect(messages).toEqual([
+      `Source "${overviewSource.id}" points to two different URLs: the overview declares ${overviewSource.url} and story "${story}" declares https://example.org/other. One source ID names one document in a file, so use the same URL in both or give the other document its own ID`,
+    ]);
+  });
+});
+
 describe('paraphrases', () => {
   /** Validation messages after giving Singapore's wealth story these paraphrases. */
   function withParaphrases(paraphrases: Record<string, unknown>) {

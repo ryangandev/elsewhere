@@ -25,7 +25,17 @@ const NAMES = [
 ] as const;
 export type PromptName = (typeof NAMES)[number];
 
-export type PromptSet = { version: string } & Record<PromptName, string>;
+/**
+ * Templates that a version may lack because they were added to it later without changing any text
+ * it already had. v3 gained `revise-overview`, the task of an overview revision, when the overview
+ * could be sent back alone: a template only overview revisions use changes no text a draft
+ * recorded with v3 was made from, so it needed no new version. Older versions have none, and a
+ * run always drafts with the current version.
+ */
+const OPTIONAL_NAMES = ['revise-overview'] as const;
+
+export type PromptSet = { version: string } & Record<PromptName, string> &
+  Partial<Record<(typeof OPTIONAL_NAMES)[number], string>>;
 
 function loadPromptFiles<Name extends string>(
   version: string,
@@ -38,7 +48,10 @@ function loadPromptFiles<Name extends string>(
 }
 
 export function loadPrompts(version: string = CURRENT_PROMPT_VERSION): PromptSet {
-  return loadPromptFiles(version, NAMES);
+  const optional = OPTIONAL_NAMES.filter((name) =>
+    existsSync(join(PROMPTS_DIR, version, `${name}.md`)),
+  );
+  return { ...loadPromptFiles(version, optional), ...loadPromptFiles(version, NAMES) };
 }
 
 /**
