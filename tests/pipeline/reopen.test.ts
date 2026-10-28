@@ -1,7 +1,8 @@
 // Reopening reviewed content: the request review records on a reviewed part, how review shows it,
 // the refusals that keep a reopened country from being redrafted as one file, and the API revision
 // of a reopened hand-written story. The agent revision of one is tested in agent.test.ts. Every
-// test works on a copy of content/en, whose ten countries were converted by hand and reviewed.
+// test works on a copy of the frozen hand-converted tree (tests/fixtures/hand-converted), whose ten
+// countries were converted by hand and reviewed.
 import { describe, expect, it } from 'vitest';
 import { CountryFile, type SceneSpec, type Story } from '../../src/content/schema';
 import { createContentStore } from '../../src/content/store';

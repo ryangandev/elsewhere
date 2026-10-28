@@ -1,9 +1,11 @@
 import { expectAnswer, expectPath, openAtlas, panel } from './atlas';
-import { editions, getStory, storyPath } from './content';
+import { editions, starterStories, storyPath } from './content';
 import { expect, test } from './fixtures';
 
 test.describe('a country overview', () => {
-  for (const { country, stories } of editions) {
+  for (const edition of editions.filter((candidate) => starterStories(candidate).length > 0)) {
+    const { country } = edition;
+    const starters = starterStories(edition);
     test(`${country.name} shows its starter questions`, async ({ page }) => {
       await openAtlas(page, `/${country.slug}`);
 
@@ -11,19 +13,20 @@ test.describe('a country overview', () => {
       await expect(reading.getByRole('heading', { level: 2, name: country.name })).toBeVisible();
       await expect(reading.getByRole('heading', { level: 3, name: country.kicker })).toBeVisible();
 
-      const starters = reading.getByRole('region', { name: 'START WITH A QUESTION' });
-      await expect(starters.getByRole('link')).toHaveCount(country.starterStoryIds.length);
-      for (const id of country.starterStoryIds) {
-        const story = stories.find((candidate) => candidate.id === id)!;
-        const link = starters.getByRole('link', { name: story.question });
+      const region = reading.getByRole('region', { name: 'START WITH A QUESTION' });
+      await expect(region.getByRole('link')).toHaveCount(starters.length);
+      for (const story of starters) {
+        const link = region.getByRole('link', { name: story.question });
         await expect(link).toHaveAttribute('href', storyPath(story));
       }
     });
   }
 
   test('a starter question opens its answer', async ({ page }) => {
-    const { country } = editions[0];
-    const story = getStory(country.id, country.starterStoryIds[0]);
+    const edition = editions.find((candidate) => starterStories(candidate).length > 0)!;
+    test.skip(!edition, 'content/en has no reviewed country with a reviewed starter question');
+    const { country } = edition;
+    const [story] = starterStories(edition);
     await openAtlas(page, `/${country.slug}`);
 
     await panel(page, country.name)

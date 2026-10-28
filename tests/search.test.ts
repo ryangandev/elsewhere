@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import { createAtlasLookup, linkFor } from '@/domain/atlas-index';
 import { buildAtlasIndex, extractKeywords } from '@/domain/client-indexes';
 import { isPlaceQuery, searchAtlas, tokenize } from '@/domain/search';
+
+// The content these tests read: the frozen hand-converted tree, not content/en.
+vi.mock('@/content', async () => (await import('./support/hand-converted-content')).loaders());
 
 // The index exactly as the browser receives it.
 const index = JSON.parse(JSON.stringify(buildAtlasIndex()));

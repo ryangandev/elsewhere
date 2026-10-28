@@ -1,20 +1,46 @@
 import { describe, expect, it } from 'vitest';
 import { StoryRef, TrailStop } from '../../src/content/schema';
 import { validateContent } from '../../src/content/validate';
-import { contentInput, landIndex } from './load';
+import {
+  HAND_CONVERTED_CONTENT_DIR,
+  contentInput,
+  fixtureInput,
+  landIndex,
+  liveContentInput,
+} from './load';
 
-describe('content', () => {
+// The only tests here that read content/en. They go red when production content is invalid, and
+// for no other reason: they assert nothing about how many countries it has or what is reviewed.
+describe('production content', () => {
   it('passes every schema, integrity, gazetteer and sea-route check', () => {
-    expect(validateContent({ ...contentInput(), land: landIndex() })).toEqual([]);
+    expect(validateContent({ ...liveContentInput(), land: landIndex() })).toEqual([]);
   });
 
   it('is English only, apart from native country names', () => {
-    const { countryFiles, trails, placeNotes } = contentInput();
+    const { countryFiles, trails, placeNotes } = liveContentInput();
     const text = JSON.stringify([countryFiles, trails, placeNotes], (key, value) =>
       key === 'nativeName' ? undefined : value,
     );
     expect(text).not.toMatch(/\p{Script=Han}/u);
     expect(text).not.toMatch(/"[A-Za-z]*Zh"\s*:/);
+  });
+
+  it('never uses index keys', () => {
+    const { countryFiles, trails } = liveContentInput();
+    expect(JSON.stringify([countryFiles, trails])).not.toMatch(/"[A-Za-z]*(?:Index|Idx)"\s*:/);
+  });
+});
+
+describe('fixture content', () => {
+  it('is valid, so each test below changes one thing in a tree that passes', () => {
+    expect(validateContent({ ...fixtureInput(), land: landIndex() })).toEqual([]);
+  });
+
+  // Many pipeline, deployment and page tests run on this frozen tree. Schema and rule changes
+  // must migrate it with content/en, or those tests would exercise content the site rejects.
+  it('keeps the frozen hand-converted tree valid under the current schema and rules', () => {
+    const input = contentInput(HAND_CONVERTED_CONTENT_DIR);
+    expect(validateContent({ ...input, land: landIndex() })).toEqual([]);
   });
 });
 
@@ -34,7 +60,7 @@ describe('references', () => {
   });
 
   it('are flagged when they point at a story that does not exist', () => {
-    const input = contentInput();
+    const input = fixtureInput();
     const trails = structuredClone(input.trails.data) as { stops: { storyId: string }[] }[];
     trails[0].stops[0].storyId = 'no-such-story';
     const issues = validateContent({ ...input, trails: { ...input.trails, data: trails } });
@@ -47,7 +73,7 @@ describe('references', () => {
   });
 
   it('from the home screen are a few existing, distinct questions', () => {
-    const input = contentInput();
+    const input = fixtureInput();
     const withHome = (suggestedQuestions: unknown[]) =>
       validateContent({ ...input, home: { ...input.home, data: { suggestedQuestions } } });
     const shipping = { countryId: 'SGP', storyId: 'shipping' };
@@ -82,9 +108,9 @@ describe('references', () => {
       reviewedBy: undefined,
       reviewedAt: undefined,
     });
-    /** content/en with these suggested stories (or, for a bare country ID, the country) reopened. */
+    /** The fixture with these suggested stories (or, for a bare country ID, the country) reopened. */
     const reopened = (...refs: string[]) => {
-      const input = contentInput();
+      const input = fixtureInput();
       const countryFiles = input.countryFiles.map((entry) => {
         const data = structuredClone(entry.data) as File;
         if (refs.includes(data.country.id))
@@ -116,17 +142,12 @@ describe('references', () => {
       }),
     ]);
   });
-
-  it('never use index keys in content', () => {
-    const { countryFiles, trails } = contentInput();
-    expect(JSON.stringify([countryFiles, trails])).not.toMatch(/"[A-Za-z]*(?:Index|Idx)"\s*:/);
-  });
 });
 
 describe('source IDs', () => {
   /** Singapore with the URL of the first source its overview cites declared again by a story. */
   function withStorySource(url: (overviewUrl: string) => string) {
-    const input = contentInput();
+    const input = fixtureInput();
     let overviewSource: { id: string; url: string } | undefined;
     const countryFiles = input.countryFiles.map((entry) => {
       if (!entry.file.endsWith('/singapore.json')) return entry;
@@ -161,7 +182,7 @@ describe('source IDs', () => {
 describe('paraphrases', () => {
   /** Validation messages after giving Singapore's wealth story these paraphrases. */
   function withParaphrases(paraphrases: Record<string, unknown>) {
-    const input = contentInput();
+    const input = fixtureInput();
     const countryFiles = input.countryFiles.map((entry) => {
       if (!entry.file.endsWith('/singapore.json')) return entry;
       const data = structuredClone(entry.data) as { stories: Record<string, unknown>[] };

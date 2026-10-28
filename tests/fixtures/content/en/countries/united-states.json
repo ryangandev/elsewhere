@@ -1,0 +1,214 @@
+{
+  "country": {
+    "id": "USA",
+    "slug": "united-states",
+    "name": "United States",
+    "region": "North America",
+    "kicker": "A fixture kicker for United States.",
+    "overview": {
+      "summary": "Fixture summary of United States.",
+      "geography": "Fixture geography of United States.",
+      "sourceIds": ["usa-overview"],
+      "whyItMatters": [
+        {
+          "title": "Fixture reason",
+          "text": "Fixture text.",
+          "sourceIds": ["usa-overview"]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Capital",
+        "value": "Fixture City",
+        "sourceIds": ["usa-overview"]
+      }
+    ],
+    "starterStoryIds": ["dollar", "geography", "language"],
+    "scene": {
+      "focusCountryId": "USA",
+      "highlights": [],
+      "placeIds": [],
+      "routes": []
+    },
+    "sources": [
+      {
+        "id": "usa-overview",
+        "title": "Fixture source for overview",
+        "publisher": "Fixture Publisher",
+        "url": "https://example.org/usa/overview"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-01-01",
+      "reviewedBy": "fixture",
+      "reviewedAt": "2026-01-02",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "dollar",
+      "countryId": "USA",
+      "slug": "dollar",
+      "question": "Why is the dollar everywhere?",
+      "category": "Economy",
+      "summary": "A one-line fixture answer to \"Why is the dollar everywhere?\"",
+      "sections": [
+        {
+          "title": "First part",
+          "text": "Fixture text for the first part.",
+          "sourceIds": ["usa-dollar"]
+        },
+        {
+          "title": "Second part",
+          "text": "Fixture text for the second part.",
+          "sourceIds": ["usa-dollar"]
+        }
+      ],
+      "takeaway": "A fixture takeaway.",
+      "scene": {
+        "focusCountryId": "USA",
+        "highlights": [],
+        "placeIds": [],
+        "routes": [],
+        "mapNote": "Look at the highlighted place."
+      },
+      "next": [
+        {
+          "countryId": "USA",
+          "storyId": "geography"
+        },
+        {
+          "countryId": "FRA",
+          "storyId": "overseas",
+          "reason": "Fixture reason to go to France."
+        }
+      ],
+      "sources": [
+        {
+          "id": "usa-dollar",
+          "title": "Fixture source for dollar",
+          "publisher": "Fixture Publisher",
+          "url": "https://example.org/usa/dollar"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-01-01",
+        "reviewedBy": "fixture",
+        "reviewedAt": "2026-01-02",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "geography",
+      "countryId": "USA",
+      "slug": "geography",
+      "question": "Why does the country run on its rivers?",
+      "category": "Geography",
+      "summary": "A one-line fixture answer to \"Why does the country run on its rivers?\"",
+      "sections": [
+        {
+          "title": "First part",
+          "text": "Fixture text for the first part.",
+          "sourceIds": ["usa-geography"]
+        },
+        {
+          "title": "Second part",
+          "text": "Fixture text for the second part.",
+          "sourceIds": ["usa-geography"]
+        }
+      ],
+      "takeaway": "A fixture takeaway.",
+      "scene": {
+        "focusCountryId": "USA",
+        "highlights": [],
+        "placeIds": [],
+        "routes": [],
+        "mapNote": "Look at the highlighted place."
+      },
+      "next": [
+        {
+          "countryId": "USA",
+          "storyId": "language"
+        },
+        {
+          "countryId": "FRA",
+          "storyId": "overseas",
+          "reason": "Fixture reason to go to France."
+        }
+      ],
+      "sources": [
+        {
+          "id": "usa-geography",
+          "title": "Fixture source for geography",
+          "publisher": "Fixture Publisher",
+          "url": "https://example.org/usa/geography"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-01-01",
+        "reviewedBy": "fixture",
+        "reviewedAt": "2026-01-02",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "language",
+      "countryId": "USA",
+      "slug": "language",
+      "question": "Why is English spoken across the country?",
+      "category": "Society",
+      "summary": "A one-line fixture answer to \"Why is English spoken across the country?\"",
+      "sections": [
+        {
+          "title": "First part",
+          "text": "Fixture text for the first part.",
+          "sourceIds": ["usa-language"]
+        },
+        {
+          "title": "Second part",
+          "text": "Fixture text for the second part.",
+          "sourceIds": ["usa-language"]
+        }
+      ],
+      "takeaway": "A fixture takeaway.",
+      "scene": {
+        "focusCountryId": "USA",
+        "highlights": [],
+        "placeIds": [],
+        "routes": [],
+        "mapNote": "Look at the highlighted place."
+      },
+      "next": [
+        {
+          "countryId": "USA",
+          "storyId": "dollar"
+        },
+        {
+          "countryId": "FRA",
+          "storyId": "overseas",
+          "reason": "Fixture reason to go to France."
+        }
+      ],
+      "sources": [
+        {
+          "id": "usa-language",
+          "title": "Fixture source for language",
+          "publisher": "Fixture Publisher",
+          "url": "https://example.org/usa/language"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-01-01",
+        "reviewedBy": "fixture",
+        "reviewedAt": "2026-01-02",
+        "status": "reviewed"
+      }
+    }
+  ]
+}

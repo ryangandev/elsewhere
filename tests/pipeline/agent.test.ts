@@ -54,6 +54,7 @@ import {
 } from '../../pipeline/prompts';
 import { reopen, requestRevision } from '../../pipeline/review/actions';
 import { chileDraft } from './fixtures/build-replay';
+import { HAND_CONVERTED_CONTENT_DIR } from '../content/load';
 import { RUN_DATE, minimalPdf, tempContentTree, tempDir } from './helpers';
 
 // A successful submission checks every route against land geometry, which takes a few seconds
@@ -2212,7 +2213,7 @@ describe('agent revision of reopened hand-written content', () => {
   it(
     'starts on a reopened story, keeps its ID, camera and the wording a fetched page supports',
     async () => {
-      const original = readCountryFile('content/en', 'france')!;
+      const original = readCountryFile(HAND_CONVERTED_CONTENT_DIR, 'france')!;
       const overseas = original.stories.find((story) => story.id === 'overseas')!;
       const { contentDir, root, deps, output } = setup({
         pages: Object.fromEntries(

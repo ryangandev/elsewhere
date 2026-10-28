@@ -10,14 +10,14 @@ import {
   questionInput,
   storyHeading,
 } from './atlas';
-import { getCountry, getStory, nextStories, storyPath } from './content';
+import { askedAs, exampleStory, getCountry, nextStories, storyPath } from './content';
 import { expect, test } from './fixtures';
 import type { Locator } from '@playwright/test';
 
 // Runs only in the phone project (playwright.config.ts): the core loop by touch on a narrow screen.
 test.describe('on a phone', () => {
   test('home, ask, read and follow a question', async ({ page }) => {
-    const story = getStory('SGP', 'wealth');
+    const story = exampleStory('SGP', 'wealth', { needs: ['next'] });
     const [next] = nextStories(story);
     await openAtlas(page);
     await expect(homeHeading(page)).toBeVisible();
@@ -29,7 +29,7 @@ test.describe('on a phone', () => {
     expect(overflow).toBe(0);
 
     await questionInput(page).tap();
-    await questionInput(page).fill('What makes Singapore wealthy?');
+    await questionInput(page).fill(askedAs(story));
     await expect(page.getByRole('option', { name: new RegExp(story.question) })).toBeVisible();
     await page.getByRole('option', { name: new RegExp(story.question) }).tap();
 
@@ -50,7 +50,7 @@ test.describe('on a phone', () => {
   });
 
   test('the controls a thumb reaches for are at least 44 points', async ({ page }) => {
-    const story = getStory('SGP', 'shipping');
+    const story = exampleStory('SGP', 'shipping');
     await openAtlas(page, storyPath(story));
     const reading = panel(page, getCountry(story.countryId).name);
 
@@ -86,7 +86,7 @@ test.describe('on a phone', () => {
   };
 
   test('the panel hands its room to the globe and takes it back', async ({ page }) => {
-    const story = getStory('SGP', 'shipping');
+    const story = exampleStory('SGP', 'shipping');
     await openAtlas(page, storyPath(story));
     const reading = panel(page, getCountry(story.countryId).name);
     const globe = globeRegion(page);
@@ -123,7 +123,7 @@ test.describe('on a phone', () => {
   });
 
   test('the strip opens the story again, and a new page always starts open', async ({ page }) => {
-    const story = getStory('SGP', 'shipping');
+    const story = exampleStory('SGP', 'shipping');
     const country = getCountry(story.countryId);
     await openAtlas(page, storyPath(story));
     const reading = panel(page, country.name);

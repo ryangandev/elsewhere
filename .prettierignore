@@ -25,6 +25,10 @@ src/content/legacy
 pipeline/batches/*.plan.json
 tests/pipeline/fixtures/replay
 
+# The hand-converted countries frozen for the pipeline tests, which write content files the way the
+# pipeline does and compare them with these byte for byte.
+/tests/fixtures/hand-converted
+
 # Written by the map data scripts (the gazetteer one place per line for readable diffs), or
 # kept in their JSON formatting next to them.
 data/geo/*.json

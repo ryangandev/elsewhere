@@ -1,0 +1,81 @@
+[
+  {
+    "id": "water-connects",
+    "title": "The water between us",
+    "label": "SEAS & CONNECTIONS",
+    "description": "A busy strait, two shores, a thousand islands. Follow the water that connects them.",
+    "stops": [
+      {
+        "countryId": "SGP",
+        "storyId": "shipping",
+        "connection": "Begin at a crossroads of world trade."
+      },
+      {
+        "countryId": "MYS",
+        "storyId": "two-shores",
+        "connection": "Across the strait, one federation stretches across two shores."
+      },
+      {
+        "countryId": "IDN",
+        "storyId": "islands",
+        "connection": "To the south, water connects an entire archipelago."
+      },
+      {
+        "countryId": "TUR",
+        "storyId": "straits",
+        "connection": "Now look west: another narrow passage connects whole regions."
+      }
+    ]
+  },
+  {
+    "id": "made-together",
+    "title": "Made in many places",
+    "label": "WORK & THE WORLD",
+    "description": "Look inside the things you use. Their stories cross more borders than their labels suggest.",
+    "stops": [
+      {
+        "countryId": "JPN",
+        "storyId": "industry",
+        "connection": "Start with the parts and systems inside familiar products."
+      },
+      {
+        "countryId": "CHN",
+        "storyId": "manufacturing",
+        "connection": "Follow the production networks across East Asia."
+      },
+      {
+        "countryId": "MYS",
+        "storyId": "electronics",
+        "connection": "Look closer at another link inside your electronics."
+      },
+      {
+        "countryId": "IND",
+        "storyId": "technology",
+        "connection": "Connections also carry services, not only physical goods."
+      }
+    ]
+  },
+  {
+    "id": "land-shapes-life",
+    "title": "The land shapes the story",
+    "label": "NATURE & EVERYDAY LIFE",
+    "description": "Rainforests, monsoon winds, and river corridors. See geography at work in everyday life.",
+    "stops": [
+      {
+        "countryId": "BRA",
+        "storyId": "amazon",
+        "connection": "Start with a forest that moves water through the atmosphere."
+      },
+      {
+        "countryId": "IND",
+        "storyId": "monsoon",
+        "connection": "Across the ocean, seasonal rain organizes everyday life."
+      },
+      {
+        "countryId": "USA",
+        "storyId": "geography",
+        "connection": "Follow a river system through a continental economy."
+      }
+    ]
+  }
+]

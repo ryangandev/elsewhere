@@ -1,0 +1,396 @@
+{
+  "country": {
+    "id": "JPN",
+    "slug": "japan",
+    "name": "Japan",
+    "nativeName": "日本 · Nihon",
+    "region": "East Asia",
+    "kicker": "An island nation with a global imagination.",
+    "overview": {
+      "summary": "A mountainous archipelago that became an industrial powerhouse. Japan combines dense, connected cities with a shrinking population, and turns meticulous craft into everything from cars to culture.",
+      "geography": "An island chain off the eastern edge of Asia. Mountains compress much of urban life into coastal plains; the Pacific is both a connection and a source of natural hazards.",
+      "sourceIds": [
+        "stat-japan-handbook-2025"
+      ],
+      "whyItMatters": [
+        {
+          "title": "Things the world runs on",
+          "text": "Cars, precision machinery, and advanced materials make Japan central to global industry, far beyond its familiar consumer brands.",
+          "sourceIds": [
+            "stat-japan-handbook-2025"
+          ]
+        },
+        {
+          "title": "A glimpse of an older future",
+          "text": "Its aging society is testing how work, care, and communities adapt when there are fewer young people.",
+          "sourceIds": [
+            "stat-japan-population-2024"
+          ]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Population",
+        "value": "124 million",
+        "asOf": "2024",
+        "sourceIds": [
+          "stat-japan-population-2024"
+        ]
+      },
+      {
+        "label": "Capital",
+        "value": "Tokyo",
+        "sourceIds": [
+          "stat-japan-handbook-2025"
+        ]
+      },
+      {
+        "label": "Language",
+        "value": "Japanese",
+        "sourceIds": [
+          "stat-japan-handbook-2025"
+        ]
+      },
+      {
+        "label": "Currency",
+        "value": "Japanese yen",
+        "sourceIds": [
+          "stat-japan-handbook-2025"
+        ]
+      }
+    ],
+    "starterStoryIds": [
+      "coasts",
+      "industry",
+      "aging"
+    ],
+    "scene": {
+      "camera": {
+        "lat": 36.2,
+        "lng": 138.2,
+        "altitude": 0.85
+      },
+      "focusCountryId": "JPN",
+      "highlights": [
+        {
+          "countryId": "KOR",
+          "role": "related"
+        },
+        {
+          "countryId": "CHN",
+          "role": "related"
+        }
+      ],
+      "placeIds": [
+        "republic-of-korea",
+        "china",
+        "philippine-sea",
+        "sea-of-japan"
+      ],
+      "routes": []
+    },
+    "sources": [
+      {
+        "id": "stat-japan-handbook-2025",
+        "title": "Statistical Handbook of Japan 2025",
+        "publisher": "Statistics Bureau of Japan",
+        "url": "https://www.stat.go.jp/english/data/handbook/pdf/2025all.pdf"
+      },
+      {
+        "id": "stat-japan-population-2024",
+        "title": "Population estimates, 2024",
+        "publisher": "Statistics Bureau of Japan",
+        "url": "https://www.stat.go.jp/english/data/jinsui/2024np/"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-09-26",
+      "reviewedBy": "ryan",
+      "reviewedAt": "2026-09-27",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "coasts",
+      "countryId": "JPN",
+      "slug": "coasts",
+      "question": "Why do so many people live along one coast?",
+      "paraphrases": {
+        "question": "Why do so many people live along one coast?",
+        "phrasings": [
+          "Why is Japan's population packed onto the Pacific coast?",
+          "Why do most Japanese live between Tokyo, Nagoya and Osaka?",
+          "why is everyone in japan crammed on the coast",
+          "How do mountains shape where people live in Japan?",
+          "japan population coastal plains"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Geography",
+      "summary": "Mountains and the sea leave a surprisingly narrow stage for everyday life.",
+      "sections": [
+        {
+          "title": "A country with little flat land",
+          "text": "Much of Japan is mountainous. Large cities grew on plains and around sheltered bays, where transport, housing, and industry can fit together.",
+          "sourceIds": [
+            "stat-japan-handbook-2025"
+          ]
+        },
+        {
+          "title": "A connected urban belt",
+          "text": "Tokyo, Nagoya, and Osaka anchor the Pacific-side corridor. Rail links knit these dense regions together; other parts of Japan remain rural and sparsely populated.",
+          "sourceIds": [
+            "stat-japan-handbook-2025"
+          ]
+        }
+      ],
+      "takeaway": "Think of Japan as a chain of connected coastal regions, not one enormous city.",
+      "scene": {
+        "focusCountryId": "JPN",
+        "highlights": [],
+        "placeIds": [
+          "honshu",
+          "tokyo",
+          "nagoya",
+          "osaka",
+          "philippine-sea"
+        ],
+        "routes": [],
+        "mapNote": "Notice the long Pacific coast and the narrow shape of the islands."
+      },
+      "next": [
+        {
+          "countryId": "JPN",
+          "storyId": "industry"
+        },
+        {
+          "countryId": "CHN",
+          "storyId": "manufacturing",
+          "reason": "Follow the region’s connected manufacturing systems."
+        },
+        {
+          "countryId": "IND",
+          "storyId": "technology",
+          "reason": "A different path into the global economy."
+        }
+      ],
+      "sources": [
+        {
+          "id": "stat-japan-handbook-2025",
+          "title": "Statistical Handbook of Japan 2025",
+          "publisher": "Statistics Bureau of Japan",
+          "url": "https://www.stat.go.jp/english/data/handbook/pdf/2025all.pdf"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "industry",
+      "countryId": "JPN",
+      "slug": "industry",
+      "question": "How did Japan become a manufacturing powerhouse?",
+      "paraphrases": {
+        "question": "How did Japan become a manufacturing powerhouse?",
+        "phrasings": [
+          "How did Japan get so good at making things?",
+          "How did Japanese industry rebuild after World War II?",
+          "why is japan so big in manufacturing",
+          "What made Japan an industrial giant?",
+          "japan manufacturing history"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Industry",
+      "summary": "The story is about learning, rebuilding, and improving systems.",
+      "sections": [
+        {
+          "title": "Two waves of transformation",
+          "text": "Industrialization accelerated in the late nineteenth century. After World War II, rebuilding, education, investment, and expanding world trade helped industry grow again.",
+          "sourceIds": [
+            "stat-japan-handbook-2025"
+          ]
+        },
+        {
+          "title": "The less visible strengths",
+          "text": "A finished car is only part of the story. Specialist suppliers, production methods, components, and materials connect Japan to factories across the world.",
+          "sourceIds": [
+            "stat-japan-handbook-2025"
+          ]
+        }
+      ],
+      "takeaway": "Japan’s industrial influence is as much inside other products as on the labels you recognize.",
+      "scene": {
+        "focusCountryId": "JPN",
+        "highlights": [
+          {
+            "countryId": "KOR",
+            "role": "related"
+          },
+          {
+            "countryId": "CHN",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "republic-of-korea",
+          "china",
+          "philippine-sea",
+          "sea-of-japan"
+        ],
+        "routes": [
+          {
+            "id": "east-asian-production",
+            "kind": "flow",
+            "via": [
+              "tokyo",
+              "shanghai",
+              "hong-kong-city"
+            ]
+          }
+        ],
+        "mapNote": "Sea connections link Japanese factories to East Asian production networks."
+      },
+      "next": [
+        {
+          "countryId": "JPN",
+          "storyId": "aging"
+        },
+        {
+          "countryId": "CHN",
+          "storyId": "manufacturing",
+          "reason": "Follow the production networks across East Asia."
+        },
+        {
+          "countryId": "IND",
+          "storyId": "technology",
+          "reason": "A different path into the global economy."
+        }
+      ],
+      "sources": [
+        {
+          "id": "stat-japan-handbook-2025",
+          "title": "Statistical Handbook of Japan 2025",
+          "publisher": "Statistics Bureau of Japan",
+          "url": "https://www.stat.go.jp/english/data/handbook/pdf/2025all.pdf"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "aging",
+      "countryId": "JPN",
+      "slug": "aging",
+      "question": "What changes when a country grows older?",
+      "paraphrases": {
+        "question": "What changes when a country grows older?",
+        "phrasings": [
+          "Why does Japan have so many old people, and what does it mean?",
+          "How is an aging population changing Japan?",
+          "what happens to japan as everyone gets older",
+          "How does Japan cope with low birth rates and long lives?",
+          "japan aging population effects"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "People & society",
+      "summary": "Japan offers an early view of a challenge many societies will face.",
+      "sections": [
+        {
+          "title": "Long lives, fewer births",
+          "text": "Low fertility and long life expectancy reshape the age balance. In October 2024, 29.3% of the population was 65 or older.",
+          "sourceIds": [
+            "stat-japan-population-2024"
+          ]
+        },
+        {
+          "title": "Different places, different futures",
+          "text": "Aging raises demand for care and strains the labor supply. Some big cities still attract people while smaller communities contend with vacant homes and fewer services.",
+          "sourceIds": [
+            "stat-japan-population-2024",
+            "stat-japan-handbook-2025"
+          ]
+        }
+      ],
+      "takeaway": "An older population changes where people live, how they work, and who looks after whom.",
+      "scene": {
+        "focusCountryId": "JPN",
+        "highlights": [
+          {
+            "countryId": "KOR",
+            "role": "related"
+          },
+          {
+            "countryId": "CHN",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "republic-of-korea",
+          "china",
+          "philippine-sea",
+          "sea-of-japan"
+        ],
+        "routes": [],
+        "mapNote": "A long archipelago contains very different local population stories."
+      },
+      "next": [
+        {
+          "countryId": "JPN",
+          "storyId": "coasts"
+        },
+        {
+          "countryId": "CHN",
+          "storyId": "manufacturing",
+          "reason": "Follow the region’s connected manufacturing systems."
+        },
+        {
+          "countryId": "IND",
+          "storyId": "technology",
+          "reason": "A different path into the global economy."
+        }
+      ],
+      "sources": [
+        {
+          "id": "stat-japan-population-2024",
+          "title": "Population estimates, 2024",
+          "publisher": "Statistics Bureau of Japan",
+          "url": "https://www.stat.go.jp/english/data/jinsui/2024np/"
+        },
+        {
+          "id": "stat-japan-handbook-2025",
+          "title": "Statistical Handbook of Japan 2025",
+          "publisher": "Statistics Bureau of Japan",
+          "url": "https://www.stat.go.jp/english/data/handbook/pdf/2025all.pdf"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 4173;
+// Set E2E_PORT to run beside another checkout's server on the default port.
+const PORT = Number(process.env.E2E_PORT ?? 4173);
 
 // CI runners have no GPU, so the globe renders in software and every step is several times
 // slower than on a laptop; give tests there proportionally more time.

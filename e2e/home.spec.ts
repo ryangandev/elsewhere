@@ -21,6 +21,7 @@ test.describe('home', () => {
 
   test('a suggested question opens its sourced answer', async ({ page }) => {
     const [story] = suggestedStories();
+    test.skip(!story, 'content/en suggests no reviewed question on the home page');
     await openAtlas(page);
 
     await page

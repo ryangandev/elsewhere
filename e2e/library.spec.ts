@@ -1,11 +1,16 @@
 import { openAtlas, panel } from './atlas';
-import { getCountry, getStory, storyPath } from './content';
+import { exampleStory, getCountry, storyPath, type Country, type Story } from './content';
 import { expect, test } from './fixtures';
 
-const story = getStory('SGP', 'shipping');
-const country = getCountry(story.countryId);
+let story: Story;
+let country: Country;
 
 test.describe('your atlas', () => {
+  test.beforeEach(() => {
+    story = exampleStory('SGP', 'shipping');
+    country = getCountry(story.countryId);
+  });
+
   test('a saved story is listed in the drawer, kept across visits, and can be removed', async ({
     page,
   }) => {

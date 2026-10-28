@@ -1,0 +1,412 @@
+{
+  "country": {
+    "id": "IND",
+    "slug": "india",
+    "name": "India",
+    "nativeName": "भारत · Bhārat",
+    "region": "South Asia",
+    "kicker": "A world of differences, within one country.",
+    "overview": {
+      "summary": "The world’s most populous country is a multilingual federal democracy with extraordinary regional variety. A vast domestic market and global services industry coexist with very uneven opportunities and infrastructure.",
+      "geography": "The Himalayas mark the northern edge; a broad peninsula reaches into the Indian Ocean. The Arabian Sea and Bay of Bengal flank it, while the monsoon shapes water and agriculture.",
+      "sourceIds": [
+        "world-bank-population-2024",
+        "meity-industry-growth"
+      ],
+      "whyItMatters": [
+        {
+          "title": "Scale that shapes the future",
+          "text": "Jobs, cities, energy, and education in India will matter far beyond its borders because of the sheer number of people involved.",
+          "sourceIds": [
+            "world-bank-population-2024"
+          ]
+        },
+        {
+          "title": "Services that connect the world",
+          "text": "Software, business services, and a global diaspora link Indian skills and enterprises to organizations across continents.",
+          "sourceIds": [
+            "meity-industry-growth"
+          ]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Population",
+        "value": "1.45 billion",
+        "asOf": "2024",
+        "sourceIds": [
+          "world-bank-population-2024"
+        ]
+      },
+      {
+        "label": "Capital",
+        "value": "New Delhi",
+        "sourceIds": [
+          "india-scheduled-languages"
+        ]
+      },
+      {
+        "label": "Language",
+        "value": "Hindi & English at Union level",
+        "sourceIds": [
+          "india-scheduled-languages"
+        ]
+      },
+      {
+        "label": "Currency",
+        "value": "Indian rupee",
+        "sourceIds": [
+          "meity-industry-growth"
+        ]
+      }
+    ],
+    "starterStoryIds": [
+      "languages",
+      "monsoon",
+      "technology"
+    ],
+    "scene": {
+      "camera": {
+        "lat": 22.5,
+        "lng": 79,
+        "altitude": 1.05
+      },
+      "focusCountryId": "IND",
+      "highlights": [
+        {
+          "countryId": "PAK",
+          "role": "related"
+        },
+        {
+          "countryId": "NPL",
+          "role": "related"
+        },
+        {
+          "countryId": "BGD",
+          "role": "related"
+        }
+      ],
+      "placeIds": [
+        "pakistan",
+        "nepal",
+        "bangladesh",
+        "arabian-sea",
+        "bay-of-bengal",
+        "himalayas"
+      ],
+      "routes": []
+    },
+    "sources": [
+      {
+        "id": "world-bank-population-2024",
+        "title": "Population, 2024",
+        "publisher": "World Bank",
+        "url": "https://datacatalogfiles.worldbank.org/ddh-published/0038126/DR0046429/POP.pdf"
+      },
+      {
+        "id": "meity-industry-growth",
+        "title": "Industry growth",
+        "publisher": "Ministry of Electronics and IT",
+        "url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2115413&lang=2&reg=48"
+      },
+      {
+        "id": "india-scheduled-languages",
+        "title": "The Constitution of India (as on 1 May 2024): Article 343 and the Eighth Schedule",
+        "publisher": "Legislative Department, Ministry of Law and Justice, Government of India",
+        "url": "https://cdnbbsr.s3waas.gov.in/s380537a945c7aaa788ccfcdf1b99b5d8f/uploads/2024/07/20240716890312078.pdf"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-09-26",
+      "reviewedBy": "ryan",
+      "reviewedAt": "2026-09-27",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "languages",
+      "countryId": "IND",
+      "slug": "languages",
+      "question": "How can one country contain so many languages?",
+      "paraphrases": {
+        "question": "How can one country contain so many languages?",
+        "phrasings": [
+          "Why does India have so many languages?",
+          "how many languages are spoken in india anyway",
+          "Does India have a national language, or is it Hindi and English?",
+          "india language diversity",
+          "What are India's 22 scheduled languages and why so many?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "People & identity",
+      "summary": "India’s diversity is built into its everyday life and political structure.",
+      "sections": [
+        {
+          "title": "Regions with deep histories",
+          "text": "Language communities developed across different regions over centuries. The Constitution recognizes 22 scheduled languages, but many more languages are spoken.",
+          "sourceIds": [
+            "india-scheduled-languages"
+          ]
+        },
+        {
+          "title": "Governing through plurality",
+          "text": "States have important roles in language policy. Hindi and English are used at the Union level; there is no single constitutionally designated national language.",
+          "sourceIds": [
+            "india-scheduled-languages"
+          ]
+        }
+      ],
+      "takeaway": "India becomes easier to understand when you start with its regions, not a single national stereotype.",
+      "scene": {
+        "focusCountryId": "IND",
+        "highlights": [
+          {
+            "countryId": "PAK",
+            "role": "related"
+          },
+          {
+            "countryId": "NPL",
+            "role": "related"
+          },
+          {
+            "countryId": "BGD",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "pakistan",
+          "nepal",
+          "bangladesh",
+          "arabian-sea",
+          "bay-of-bengal",
+          "himalayas"
+        ],
+        "routes": [],
+        "mapNote": "Mountains, river plains, and peninsular regions hold different linguistic histories."
+      },
+      "next": [
+        {
+          "countryId": "IND",
+          "storyId": "monsoon"
+        },
+        {
+          "countryId": "IDN",
+          "storyId": "language",
+          "reason": "Another multilingual society, another approach to a shared language."
+        },
+        {
+          "countryId": "BRA",
+          "storyId": "amazon",
+          "reason": "See how water connects nature to everyday life elsewhere."
+        }
+      ],
+      "sources": [
+        {
+          "id": "india-scheduled-languages",
+          "title": "The Constitution of India (as on 1 May 2024): Article 343 and the Eighth Schedule",
+          "publisher": "Legislative Department, Ministry of Law and Justice, Government of India",
+          "url": "https://cdnbbsr.s3waas.gov.in/s380537a945c7aaa788ccfcdf1b99b5d8f/uploads/2024/07/20240716890312078.pdf"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "monsoon",
+      "countryId": "IND",
+      "slug": "monsoon",
+      "question": "Why is the monsoon more than weather?",
+      "paraphrases": {
+        "question": "Why is the monsoon more than weather?",
+        "phrasings": [
+          "Why does the monsoon matter so much in India?",
+          "how does the monsoon affect crops and food prices in india",
+          "Why is India's summer monsoon rain such a big national deal?",
+          "india monsoon impact on economy",
+          "What happens in India when the monsoon comes late or is weak?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Geography & everyday life",
+      "summary": "A seasonal shift in winds helps organize the rhythm of a country.",
+      "sections": [
+        {
+          "title": "Rain arrives unevenly",
+          "text": "Summer monsoon rains provide much of India’s annual water. Timing, location, and intensity matter as much as the total amount.",
+          "sourceIds": [
+            "world-bank-population-2024"
+          ]
+        },
+        {
+          "title": "A chain of consequences",
+          "text": "Rainfall affects reservoirs, crops, food prices, hydropower, and flood risk. Irrigation and urban infrastructure can reduce some vulnerabilities, but cannot remove them all.",
+          "sourceIds": [
+            "world-bank-population-2024"
+          ]
+        }
+      ],
+      "takeaway": "Weather becomes a national story when so many livelihoods depend on the same seasonal system.",
+      "scene": {
+        "focusCountryId": "IND",
+        "highlights": [],
+        "placeIds": [
+          "arabian-sea",
+          "bay-of-bengal",
+          "himalayas"
+        ],
+        "routes": [
+          {
+            "id": "monsoon-winds",
+            "kind": "flow",
+            "via": [
+              "arabian-sea",
+              "deccan-plateau",
+              "himalayas"
+            ]
+          }
+        ],
+        "mapNote": "Moisture arrives from the surrounding seas and interacts with the land."
+      },
+      "next": [
+        {
+          "countryId": "IND",
+          "storyId": "technology"
+        },
+        {
+          "countryId": "USA",
+          "storyId": "geography",
+          "reason": "Follow a river system through a continental economy."
+        },
+        {
+          "countryId": "IDN",
+          "storyId": "language",
+          "reason": "Another multilingual society, another approach to a shared language."
+        }
+      ],
+      "sources": [
+        {
+          "id": "world-bank-population-2024",
+          "title": "Population, 2024",
+          "publisher": "World Bank",
+          "url": "https://datacatalogfiles.worldbank.org/ddh-published/0038126/DR0046429/POP.pdf"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "technology",
+      "countryId": "IND",
+      "slug": "technology",
+      "question": "How did India become a global technology hub?",
+      "paraphrases": {
+        "question": "How did India become a global technology hub?",
+        "phrasings": [
+          "Why is India so big in software and IT?",
+          "how did india get so good at tech outsourcing",
+          "What made India a major exporter of software and business services?",
+          "india IT industry growth",
+          "Why do so many global tech companies rely on Indian workers?"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Work & economy",
+      "summary": "The familiar software story rests on skills, connections, and concentrated opportunity.",
+      "sections": [
+        {
+          "title": "Build an exportable service",
+          "text": "Technical education, English-language skills, communications networks, and international demand helped Indian software and business services expand.",
+          "sourceIds": [
+            "meity-industry-growth"
+          ]
+        },
+        {
+          "title": "Growth is geographically uneven",
+          "text": "Technology activity clusters in certain urban regions. A successful export industry creates opportunities, but does not represent the experience of every worker in a country this large.",
+          "sourceIds": [
+            "meity-industry-growth"
+          ]
+        }
+      ],
+      "takeaway": "India’s technology sector is globally important and still only one part of a much more varied economy.",
+      "scene": {
+        "focusCountryId": "IND",
+        "highlights": [
+          {
+            "countryId": "PAK",
+            "role": "related"
+          },
+          {
+            "countryId": "NPL",
+            "role": "related"
+          },
+          {
+            "countryId": "BGD",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "pakistan",
+          "nepal",
+          "bangladesh",
+          "arabian-sea",
+          "bay-of-bengal",
+          "himalayas"
+        ],
+        "routes": [],
+        "mapNote": "International connections link a few major technology regions to distant customers."
+      },
+      "next": [
+        {
+          "countryId": "IND",
+          "storyId": "languages"
+        },
+        {
+          "countryId": "JPN",
+          "storyId": "industry",
+          "reason": "Start with the parts and systems inside familiar products."
+        },
+        {
+          "countryId": "IDN",
+          "storyId": "language",
+          "reason": "Another multilingual society, another approach to a shared language."
+        }
+      ],
+      "sources": [
+        {
+          "id": "meity-industry-growth",
+          "title": "Industry growth",
+          "publisher": "Ministry of Electronics and IT",
+          "url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2115413&lang=2&reg=48"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    }
+  ]
+}

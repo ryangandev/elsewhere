@@ -7,12 +7,17 @@ import {
   panel,
   storyHeading,
 } from './atlas';
-import { getCountry, getStory, nextStories, storyPath } from './content';
+import { exampleStory, getCountry, nextStories, storyPath, type Story } from './content';
 import { expect, test } from './fixtures';
 
-const story = getStory('SGP', 'wealth');
+let story: Story;
 
 test.describe('a story', () => {
+  // A story that leads on to reviewed questions, one of them about another country.
+  test.beforeEach(() => {
+    story = exampleStory('SGP', 'wealth', { needs: ['elsewhere'] });
+  });
+
   test('cites its sources as links', async ({ page }) => {
     await openAtlas(page, storyPath(story));
     await expectAnswer(page, story);

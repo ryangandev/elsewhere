@@ -1,0 +1,401 @@
+{
+  "country": {
+    "id": "CHN",
+    "slug": "china",
+    "name": "China",
+    "nativeName": "Zhōngguó",
+    "region": "East Asia",
+    "kicker": "An old civilization. A modern transformation.",
+    "overview": {
+      "summary": "A vast, diverse country reshaped by rapid industrialization and urban growth. China’s enormous domestic market and deep manufacturing networks make its choices consequential far beyond its borders.",
+      "geography": "China stretches from high plateaus and deserts in the west to densely settled plains and river valleys in the east. Its eastern coast opens onto the Pacific trading system.",
+      "sourceIds": [
+        "world-bank-china-overview"
+      ],
+      "whyItMatters": [
+        {
+          "title": "Inside the world’s supply chains",
+          "text": "From everyday goods to batteries and industrial equipment, production networks connect Chinese factories to customers worldwide.",
+          "sourceIds": [
+            "world-bank-china-overview"
+          ]
+        },
+        {
+          "title": "Scale changes the stakes",
+          "text": "Its energy use, aging population, and development choices have global economic and environmental consequences.",
+          "sourceIds": [
+            "world-bank-china-overview"
+          ]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Population",
+        "value": "1.41 billion",
+        "asOf": "2024",
+        "sourceIds": [
+          "world-bank-population-2024"
+        ]
+      },
+      {
+        "label": "Capital",
+        "value": "Beijing",
+        "sourceIds": [
+          "world-bank-china-overview"
+        ]
+      },
+      {
+        "label": "Language",
+        "value": "Mandarin Chinese (official)",
+        "sourceIds": [
+          "world-bank-china-overview"
+        ]
+      },
+      {
+        "label": "Currency",
+        "value": "Renminbi · yuan",
+        "sourceIds": [
+          "world-bank-china-overview"
+        ]
+      }
+    ],
+    "starterStoryIds": [
+      "manufacturing",
+      "population",
+      "reforms"
+    ],
+    "scene": {
+      "camera": {
+        "lat": 34,
+        "lng": 104,
+        "altitude": 1.35
+      },
+      "focusCountryId": "CHN",
+      "highlights": [
+        {
+          "countryId": "MNG",
+          "role": "related"
+        },
+        {
+          "countryId": "IND",
+          "role": "related"
+        },
+        {
+          "countryId": "JPN",
+          "role": "related"
+        }
+      ],
+      "placeIds": [
+        "mongolia",
+        "india",
+        "japan",
+        "tibetan-plateau",
+        "east-china-sea"
+      ],
+      "routes": []
+    },
+    "sources": [
+      {
+        "id": "world-bank-china-overview",
+        "title": "China overview",
+        "publisher": "World Bank",
+        "url": "https://www.worldbank.org/ext/en/country/china"
+      },
+      {
+        "id": "world-bank-population-2024",
+        "title": "Population, 2024",
+        "publisher": "World Bank",
+        "url": "https://datacatalogfiles.worldbank.org/ddh-published/0038126/DR0046429/POP.pdf"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-09-26",
+      "reviewedBy": "ryan",
+      "reviewedAt": "2026-09-27",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "manufacturing",
+      "countryId": "CHN",
+      "slug": "manufacturing",
+      "question": "How did China become a manufacturing center?",
+      "paraphrases": {
+        "question": "How did China become a manufacturing center?",
+        "phrasings": [
+          "Why does China make so much of the world's stuff?",
+          "How did China turn into the world's factory?",
+          "Why is so much manufacturing done in China?",
+          "how did china get so big at making things",
+          "china factory industry rise"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Economy",
+      "summary": "The transformation happened through decades of experimentation and investment.",
+      "sections": [
+        {
+          "title": "Reform in stages",
+          "text": "Reform and opening up began in 1978. Changes first reshaped rural incentives, then expanded opportunities for enterprise, investment, and trade.",
+          "sourceIds": [
+            "world-bank-china-reforms"
+          ]
+        },
+        {
+          "title": "Networks build on networks",
+          "text": "Coastal cities connected labor, ports, roads, and suppliers. As skills and infrastructure grew, manufacturing extended into more complex industries. Low wages alone cannot explain that system.",
+          "sourceIds": [
+            "world-bank-china-reforms",
+            "world-bank-china-overview"
+          ]
+        }
+      ],
+      "takeaway": "Manufacturing strength lives in an ecosystem of suppliers, infrastructure, and accumulated knowledge.",
+      "scene": {
+        "focusCountryId": "CHN",
+        "highlights": [],
+        "placeIds": [
+          "shanghai",
+          "south-china-sea",
+          "east-china-sea"
+        ],
+        "routes": [
+          {
+            "id": "coastal-belt",
+            "kind": "flow",
+            "via": [
+              "shenzhen",
+              "shanghai",
+              "tianjin"
+            ]
+          }
+        ],
+        "mapNote": "Coastal access helped connect reform-era industry to world markets."
+      },
+      "next": [
+        {
+          "countryId": "CHN",
+          "storyId": "population"
+        },
+        {
+          "countryId": "MYS",
+          "storyId": "electronics",
+          "reason": "Look closer at another link inside your electronics."
+        },
+        {
+          "countryId": "JPN",
+          "storyId": "industry",
+          "reason": "Look inside another East Asian industrial system."
+        }
+      ],
+      "sources": [
+        {
+          "id": "world-bank-china-reforms",
+          "title": "Reflections on forty years of China reforms",
+          "publisher": "World Bank",
+          "url": "https://blogs.worldbank.org/en/eastasiapacific/reflections-on-forty-years-of-china-reforms"
+        },
+        {
+          "id": "world-bank-china-overview",
+          "title": "China overview",
+          "publisher": "World Bank",
+          "url": "https://www.worldbank.org/ext/en/country/china"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "population",
+      "countryId": "CHN",
+      "slug": "population",
+      "question": "Why is the east so much more densely populated?",
+      "paraphrases": {
+        "question": "Why is the east so much more densely populated?",
+        "phrasings": [
+          "Why do most people in China live in the east?",
+          "Why is western China so sparsely populated compared to the east?",
+          "Why are China's eastern plains so crowded?",
+          "why is everyone in china packed on the east side",
+          "china population distribution east west"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Geography",
+      "summary": "Climate, terrain, and water help explain a striking imbalance.",
+      "sections": [
+        {
+          "title": "Land that supports settlement",
+          "text": "Eastern plains and major river basins offered conditions for intensive farming and large settlements. Western deserts and highlands present different constraints.",
+          "sourceIds": [
+            "world-bank-china-overview"
+          ]
+        },
+        {
+          "title": "Old patterns meet new opportunities",
+          "text": "Modern jobs and transport reinforce some historic concentrations. This does not make the west empty: it contains diverse communities, cities, and strategic resources.",
+          "sourceIds": [
+            "world-bank-china-overview"
+          ]
+        }
+      ],
+      "takeaway": "National averages hide enormous differences in the places people actually inhabit.",
+      "scene": {
+        "focusCountryId": "CHN",
+        "highlights": [],
+        "placeIds": [
+          "tibetan-plateau",
+          "gobi-desert",
+          "north-china-plain"
+        ],
+        "routes": [],
+        "mapNote": "Compare the broad western highlands with the eastern river plains."
+      },
+      "next": [
+        {
+          "countryId": "CHN",
+          "storyId": "reforms"
+        },
+        {
+          "countryId": "JPN",
+          "storyId": "industry",
+          "reason": "Look inside another East Asian industrial system."
+        },
+        {
+          "countryId": "MYS",
+          "storyId": "electronics",
+          "reason": "Trace production beyond one country’s borders."
+        }
+      ],
+      "sources": [
+        {
+          "id": "world-bank-china-overview",
+          "title": "China overview",
+          "publisher": "World Bank",
+          "url": "https://www.worldbank.org/ext/en/country/china"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "reforms",
+      "countryId": "CHN",
+      "slug": "reforms",
+      "question": "What did opening up actually change?",
+      "paraphrases": {
+        "question": "What did opening up actually change?",
+        "phrasings": [
+          "What changed in China after the 1978 reforms?",
+          "What were the effects of China's reform and opening up?",
+          "How did special economic zones change China?",
+          "what did china's opening up really do",
+          "china 1978 reform impact"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Modern history",
+      "summary": "A familiar date, 1978, marks the start of a process rather than a single switch.",
+      "sections": [
+        {
+          "title": "Learning through experiments",
+          "text": "Local trials and special economic zones tested ways to attract investment and organize production before policies spread more widely.",
+          "sourceIds": [
+            "world-bank-china-reforms"
+          ]
+        },
+        {
+          "title": "A transformation with new pressures",
+          "text": "Rising incomes and urbanization came alongside uneven opportunities, environmental costs, and reliance on investment. An aging population adds another challenge.",
+          "sourceIds": [
+            "world-bank-china-reforms",
+            "world-bank-china-overview"
+          ]
+        }
+      ],
+      "takeaway": "China’s recent history is a sequence of institutional choices and adjustments, not an automatic result of size.",
+      "scene": {
+        "focusCountryId": "CHN",
+        "highlights": [
+          {
+            "countryId": "MNG",
+            "role": "related"
+          },
+          {
+            "countryId": "IND",
+            "role": "related"
+          },
+          {
+            "countryId": "JPN",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "mongolia",
+          "india",
+          "japan",
+          "tibetan-plateau",
+          "east-china-sea"
+        ],
+        "routes": [],
+        "mapNote": "Southern coastal experiments became gateways to the world economy."
+      },
+      "next": [
+        {
+          "countryId": "CHN",
+          "storyId": "manufacturing"
+        },
+        {
+          "countryId": "JPN",
+          "storyId": "industry",
+          "reason": "Look inside another East Asian industrial system."
+        },
+        {
+          "countryId": "MYS",
+          "storyId": "electronics",
+          "reason": "Trace production beyond one country’s borders."
+        }
+      ],
+      "sources": [
+        {
+          "id": "world-bank-china-reforms",
+          "title": "Reflections on forty years of China reforms",
+          "publisher": "World Bank",
+          "url": "https://blogs.worldbank.org/en/eastasiapacific/reflections-on-forty-years-of-china-reforms"
+        },
+        {
+          "id": "world-bank-china-overview",
+          "title": "China overview",
+          "publisher": "World Bank",
+          "url": "https://www.worldbank.org/ext/en/country/china"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    }
+  ]
+}

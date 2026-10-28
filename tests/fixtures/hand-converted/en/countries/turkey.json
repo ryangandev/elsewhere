@@ -1,0 +1,418 @@
+{
+  "country": {
+    "id": "TUR",
+    "slug": "turkey",
+    "name": "Turkey",
+    "nativeName": "Türkiye",
+    "region": "Europe & Western Asia",
+    "kicker": "Where continents meet, history stays close.",
+    "overview": {
+      "summary": "A republic built from the heartland of the Ottoman Empire. Turkey’s position between the Black Sea, Europe, and the Middle East makes its geography inseparable from its politics and identity.",
+      "geography": "Most of Turkey lies on the Anatolian peninsula in Asia; a smaller part is in southeastern Europe. Istanbul straddles the Bosphorus. Ankara, inland, is the capital.",
+      "sourceIds": [
+        "unesco-istanbul",
+        "mfa-turkish-straits"
+      ],
+      "whyItMatters": [
+        {
+          "title": "A passage with strategic weight",
+          "text": "The Turkish Straits connect the Black Sea to the Mediterranean system, giving a narrow waterway international importance.",
+          "sourceIds": [
+            "mfa-turkish-straits"
+          ]
+        },
+        {
+          "title": "Many worlds in one place",
+          "text": "Ottoman inheritances, a secular republican tradition, and a diverse society shape a country closely connected to both Europe and Asia.",
+          "sourceIds": [
+            "unesco-istanbul",
+            "world-bank-turkiye-overview"
+          ]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Population",
+        "value": "85.5 million",
+        "asOf": "2024",
+        "sourceIds": [
+          "world-bank-population-2024"
+        ]
+      },
+      {
+        "label": "Capital",
+        "value": "Ankara",
+        "sourceIds": [
+          "world-bank-turkiye-overview"
+        ]
+      },
+      {
+        "label": "Language",
+        "value": "Turkish",
+        "sourceIds": [
+          "world-bank-turkiye-overview"
+        ]
+      },
+      {
+        "label": "Currency",
+        "value": "Turkish lira",
+        "sourceIds": [
+          "world-bank-turkiye-overview"
+        ]
+      }
+    ],
+    "starterStoryIds": [
+      "straits",
+      "republic",
+      "identity"
+    ],
+    "scene": {
+      "camera": {
+        "lat": 39,
+        "lng": 35,
+        "altitude": 0.78
+      },
+      "focusCountryId": "TUR",
+      "highlights": [
+        {
+          "countryId": "GRC",
+          "role": "related"
+        },
+        {
+          "countryId": "SYR",
+          "role": "related"
+        }
+      ],
+      "placeIds": [
+        "black-sea",
+        "mediterranean-sea",
+        "greece",
+        "syria",
+        "bosporus"
+      ],
+      "routes": []
+    },
+    "sources": [
+      {
+        "id": "unesco-istanbul",
+        "title": "Historic Areas of Istanbul",
+        "publisher": "UNESCO World Heritage Centre",
+        "url": "https://whc.unesco.org/en/list/356"
+      },
+      {
+        "id": "mfa-turkish-straits",
+        "title": "The Turkish Straits",
+        "publisher": "Ministry of Foreign Affairs of Türkiye",
+        "url": "https://www.mfa.gov.tr/the-turkish-straits.en.mfa"
+      },
+      {
+        "id": "world-bank-turkiye-overview",
+        "title": "Türkiye overview",
+        "publisher": "World Bank",
+        "url": "https://www.worldbank.org/en/country/turkey/overview"
+      },
+      {
+        "id": "world-bank-population-2024",
+        "title": "Population, 2024",
+        "publisher": "World Bank",
+        "url": "https://datacatalogfiles.worldbank.org/ddh-published/0038126/DR0046429/POP.pdf"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-09-26",
+      "reviewedBy": "ryan",
+      "reviewedAt": "2026-09-27",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "straits",
+      "countryId": "TUR",
+      "slug": "straits",
+      "question": "Why is one narrow strait so important?",
+      "paraphrases": {
+        "question": "Why is one narrow strait so important?",
+        "phrasings": [
+          "Why does the Bosphorus matter so much to world shipping?",
+          "How do Black Sea ships reach the Mediterranean through Turkey?",
+          "Why are the Turkish straits so strategically important?",
+          "what's the big deal about the Dardanelles?",
+          "bosphorus dardanelles montreux convention"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Geography & power",
+      "summary": "For a Black Sea ship heading to the Mediterranean, geography offers a very particular path.",
+      "sections": [
+        {
+          "title": "A chain of passages",
+          "text": "The Bosphorus leads to the Sea of Marmara, then the Dardanelles and Aegean. Together these waters connect the Black Sea with the wider Mediterranean.",
+          "sourceIds": [
+            "mfa-turkish-straits"
+          ]
+        },
+        {
+          "title": "Location meets law",
+          "text": "The Montreux Convention governs passage, with different rules for merchant vessels and warships. Geography gives Turkey leverage, but not unlimited discretion.",
+          "sourceIds": [
+            "mfa-turkish-straits"
+          ]
+        }
+      ],
+      "takeaway": "Some of the world’s most important connections are far narrower than the places they connect.",
+      "scene": {
+        "focusCountryId": "TUR",
+        "highlights": [],
+        "placeIds": [
+          "black-sea",
+          "bosporus",
+          "aegean-sea"
+        ],
+        "routes": [
+          {
+            "id": "turkish-straits",
+            "kind": "sea",
+            "via": [
+              "black-sea",
+              "bosporus",
+              "sea-of-marmara",
+              "dardanelles",
+              "aegean-sea"
+            ]
+          }
+        ],
+        "mapNote": "Trace the Black Sea connection through the Turkish Straits."
+      },
+      "next": [
+        {
+          "countryId": "TUR",
+          "storyId": "republic"
+        },
+        {
+          "countryId": "SGP",
+          "storyId": "shipping",
+          "reason": "Begin at a crossroads of world trade."
+        },
+        {
+          "countryId": "FRA",
+          "storyId": "europe",
+          "reason": "Explore how geography becomes a political project."
+        }
+      ],
+      "sources": [
+        {
+          "id": "mfa-turkish-straits",
+          "title": "The Turkish Straits",
+          "publisher": "Ministry of Foreign Affairs of Türkiye",
+          "url": "https://www.mfa.gov.tr/the-turkish-straits.en.mfa"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "republic",
+      "countryId": "TUR",
+      "slug": "republic",
+      "question": "How did an empire become a republic?",
+      "paraphrases": {
+        "question": "How did an empire become a republic?",
+        "phrasings": [
+          "How did the Ottoman Empire turn into modern Turkey?",
+          "What happened when Atatürk founded the Republic of Turkey in 1923?",
+          "Why did Turkey move its capital from Istanbul to Ankara?",
+          "how did the ottomans end and turkey begin?",
+          "ottoman empire to turkish republic"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "History",
+      "summary": "The modern state emerged after war and the collapse of an imperial order.",
+      "sections": [
+        {
+          "title": "An empire spanning regions",
+          "text": "The Ottoman Empire ruled lands across southeastern Europe, the Middle East, and North Africa at different times. Istanbul was its capital from 1453.",
+          "sourceIds": [
+            "unesco-istanbul"
+          ]
+        },
+        {
+          "title": "A new center of gravity",
+          "text": "The Republic of Turkey was founded in 1923 under Mustafa Kemal Atatürk. Ankara became the capital, and reforms recast law, education, and public life.",
+          "sourceIds": [
+            "world-bank-turkiye-overview"
+          ]
+        }
+      ],
+      "takeaway": "Modern Turkey inherits an imperial past while being built around a very different idea of the state.",
+      "scene": {
+        "focusCountryId": "TUR",
+        "highlights": [
+          {
+            "countryId": "GRC",
+            "role": "related"
+          },
+          {
+            "countryId": "SYR",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "black-sea",
+          "mediterranean-sea",
+          "greece",
+          "syria",
+          "bosporus"
+        ],
+        "routes": [],
+        "mapNote": "An inland capital shifted political focus away from imperial Istanbul."
+      },
+      "next": [
+        {
+          "countryId": "TUR",
+          "storyId": "identity"
+        },
+        {
+          "countryId": "SGP",
+          "storyId": "shipping",
+          "reason": "Compare another strategic meeting point of seas."
+        },
+        {
+          "countryId": "FRA",
+          "storyId": "europe",
+          "reason": "Explore how geography becomes a political project."
+        }
+      ],
+      "sources": [
+        {
+          "id": "unesco-istanbul",
+          "title": "Historic Areas of Istanbul",
+          "publisher": "UNESCO World Heritage Centre",
+          "url": "https://whc.unesco.org/en/list/356"
+        },
+        {
+          "id": "world-bank-turkiye-overview",
+          "title": "Türkiye overview",
+          "publisher": "World Bank",
+          "url": "https://www.worldbank.org/en/country/turkey/overview"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "identity",
+      "countryId": "TUR",
+      "slug": "identity",
+      "question": "Is Turkey European or Asian?",
+      "paraphrases": {
+        "question": "Is Turkey European or Asian?",
+        "phrasings": [
+          "Does Turkey count as part of Europe or Asia?",
+          "Which continent is Turkey in?",
+          "Is Turkey a European country or a Middle Eastern one?",
+          "so is turkey europe or asia, or both?",
+          "turkey continent europe asia"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Identity",
+      "summary": "The map answers one question. People’s lives answer many more.",
+      "sections": [
+        {
+          "title": "A literal crossing",
+          "text": "The straits separate Turkey’s smaller European territory from Anatolia. But continental labels are conventions, not complete explanations of culture.",
+          "sourceIds": [
+            "mfa-turkish-straits"
+          ]
+        },
+        {
+          "title": "Overlapping connections",
+          "text": "Trade, migration, religion, language, and history connect Turkey to several regions. Its people hold varied identities and political views within those connections.",
+          "sourceIds": [
+            "world-bank-turkiye-overview"
+          ]
+        }
+      ],
+      "takeaway": "“Both” is a starting point, not the whole story.",
+      "scene": {
+        "focusCountryId": "TUR",
+        "highlights": [
+          {
+            "countryId": "GRC",
+            "role": "related"
+          },
+          {
+            "countryId": "SYR",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "black-sea",
+          "mediterranean-sea",
+          "greece",
+          "syria",
+          "bosporus"
+        ],
+        "routes": [],
+        "mapNote": "The straits divide continents while also connecting seas."
+      },
+      "next": [
+        {
+          "countryId": "TUR",
+          "storyId": "straits"
+        },
+        {
+          "countryId": "SGP",
+          "storyId": "shipping",
+          "reason": "Compare another strategic meeting point of seas."
+        },
+        {
+          "countryId": "FRA",
+          "storyId": "europe",
+          "reason": "Explore how geography becomes a political project."
+        }
+      ],
+      "sources": [
+        {
+          "id": "mfa-turkish-straits",
+          "title": "The Turkish Straits",
+          "publisher": "Ministry of Foreign Affairs of Türkiye",
+          "url": "https://www.mfa.gov.tr/the-turkish-straits.en.mfa"
+        },
+        {
+          "id": "world-bank-turkiye-overview",
+          "title": "Türkiye overview",
+          "publisher": "World Bank",
+          "url": "https://www.worldbank.org/en/country/turkey/overview"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    }
+  ]
+}

@@ -9,8 +9,9 @@ import {
 } from './atlas';
 import {
   editions,
+  exampleCountry,
+  exampleStory,
   getCountry,
-  getStory,
   nextStories,
   storyPath,
   suggestedStories,
@@ -20,8 +21,9 @@ import { expect, test } from './fixtures';
 test.describe('routing', () => {
   test('a deep story URL loads directly', async ({ page }) => {
     // The last edited country's last story: not reachable from the home page in one click.
-    const { stories } = editions[editions.length - 1];
-    const story = stories[stories.length - 1];
+    const edition = editions.filter(({ stories }) => stories.length > 0).at(-1)!;
+    test.skip(!edition, 'content/en has no reviewed story');
+    const story = edition.stories.at(-1)!;
 
     const response = await page.goto(storyPath(story));
 
@@ -31,7 +33,7 @@ test.describe('routing', () => {
   });
 
   test('a reload stays on the same story', async ({ page }) => {
-    const story = getStory('SGP', 'wealth');
+    const story = exampleStory('SGP', 'wealth');
     await openAtlas(page, storyPath(story));
     await page.reload();
     await expectAnswer(page, story);
@@ -51,7 +53,7 @@ test.describe('routing', () => {
   });
 
   test('an unknown question in a real country is not found either', async ({ page }) => {
-    const country = getCountry('SGP');
+    const country = exampleCountry('SGP');
     const response = await page.goto(`/${country.slug}/no-such-question`);
 
     expect(response?.status()).toBe(404);
@@ -59,7 +61,8 @@ test.describe('routing', () => {
   });
 
   test('back and forward restore the previous panel', async ({ page }) => {
-    const first = suggestedStories()[0];
+    const first = suggestedStories().find((story) => nextStories(story).length > 0)!;
+    test.skip(!first, 'content/en suggests no reviewed question that leads on to another');
     const second = nextStories(first)[0];
     await openAtlas(page);
 

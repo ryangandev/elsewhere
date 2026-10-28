@@ -1,0 +1,43 @@
+[
+  {
+    "id": "water-connects",
+    "title": "Fixture trail by water",
+    "label": "SEAS & CONNECTIONS",
+    "description": "A fixture trail that follows the water.",
+    "stops": [
+      {
+        "countryId": "SGP",
+        "storyId": "shipping",
+        "connection": "Begin at a crossroads."
+      },
+      {
+        "countryId": "MYS",
+        "storyId": "two-shores",
+        "connection": "Cross the strait."
+      },
+      {
+        "countryId": "FRA",
+        "storyId": "overseas",
+        "connection": "Cross the ocean."
+      }
+    ]
+  },
+  {
+    "id": "made-together",
+    "title": "Fixture trail of trade",
+    "label": "WORK & THE WORLD",
+    "description": "A fixture trail that follows trade.",
+    "stops": [
+      {
+        "countryId": "MYS",
+        "storyId": "electronics",
+        "connection": "Start with chips."
+      },
+      {
+        "countryId": "USA",
+        "storyId": "dollar",
+        "connection": "Follow the money."
+      }
+    ]
+  }
+]

@@ -19,20 +19,26 @@ import {
 } from '../../src/content/geo';
 import { findPlaces, sharedListing } from '../../pipeline/generate/gazetteer-context';
 import { mainStem } from '../../scripts/passage-paths.mjs';
-import { CountryFile, type SceneRouteSpec } from '../../src/content/schema';
-import { contentInput, landIndex } from './load';
+import type { SceneRouteSpec } from '../../src/content/schema';
+import { landIndex } from './load';
 
-function allRoutes(): { where: string; route: SceneRouteSpec }[] {
-  return contentInput().countryFiles.flatMap(({ file, data }) => {
-    const { country, stories } = CountryFile.parse(data);
-    return [
-      ...country.scene.routes.map((route) => ({ where: `${file} country`, route })),
-      ...stories.flatMap((story) =>
-        story.scene.routes.map((route) => ({ where: `${file} ${story.id}`, route })),
-      ),
-    ];
-  });
-}
+/**
+ * Sea routes that content has used, written out here so the check below does not depend on what
+ * content/en holds today. Production content is checked as a whole by validate.test.ts.
+ */
+const seaRoutes: SceneRouteSpec[] = [
+  {
+    id: 'malacca-passage',
+    kind: 'sea',
+    via: ['andaman-sea', 'strait-of-malacca', 'singapore-strait', 'south-china-sea'],
+  },
+  { id: 'peninsula-to-sabah', kind: 'sea', via: ['kuantan', 'kota-kinabalu'] },
+  {
+    id: 'turkish-straits',
+    kind: 'sea',
+    via: ['black-sea', 'bosporus', 'sea-of-marmara', 'dardanelles', 'aegean-sea'],
+  },
+];
 
 describe('country places', () => {
   const shapes = JSON.parse(readFileSync('public/maps/countries.geojson', 'utf8')).features as {
@@ -613,13 +619,9 @@ describe('routes', () => {
     expect(listPlaces().filter((place) => /lawrence river/i.test(place.name))).toHaveLength(1);
   });
 
-  it('stay at sea in all content', () => {
-    const sea = allRoutes().filter(({ route }) => route.kind === 'sea');
-    expect(sea.map(({ route }) => route.id)).toEqual(
-      expect.arrayContaining(['malacca-passage', 'peninsula-to-sabah', 'turkish-straits']),
-    );
-    for (const { where, route } of sea) {
-      expect(findRouteLandCrossings(route, landIndex()), `${where} ${route.id}`).toEqual([]);
+  it('stay at sea along the routes content has used', () => {
+    for (const route of seaRoutes) {
+      expect(findRouteLandCrossings(route, landIndex()), route.id).toEqual([]);
     }
   });
 });

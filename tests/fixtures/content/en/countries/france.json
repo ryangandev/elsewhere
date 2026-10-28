@@ -1,0 +1,214 @@
+{
+  "country": {
+    "id": "FRA",
+    "slug": "france",
+    "name": "France",
+    "region": "Western Europe",
+    "kicker": "A fixture kicker for France.",
+    "overview": {
+      "summary": "Fixture summary of France.",
+      "geography": "Fixture geography of France.",
+      "sourceIds": ["fra-overview"],
+      "whyItMatters": [
+        {
+          "title": "Fixture reason",
+          "text": "Fixture text.",
+          "sourceIds": ["fra-overview"]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Capital",
+        "value": "Fixture City",
+        "sourceIds": ["fra-overview"]
+      }
+    ],
+    "starterStoryIds": ["overseas", "cuisine", "revolution"],
+    "scene": {
+      "focusCountryId": "FRA",
+      "highlights": [],
+      "placeIds": [],
+      "routes": []
+    },
+    "sources": [
+      {
+        "id": "fra-overview",
+        "title": "Fixture source for overview",
+        "publisher": "Fixture Publisher",
+        "url": "https://example.org/fra/overview"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-01-01",
+      "reviewedBy": "fixture",
+      "reviewedAt": "2026-01-02",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "overseas",
+      "countryId": "FRA",
+      "slug": "overseas",
+      "question": "Why does France reach across the Atlantic?",
+      "category": "History",
+      "summary": "A one-line fixture answer to \"Why does France reach across the Atlantic?\"",
+      "sections": [
+        {
+          "title": "First part",
+          "text": "Fixture text for the first part.",
+          "sourceIds": ["fra-overseas"]
+        },
+        {
+          "title": "Second part",
+          "text": "Fixture text for the second part.",
+          "sourceIds": ["fra-overseas"]
+        }
+      ],
+      "takeaway": "A fixture takeaway.",
+      "scene": {
+        "focusCountryId": "FRA",
+        "highlights": [],
+        "placeIds": [],
+        "routes": [],
+        "mapNote": "Look at the highlighted place."
+      },
+      "next": [
+        {
+          "countryId": "FRA",
+          "storyId": "cuisine"
+        },
+        {
+          "countryId": "MYS",
+          "storyId": "electronics",
+          "reason": "Fixture reason to go to Malaysia."
+        }
+      ],
+      "sources": [
+        {
+          "id": "fra-overseas",
+          "title": "Fixture source for overseas",
+          "publisher": "Fixture Publisher",
+          "url": "https://example.org/fra/overseas"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-01-01",
+        "reviewedBy": "fixture",
+        "reviewedAt": "2026-01-02",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "cuisine",
+      "countryId": "FRA",
+      "slug": "cuisine",
+      "question": "Why does French cooking have such a reputation?",
+      "category": "Culture",
+      "summary": "A one-line fixture answer to \"Why does French cooking have such a reputation?\"",
+      "sections": [
+        {
+          "title": "First part",
+          "text": "Fixture text for the first part.",
+          "sourceIds": ["fra-cuisine"]
+        },
+        {
+          "title": "Second part",
+          "text": "Fixture text for the second part.",
+          "sourceIds": ["fra-cuisine"]
+        }
+      ],
+      "takeaway": "A fixture takeaway.",
+      "scene": {
+        "focusCountryId": "FRA",
+        "highlights": [],
+        "placeIds": [],
+        "routes": [],
+        "mapNote": "Look at the highlighted place."
+      },
+      "next": [
+        {
+          "countryId": "FRA",
+          "storyId": "revolution"
+        },
+        {
+          "countryId": "MYS",
+          "storyId": "electronics",
+          "reason": "Fixture reason to go to Malaysia."
+        }
+      ],
+      "sources": [
+        {
+          "id": "fra-cuisine",
+          "title": "Fixture source for cuisine",
+          "publisher": "Fixture Publisher",
+          "url": "https://example.org/fra/cuisine"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-01-01",
+        "reviewedBy": "fixture",
+        "reviewedAt": "2026-01-02",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "revolution",
+      "countryId": "FRA",
+      "slug": "revolution",
+      "question": "Why did the French Revolution spread?",
+      "category": "History",
+      "summary": "A one-line fixture answer to \"Why did the French Revolution spread?\"",
+      "sections": [
+        {
+          "title": "First part",
+          "text": "Fixture text for the first part.",
+          "sourceIds": ["fra-revolution"]
+        },
+        {
+          "title": "Second part",
+          "text": "Fixture text for the second part.",
+          "sourceIds": ["fra-revolution"]
+        }
+      ],
+      "takeaway": "A fixture takeaway.",
+      "scene": {
+        "focusCountryId": "FRA",
+        "highlights": [],
+        "placeIds": [],
+        "routes": [],
+        "mapNote": "Look at the highlighted place."
+      },
+      "next": [
+        {
+          "countryId": "FRA",
+          "storyId": "overseas"
+        },
+        {
+          "countryId": "MYS",
+          "storyId": "electronics",
+          "reason": "Fixture reason to go to Malaysia."
+        }
+      ],
+      "sources": [
+        {
+          "id": "fra-revolution",
+          "title": "Fixture source for revolution",
+          "publisher": "Fixture Publisher",
+          "url": "https://example.org/fra/revolution"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-01-01",
+        "reviewedBy": "fixture",
+        "reviewedAt": "2026-01-02",
+        "status": "reviewed"
+      }
+    }
+  ]
+}

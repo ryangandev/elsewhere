@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getCountry, getHome, getStory, listCountries, listStories } from '@/content';
 import { buildAtlasIndex, buildCountryLabels } from '@/domain/client-indexes';
 import {
@@ -11,6 +11,9 @@ import {
   storySceneSpec,
 } from '@/domain/page-views';
 import { destinationPath } from '@/domain/paths';
+
+// The content these tests read: the frozen hand-converted tree, not content/en.
+vi.mock('@/content', async () => (await import('./support/hand-converted-content')).loaders());
 
 /** View models cross the server and client boundary, so they must survive JSON unchanged. */
 const roundTrip = <T>(value: T): T => JSON.parse(JSON.stringify(value));
