@@ -76,7 +76,8 @@ export const Provenance = z
     message: 'Reviewed content cannot be waiting for a revision',
   })
   .refine((value) => value.status === 'reviewed' || (!value.reviewedBy && !value.reviewedAt), {
-    message: 'Only reviewed content records a reviewer; a reopened draft keeps it in revision.reopened',
+    message:
+      'Only reviewed content records a reviewer; a reopened draft keeps it in revision.reopened',
   });
 export type Provenance = z.infer<typeof Provenance>;
 
@@ -101,8 +102,9 @@ export const SceneRouteSpec = z.strictObject({
    */
   kind: RouteKind,
   /**
-   * Gazetteer places the route passes, in order. Consecutive places are joined by great circles;
-   * a strait or channel with a passage path is followed along its length.
+   * Gazetteer places the route passes, in order. Consecutive places are joined by great circles.
+   * A sea or river route follows a strait, channel or canal with a passage path, and a river,
+   * along their length; land routes and flows pass through every place's label point.
    */
   via: z.array(PlaceId).min(2),
 });
@@ -160,10 +162,7 @@ export const PARAPHRASES = { min: 3, max: 8, maxLength: 120 };
  */
 export const Paraphrases = z.strictObject({
   question: Text,
-  phrasings: z
-    .array(Text.max(PARAPHRASES.maxLength))
-    .min(PARAPHRASES.min)
-    .max(PARAPHRASES.max),
+  phrasings: z.array(Text.max(PARAPHRASES.maxLength)).min(PARAPHRASES.min).max(PARAPHRASES.max),
   /** The model that wrote them, or "human". */
   generatedBy: Text,
   generatedAt: IsoDate,
@@ -297,14 +296,23 @@ export const GazetteerPlace = z.strictObject({
   surface: z.enum(['sea', 'land']),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
-  /** Passage along a strait or channel, as [lat, lng] points. */
+  /** Passage along a strait, channel or canal, or a river's course, as [lat, lng] points. */
   path: z
     .array(z.tuple([z.number(), z.number()]))
     .min(2)
     .optional(),
   /** Map identity for country entries; containing country for populated places. */
   countryId: CountryId.optional(),
-  source: z.enum(['countries', 'marine', 'rivers', 'regions', 'admin1', 'lakes', 'places', 'override']),
+  source: z.enum([
+    'countries',
+    'marine',
+    'rivers',
+    'regions',
+    'admin1',
+    'lakes',
+    'places',
+    'override',
+  ]),
   /** Natural Earth feature ID, where the dataset has one. */
   neId: z.number().int().optional(),
 });

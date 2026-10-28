@@ -100,15 +100,15 @@ export type RouteWaypoint = {
   surface: 'sea' | 'land';
   /**
    * For a point of a passage path, the index of its stop in the route. Segments between points
-   * of the same passage follow the path the gazetteer build traced through the passage's water,
-   * so the land check skips them.
+   * of the same passage follow the path the gazetteer build traced through the passage's water
+   * (or a canal's or river's centerline), so the land check skips them.
    */
   passage?: number;
 };
 
-/** A route stop before expansion: a straits-like feature may carry a passage path. */
+/** A route stop before expansion: a strait-like feature or a river may carry a path. */
 export type RouteStop = RouteWaypoint & {
-  /** Points along a strait or channel, in either direction. The route follows them. */
+  /** Points along a strait, channel, canal or river, in either direction. The route follows them. */
   path?: LatLng[];
 };
 
@@ -154,7 +154,8 @@ export function expandRouteStops(stops: RouteStop[]): RouteWaypoint[] {
     const start = isPort(before) ? nearest(path, before.point) : 0;
     const end = isPort(after) ? nearest(path, after.point) : path.length - 1;
     path = end >= start ? path.slice(start, end + 1) : path.slice(end, start + 1).reverse();
-    for (const point of path) waypoints.push({ id: stop.id, point, surface: 'sea', passage: index });
+    for (const point of path)
+      waypoints.push({ id: stop.id, point, surface: 'sea', passage: index });
   });
   return waypoints;
 }
@@ -194,10 +195,11 @@ export const SEA_ROUTE_CHECK_DEFAULTS: Required<SeaRouteCheckOptions> = {
  * Find places where a sea route crosses land.
  * Each segment between consecutive waypoints is sampled along its great circle;
  * consecutive land samples are reported as one crossing.
- * Segments inside one passage path (a strait, channel or canal) are not sampled: the gazetteer
- * build traced that path through the passage's own water and verified it, including where the
- * land geometry closes the water (a canal, or a river channel narrower than the coastline
- * detail). The segments into and out of a passage are checked like any other.
+ * Segments inside one passage path (a strait, channel, canal or river) are not sampled: the
+ * gazetteer build traced that path through the passage's own water and verified it, including
+ * where the land geometry closes the water (a river channel narrower than the coastline detail),
+ * or took it from a canal's or river's centerline, which runs over land by definition. The
+ * segments into and out of a passage are checked like any other.
  */
 export function findSeaRouteLandCrossings(
   waypoints: RouteWaypoint[],

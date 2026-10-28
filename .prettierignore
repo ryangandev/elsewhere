@@ -1,25 +1,27 @@
-.next
-out
+# A leading slash anchors an entry at the repository root; a bare name matches at any depth, so
+# a bare "content" would also skip src/content and tests/content.
+/.next
+/out
 node_modules
-package-lock.json
-public
-next-env.d.ts
+/package-lock.json
+/public
+/next-env.d.ts
 
 # Prototype data, replaced by the content schema (migration step 3).
 src/content/legacy
 
 # Map data scripts, owned by the content pipeline (migration step 3 and 5).
-scripts
+/scripts
 
 # Markdown keeps one sentence per line and hand-aligned tables.
 *.md
 
 # Third-party stylesheet, kept as published.
-vendor
+/vendor
 /.claude
 
 # Written by the content pipeline as JSON.stringify output; reformatting would churn every regeneration.
-content
+/content
 pipeline/batches/*.plan.json
 tests/pipeline/fixtures/replay
 
@@ -28,11 +30,11 @@ tests/pipeline/fixtures/replay
 data/geo/*.json
 
 # Playwright output.
-playwright-report
-test-results
+/playwright-report
+/test-results
 
 # Vercel CLI output.
-.vercel
+/.vercel
 
 # The reference example frozen into each drafting prompt version, byte for byte as it renders.
 pipeline/prompts/*/reference.json

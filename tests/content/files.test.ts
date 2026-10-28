@@ -3,11 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import * as content from '../../src/content';
-import {
-  contentTreeRevision,
-  localeContentDir,
-  readContentTree,
-} from '../../src/content/files';
+import { contentTreeRevision, localeContentDir, readContentTree } from '../../src/content/files';
 import { createContentStore } from '../../src/content/store';
 
 describe('content discovery', () => {
@@ -67,7 +63,9 @@ describe('content discovery', () => {
 
   it('names a missing directory or file', () => {
     rmSync(join(dir, 'trails.json'));
-    expect(() => readContentTree(dir)).toThrow(`Cannot read content file ${join(dir, 'trails.json')}`);
+    expect(() => readContentTree(dir)).toThrow(
+      `Cannot read content file ${join(dir, 'trails.json')}`,
+    );
     expect(() => readContentTree(join(dir, 'missing'))).toThrow('Cannot read content directory');
   });
 

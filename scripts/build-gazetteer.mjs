@@ -4,7 +4,7 @@
 // Sources, all Natural Earth 10m and cached in .map-sources:
 // - countries: every map identity, from data/geo/countries.json
 // - marine: seas, straits, gulfs and bays (all named features)
-// - rivers: major rivers (scalerank <= 2)
+// - rivers: major rivers (scalerank <= 2), with the lake centerlines along their course
 // - regions: islands, ranges, plains, deserts and other physical regions (scalerank <= 3)
 // - places: major populated places (scalerank <= 2) and every national capital
 // - lakes and admin1: only the features listed in the overrides (Lake Victoria, a few provinces)
@@ -15,13 +15,13 @@
 //   coordinates
 //
 // Straits, channels, canals and the passages listed in the overrides get a passage path that
-// sea routes follow (see passage-paths.mjs). The script reports passages without a way through
+// sea routes follow, and rivers a path along their course (see passage-paths.mjs). The script reports passages without a way through
 // and passage paths that cross land the globe draws.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { geoArea, geoContains } from 'd3-geo';
 import mapshaper from 'mapshaper';
 import { createLandIndex, distanceKm } from '../src/content/geometry.ts';
-import { joinLines, midpoint, simplifyLine, waterPath } from './passage-paths.mjs';
+import { joinLines, mainStem, midpoint, simplifyLine, waterPath } from './passage-paths.mjs';
 import {
   readDataset,
   round,
@@ -168,6 +168,14 @@ const PASSAGE_MAX_BANDS = 12;
 const PASSAGE_MARGIN_KM = 30;
 /** Canal centerlines are simplified to within this distance. */
 const CANAL_TOLERANCE_KM = 0.5;
+/** River courses are simplified to within this distance, under a texel of the 4K basemap. */
+const RIVER_TOLERANCE_KM = 3;
+/**
+ * River pieces that share no vertex are joined across gaps up to this long. The pieces of one
+ * river's course come within 1.3 km of each other; separate delta branches, such as the
+ * Irrawaddy's, are 2.7 km or more apart over land.
+ */
+const RIVER_GAP_KM = 2;
 
 /**
  * The two ends of a strait or channel: interior points at either end of the feature's long axis,
@@ -401,7 +409,11 @@ for (const { neId, name, junction } of overrides.passages) {
 }
 
 // Major rivers: one entry per river, labelled at the middle vertex of its longest line. Rivers
-// below the scalerank cutoff are added only when the overrides name them.
+// below the scalerank cutoff are added only when the overrides name them. Each river's path is
+// its course: the main stem through its river pieces and the centerlines of the lakes it flows
+// through, simplified, so a route through the river follows it instead of a straight line through
+// its label point.
+const riversApart = [];
 {
   const listed = new Set(overrides.rivers.map((river) => river.name));
   /** A river's gazetteer name, after the overrides' renames, so differently named pieces join. */
@@ -415,41 +427,57 @@ for (const { neId, name, junction } of overrides.passages) {
   const rivers = new Map();
   for (const feature of datasets.rivers.features) {
     const { properties } = feature;
-    if (properties.featurecla !== 'River' || !properties.name) continue;
+    const isLake = properties.featurecla === 'Lake Centerline';
+    if ((properties.featurecla !== 'River' && !isLake) || !properties.name) continue;
     // Natural Earth splits long rivers into several features; join them by name.
     const { name: key, renameKey } = riverName(properties);
     if (properties.scalerank > RIVER_MAX_SCALERANK && !listed.has(key)) continue;
-    // A rename counts as used only when it names a river that reaches the gazetteer's candidates.
-    if (renameKey) renamesUsed.add(renameKey);
     const lines =
       feature.geometry.type === 'LineString'
         ? [feature.geometry.coordinates]
         : feature.geometry.coordinates;
-    const river = rivers.get(key) ?? { properties, name: key, lines: [] };
-    river.lines.push(...lines);
-    if (properties.scalerank < river.properties.scalerank) river.properties = properties;
+    const river = rivers.get(key) ?? { properties: undefined, name: key, lines: [], course: [] };
     rivers.set(key, river);
+    // Lake centerlines carry the river's course through a lake, such as the Rhine through Lake
+    // Constance, but are not rivers of their own.
+    river.course.push(...lines.map((line) => ({ line, lake: isLake })));
+    if (isLake) continue;
+    // A rename counts as used only when it names a river that reaches the gazetteer's candidates.
+    if (renameKey) renamesUsed.add(renameKey);
+    river.lines.push(...lines);
+    if (!river.properties || properties.scalerank < river.properties.scalerank) {
+      river.properties = properties;
+    }
   }
   const lineLength = (line) =>
     line
       .slice(1)
       .reduce((sum, [lng, lat], i) => sum + distanceKm([line[i][1], line[i][0]], [lat, lng]), 0);
-  const sorted = [...rivers.values()].sort(
-    (a, b) =>
-      a.properties.scalerank - b.properties.scalerank ||
-      a.properties.name.localeCompare(b.properties.name),
-  );
-  for (const { properties, name, lines } of sorted) {
+  const sorted = [...rivers.values()]
+    .filter((river) => river.properties)
+    .sort(
+      (a, b) =>
+        a.properties.scalerank - b.properties.scalerank ||
+        a.properties.name.localeCompare(b.properties.name),
+    );
+  for (const { properties, name, lines, course } of sorted) {
     const longest = lines.reduce((best, line) =>
       lineLength(line) > lineLength(best) ? line : best,
     );
     const [lng, lat] = longest[Math.floor(longest.length / 2)];
+    const { path: stem, leftOutKm } = mainStem(course, RIVER_GAP_KM);
+    if (!stem.some(([pointLat, pointLng]) => pointLat === lat && pointLng === lng)) {
+      throw new Error(`River ${name}: its label point is not on its main stem`);
+    }
+    if (leftOutKm > 0) riversApart.push(`${name} (${Math.round(leftOutKm)} km)`);
+    const path = simplifyLine(stem, RIVER_TOLERANCE_KM);
     add({
       name,
       kind: 'water',
       surface: 'land',
       lat,
       lng,
+      path: path.map(([pointLat, pointLng]) => [round(pointLat), round(pointLng)]),
       source: 'rivers',
       neId: properties.ne_id,
     });
@@ -798,7 +826,7 @@ updateSourcesManifest('gazetteer', {
   datasets: Object.fromEntries(Object.keys(datasets).map((name) => [name, sourceRecord(name)])),
   filters: {
     marine: 'all named features except river mouths',
-    rivers: `featurecla River, scalerank <= ${RIVER_MAX_SCALERANK} or named in gazetteer-overrides.json; canals named in gazetteer-overrides.json`,
+    rivers: `featurecla River, scalerank <= ${RIVER_MAX_SCALERANK} or named in gazetteer-overrides.json, with lake centerlines of the same name in the course; canals named in gazetteer-overrides.json`,
     regions: `scalerank <= ${REGION_MAX_SCALERANK}`,
     places: `scalerank <= ${PLACE_MAX_SCALERANK}, or a national capital`,
     admin1: 'only features listed in gazetteer-overrides.json',
@@ -824,4 +852,6 @@ if (closedPassages.length)
   console.log(
     `Passage paths across land the globe draws closed: ${closedPassages.join(', ')}`,
   );
+if (riversApart.length)
+  console.log(`River pieces too far from the main stem to join: ${riversApart.join(', ')}`);
 if (skipped.length) console.log(`Skipped ${skipped.length} duplicate names: ${skipped.join(', ')}`);

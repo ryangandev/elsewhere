@@ -16,15 +16,19 @@ import { gazetteerPlaces, requireMapCountry } from '../content-tree';
 
 const round = (value: number) => Math.round(value * 10) / 10;
 
+/** Natural Earth's river centerlines give the gazetteer its rivers and its canals. */
+const isRiver = (place: GazetteerPlace) =>
+  place.source === 'rivers' && !/\bcanal$/i.test(place.name);
+
 function describe(place: GazetteerPlace): string {
   const kind =
     place.kind === 'water'
-      ? place.path
-        ? 'passage (a route follows it end to end)'
-        : place.source === 'lakes'
-          ? 'lake'
+      ? isRiver(place)
+        ? 'river (a sea or river route follows its course, from or to the point nearest a city beside it)'
+        : place.path
+          ? 'passage (a sea or river route follows it end to end)'
           : place.surface === 'land'
-            ? 'river'
+            ? 'lake'
             : 'sea'
       : place.kind === 'country'
         ? `country ${place.countryId}`

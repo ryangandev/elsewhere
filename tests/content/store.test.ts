@@ -65,7 +65,10 @@ describe('resolveScene', () => {
     expect(malaysia.lng).not.toBe(getPlace('malaysia')!.lng);
     // Indonesia's label point, on Sumatra, already faces the strait.
     const indonesia = scene.places.find((place) => place.id === 'indonesia')!;
-    expect(indonesia).toMatchObject({ lat: getPlace('indonesia')!.lat, lng: getPlace('indonesia')!.lng });
+    expect(indonesia).toMatchObject({
+      lat: getPlace('indonesia')!.lat,
+      lng: getPlace('indonesia')!.lng,
+    });
   });
 
   it('keeps the camera of a country scene', () => {

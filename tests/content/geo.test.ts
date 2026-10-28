@@ -8,14 +8,17 @@ import {
   distanceKm,
   findRouteLandCrossings,
   findSeaRouteLandCrossings,
+  interpolateGreatCircle,
   getMapCountry,
   getPlace,
   listMapCountries,
   listPlaces,
   placeCoordinates,
   routePoints,
+  routePolyline,
 } from '../../src/content/geo';
-import { findPlaces } from '../../pipeline/generate/gazetteer-context';
+import { findPlaces, sharedListing } from '../../pipeline/generate/gazetteer-context';
+import { mainStem } from '../../scripts/passage-paths.mjs';
 import { CountryFile, type SceneRouteSpec } from '../../src/content/schema';
 import { contentInput, landIndex } from './load';
 
@@ -43,7 +46,8 @@ describe('country places', () => {
     const [anchor, ...others] = countryLabelPoints(malaysia);
     expect(anchor).toEqual([malaysia.lat, malaysia.lng]);
     expect(others.length).toBeGreaterThan(0);
-    for (const [lat, lng] of others) expect(geoContains(shape('MYS').geometry, [lng, lat])).toBe(true);
+    for (const [lat, lng] of others)
+      expect(geoContains(shape('MYS').geometry, [lng, lat])).toBe(true);
   });
 
   it('moves to the part of the country nearest the scene', () => {
@@ -103,7 +107,7 @@ describe('gazetteer', () => {
 
 describe('routes', () => {
   it('follow great circles in short steps', () => {
-    const points = routePoints({ via: ['kuantan', 'kota-kinabalu'] });
+    const points = routePoints({ kind: 'sea', via: ['kuantan', 'kota-kinabalu'] });
     expect(points[0]).toEqual(placeCoordinates('kuantan'));
     expect(points.at(-1)).toEqual(placeCoordinates('kota-kinabalu'));
     for (let index = 1; index < points.length; index += 1) {
@@ -112,7 +116,7 @@ describe('routes', () => {
   });
 
   it('pass through every point of a strait passage', () => {
-    const points = routePoints({ via: ['sea-of-marmara', 'bosporus', 'black-sea'] });
+    const points = routePoints({ kind: 'sea', via: ['sea-of-marmara', 'bosporus', 'black-sea'] });
     for (const [lat, lng] of getPlace('bosporus')!.path!) {
       expect(points).toContainEqual([lat, lng]);
     }
@@ -188,7 +192,12 @@ describe('routes', () => {
     },
     {
       passage: 'saint-lawrence-river',
-      through: ['north-atlantic-ocean', 'gulf-of-saint-lawrence', 'saint-lawrence-river', 'montreal'],
+      through: [
+        'north-atlantic-ocean',
+        'gulf-of-saint-lawrence',
+        'saint-lawrence-river',
+        'montreal',
+      ],
       acrossLand: ['gulf-of-saint-lawrence', 'montreal'],
     },
     {
@@ -216,6 +225,13 @@ describe('routes', () => {
       through: ['black-sea', 'kerch-strait', 'sea-of-azov'],
       acrossLand: ['black-sea', 'sea-of-azov'],
     },
+    {
+      // And the English Channel and the North Sea, across the Strait of Dover: a straight line
+      // between their label points crosses Kent and East Anglia.
+      passage: 'strait-of-dover',
+      through: ['english-channel', 'strait-of-dover', 'north-sea'],
+      acrossLand: ['english-channel', 'north-sea'],
+    },
   ];
 
   it.each(passages)('pass through $passage', ({ passage, through, acrossLand }) => {
@@ -241,6 +257,23 @@ describe('routes', () => {
         [],
       );
     }
+  });
+
+  it('reach Rotterdam from the Atlantic through the Strait of Dover', () => {
+    const routes = [
+      ['north-atlantic-ocean', 'english-channel', 'strait-of-dover', 'north-sea', 'rotterdam'],
+      ['english-channel', 'strait-of-dover', 'rotterdam'],
+      ['rotterdam', 'north-sea', 'strait-of-dover', 'english-channel', 'north-atlantic-ocean'],
+    ];
+    for (const via of routes) {
+      expect(findRouteLandCrossings({ kind: 'sea', via }, landIndex()), via.join(' > ')).toEqual(
+        [],
+      );
+    }
+    // Without the strait, the line from the Channel cuts across Cap Gris-Nez and Walcheren.
+    expect(
+      findRouteLandCrossings({ kind: 'sea', via: ['english-channel', 'rotterdam'] }, landIndex()),
+    ).not.toEqual([]);
   });
 
   // Waters and ports the pilot countries need that Natural Earth lacks or leaves out by default:
@@ -287,11 +320,11 @@ describe('routes', () => {
     // Istanbul is on the Bosporus: the route stops there, short of the Black Sea end.
     const path = getPlace('bosporus')!.path!;
     const blackSeaEnd = path.at(-1)!;
-    const points = routePoints({ via: ['sea-of-marmara', 'bosporus', 'istanbul'] });
+    const points = routePoints({ kind: 'sea', via: ['sea-of-marmara', 'bosporus', 'istanbul'] });
     expect(points.at(-1)).toEqual(placeCoordinates('istanbul'));
     expect(points).not.toContainEqual(blackSeaEnd);
     // A route from the port joins the passage at the same point and goes on through it.
-    const outbound = routePoints({ via: ['istanbul', 'bosporus', 'black-sea'] });
+    const outbound = routePoints({ kind: 'sea', via: ['istanbul', 'bosporus', 'black-sea'] });
     expect(outbound).toContainEqual(blackSeaEnd);
     expect(outbound).not.toContainEqual(path[0]);
   });
@@ -309,6 +342,14 @@ describe('routes', () => {
       'vaal-river',
       'orange-river',
       'lake-victoria',
+      'lake-albert',
+      'lake-kyoga',
+      'lake-tana',
+      'blue-nile-river',
+      'meuse-river',
+      'scheldt-river',
+      'thames-river',
+      'strait-of-dover',
       'durban',
       'cape-town',
       'strait-of-gibraltar',
@@ -329,7 +370,13 @@ describe('routes', () => {
       ],
     ];
     for (const id of ids) expect(getPlace(id), id).toBeDefined();
-    expect(getPlace('lake-victoria')).toMatchObject({ kind: 'water', surface: 'land' });
+    for (const lake of ['lake-victoria', 'lake-albert', 'lake-kyoga', 'lake-tana']) {
+      expect(getPlace(lake), lake).toMatchObject({
+        kind: 'water',
+        surface: 'land',
+        source: 'lakes',
+      });
+    }
     expect(getPlace('gauteng')).toMatchObject({ kind: 'region', source: 'admin1' });
     // Zanzibar the city and Zanzibar the island are different places.
     expect(getPlace('zanzibar')).toMatchObject({ kind: 'place', countryId: 'TZA' });
@@ -357,9 +404,207 @@ describe('routes', () => {
   });
 
   it('know the Rhine by one ID although Natural Earth names it in several ways', () => {
-    expect(listPlaces().filter((place) => /^(rhine|rhein) river$/i.test(place.name))).toHaveLength(1);
+    expect(listPlaces().filter((place) => /^(rhine|rhein) river$/i.test(place.name))).toHaveLength(
+      1,
+    );
     expect(getPlace('rhein-river')).toBeUndefined();
     expect(getPlace('nyanza')).toBeUndefined();
+    for (const id of ['albert', 'kyoga', 'tana', 'maas-river', 'schelde-river']) {
+      expect(getPlace(id), id).toBeUndefined();
+    }
+  });
+
+  /** How close a line through `points` comes to `point`, in km, measured every kilometre. */
+  const closestKm = (points: [number, number][], point: [number, number]) =>
+    Math.min(
+      ...points.flatMap((from, index) =>
+        (index ? interpolateGreatCircle(points[index - 1], from, 1) : [from]).map((sample) =>
+          distanceKm(sample, point),
+        ),
+      ),
+    );
+  const rivers = () =>
+    listPlaces().filter((place) => place.source === 'rivers' && !/canal$/i.test(place.name));
+
+  it('give every river its course, through its label point', () => {
+    expect(rivers().length).toBeGreaterThanOrEqual(50);
+    for (const river of rivers()) {
+      expect(river.path?.length, river.id).toBeGreaterThanOrEqual(2);
+      // The course is simplified to within 3 km of the centerline the label point is on.
+      expect(closestKm(river.path!, [river.lat, river.lng]), river.id).toBeLessThanOrEqual(3.1);
+    }
+    // The Rhine runs from the Alps through Lake Constance to the delta, about 1,100 km.
+    const rhine = getPlace('rhine-river')!.path!;
+    const length = rhine
+      .slice(1)
+      .reduce((sum, point, index) => sum + distanceKm(rhine[index], point), 0);
+    expect(length).toBeGreaterThan(1000);
+    expect(closestKm(rhine, placeCoordinates('vaduz'))).toBeLessThan(10);
+    expect(
+      Math.min(
+        ...[rhine[0], rhine.at(-1)!].map((end) => distanceKm(end, placeCoordinates('rotterdam'))),
+      ),
+    ).toBeLessThan(50);
+  });
+
+  it('take a river course through the lakes it crosses, but not across the lake it leaves', () => {
+    // Pieces as [lng, lat] lines: a centerline across the lake the river leaves, the river, a
+    // lake it flows through, and the river again.
+    const piece = (lake: boolean, ...line: [number, number][]) => ({ line, lake });
+    const { path } = mainStem(
+      [
+        piece(true, [30, 0], [30.5, 0], [31, 0]),
+        piece(false, [31, 0], [31, 0.5], [31, 1]),
+        piece(true, [31, 1], [31, 1.5]),
+        piece(false, [31, 1.5], [31, 2], [31, 3]),
+      ],
+      2,
+    );
+    // Either end may come first.
+    expect([path[0], path.at(-1)]).toEqual(
+      expect.arrayContaining([
+        [0, 31],
+        [3, 31],
+      ]),
+    );
+    expect(path).toContainEqual([1.5, 31]);
+    expect(path).not.toContainEqual([0, 30.5]);
+
+    // The Victoria Nile leaves Lake Victoria at its outlet, north of the equator, instead of
+    // crossing the lake from the Kagera's mouth, south of it.
+    const victoriaNile = getPlace('victoria-nile-river')!.path!;
+    expect(Math.min(...victoriaNile.map(([lat]) => lat))).toBeGreaterThan(0);
+  });
+
+  it('keep separate delta branches apart', () => {
+    // Pieces of one river meet within 2 km; branches of a delta are farther apart over land.
+    const branches = [
+      {
+        line: [
+          [0, 0],
+          [0, 1],
+        ] as [number, number][],
+        lake: false,
+      },
+      {
+        line: [
+          [0.05, 0],
+          [0.05, 1.5],
+        ] as [number, number][],
+        lake: false,
+      },
+    ];
+    const { path, leftOutKm } = mainStem(branches, 2);
+    expect(path).toHaveLength(2);
+    expect(leftOutKm).toBeGreaterThan(100);
+    // The Irrawaddy delta is one branch, from near the delta's head to the sea, not a line
+    // stitched from branch to branch with both ends near Yangon.
+    const irrawaddy = getPlace('irrawaddy-delta-river')!.path!;
+    expect(distanceKm(irrawaddy[0], irrawaddy.at(-1)!)).toBeGreaterThan(150);
+  });
+
+  it('follow a river along its course instead of a straight line through its label point', () => {
+    // Before, this route was two great circles: Alps to Cologne (the Rhine's label point) to the
+    // middle of the North Sea.
+    const rhine = getPlace('rhine-river')!.path!;
+    const points = routePoints({ kind: 'river', via: ['alps', 'rhine-river', 'north-sea'] });
+    expect(points[0]).toEqual(placeCoordinates('alps'));
+    expect(points.at(-1)).toEqual(placeCoordinates('north-sea'));
+    // The Alps are beside the river, so the route joins it at the nearest point and follows it
+    // down to its mouth in the delta.
+    const nearestAlps = rhine.reduce((best, point) =>
+      distanceKm(point, placeCoordinates('alps')) < distanceKm(best, placeCoordinates('alps'))
+        ? point
+        : best,
+    );
+    const from = rhine.indexOf(nearestAlps);
+    const mouth =
+      distanceKm(rhine[0], placeCoordinates('north-sea')) <
+      distanceKm(rhine.at(-1)!, placeCoordinates('north-sea'))
+        ? 0
+        : rhine.length - 1;
+    const course =
+      from <= mouth ? rhine.slice(from, mouth + 1) : rhine.slice(mouth, from + 1).reverse();
+    const indexes = course.map((point) =>
+      points.findIndex(([lat, lng]) => lat === point[0] && lng === point[1]),
+    );
+    expect(indexes).not.toContain(-1);
+    expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
+    expect(closestKm(points, placeCoordinates('rhine-river'))).toBeLessThan(3.1);
+    expect(closestKm(points, placeCoordinates('vaduz'))).toBeLessThan(10);
+  });
+
+  it('join and leave a river at the cities beside it', () => {
+    // Rotterdam is on the Rhine delta: a route from it joins the river nearby and goes upstream.
+    const rhine = getPlace('rhine-river')!.path!;
+    const upstream = routePoints({ kind: 'river', via: ['rotterdam', 'rhine-river'] });
+    expect(upstream[0]).toEqual(placeCoordinates('rotterdam'));
+    expect(distanceKm(upstream[0], upstream[1])).toBeLessThan(50);
+    const source = [rhine[0], rhine.at(-1)!].find(
+      (end) => distanceKm(end, placeCoordinates('rotterdam')) > 500,
+    )!;
+    expect(upstream.at(-1)).toEqual(source);
+
+    // The Nile from Lake Victoria to Cairo, through Lake Kyoga, the Sudd and Khartoum.
+    const nile = routePoints({
+      kind: 'river',
+      via: [
+        'lake-victoria',
+        'victoria-nile-river',
+        'albert-nile-river',
+        'mountain-nile-river',
+        'white-nile-river',
+        'khartoum',
+        'nile-river',
+        'cairo',
+      ],
+    });
+    expect(nile.at(-1)).toEqual(placeCoordinates('cairo'));
+    expect(closestKm(nile, placeCoordinates('lake-kyoga'))).toBeLessThan(25);
+    expect(closestKm(nile, placeCoordinates('khartoum'))).toBeLessThan(10);
+
+    // The Blue Nile from Lake Tana, where it begins, to Khartoum, where it ends.
+    const blueNile = getPlace('blue-nile-river')!.path!;
+    const route = routePoints({ kind: 'river', via: ['lake-tana', 'blue-nile-river', 'khartoum'] });
+    const tanaEnd = [blueNile[0], blueNile.at(-1)!].find(
+      (end) => distanceKm(end, placeCoordinates('lake-tana')) < 50,
+    );
+    expect(route[1]).toEqual(tanaEnd);
+    expect(route.at(-1)).toEqual(placeCoordinates('khartoum'));
+  });
+
+  it('draw land routes and flows through label points, not along paths', () => {
+    // Land routes and flows are illustrative arcs: a land route that names a river crosses it at
+    // its label point instead of following its course, and so does a flow through a strait.
+    const pointToPoint = (via: string[]) =>
+      routePolyline(via.map(placeCoordinates), 50).map(([lat, lng]) => [
+        Math.round(lat * 1e4) / 1e4,
+        Math.round(lng * 1e4) / 1e4,
+      ]);
+    const overland = ['ural-mountains', 'ob-river', 'lena-river', 'sea-of-okhotsk'];
+    expect(routePoints({ kind: 'land', via: overland })).toEqual(pointToPoint(overland));
+    const gulfStream = ['caribbean-sea', 'florida-strait', 'north-atlantic-ocean'];
+    expect(getPlace('florida-strait')!.path!.length).toBeGreaterThanOrEqual(2);
+    expect(routePoints({ kind: 'flow', via: gulfStream })).toEqual(pointToPoint(gulfStream));
+
+    // Sea and river routes through the same places keep following the paths.
+    const sea = routePoints({ kind: 'sea', via: gulfStream });
+    for (const [lat, lng] of getPlace('florida-strait')!.path!)
+      expect(sea).toContainEqual([lat, lng]);
+    const river = routePoints({ kind: 'river', via: ['lena-river', 'sea-of-okhotsk'] });
+    for (const [lat, lng] of getPlace('lena-river')!.path!)
+      expect(river).toContainEqual([lat, lng]);
+  });
+
+  it('tell drafters which water bodies are rivers, passages and lakes', () => {
+    const listing = sharedListing();
+    expect(listing).toContain(
+      'rhine-river | Rhine River | river (a sea or river route follows its course',
+    );
+    expect(listing).toContain('blue-nile-river | Blue Nile River | river (');
+    expect(listing).toContain('suez-canal | Suez Canal | passage (');
+    expect(listing).toContain('strait-of-dover | Strait of Dover | passage (');
+    expect(listing).toContain('lake-albert | Lake Albert | lake |');
   });
 
   it('know the Saint Lawrence River by one ID', () => {
