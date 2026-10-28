@@ -1,5 +1,5 @@
 import { expectAnswer, expectPath, globeRegion, openAtlas, questionInput } from './atlas';
-import { getStory, nextStories, storyPath } from './content';
+import { askedAs, exampleStory, nextStories, storyPath } from './content';
 import { expect, test } from './fixtures';
 
 // Headless CI browsers may have no WebGL at all. The atlas says so and keeps working.
@@ -24,7 +24,7 @@ test.describe('without WebGL', () => {
   });
 
   test('map places are listed but cannot be found on the missing globe', async ({ page }) => {
-    const story = getStory('SGP', 'shipping');
+    const story = exampleStory('SGP', 'shipping', { needs: ['places'] });
     await openAtlas(page, storyPath(story));
     await expect(globeRegion(page).getByText('The globe couldn’t load.')).toBeVisible();
 
@@ -36,12 +36,12 @@ test.describe('without WebGL', () => {
   });
 
   test('asking, reading and following a question still work', async ({ page }) => {
-    const story = getStory('SGP', 'wealth');
+    const story = exampleStory('SGP', 'wealth', { needs: ['next'] });
     const [next] = nextStories(story);
     await openAtlas(page);
     await expect(globeRegion(page).getByText('The globe couldn’t load.')).toBeVisible();
 
-    await questionInput(page).fill('What makes Singapore wealthy?');
+    await questionInput(page).fill(askedAs(story));
     await page.getByRole('option', { name: new RegExp(story.question) }).click();
     await expectPath(page, storyPath(story));
     await expectAnswer(page, story);

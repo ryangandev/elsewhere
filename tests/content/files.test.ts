@@ -1,11 +1,25 @@
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as content from '../../src/content';
 import { contentTreeRevision, localeContentDir, readContentTree } from '../../src/content/files';
 import { createContentStore } from '../../src/content/store';
 import { FIXTURE_CONTENT_DIR } from './load';
+
+// Directory listings come back in the file system's order, which is alphabetical on some systems
+// and arbitrary on others. A test can have them come back reversed.
+const listing = vi.hoisted(() => ({ reversed: false }));
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    readdirSync: ((...args: Parameters<typeof actual.readdirSync>) => {
+      const names = actual.readdirSync(...args);
+      return listing.reversed && Array.isArray(names) ? [...names].reverse() : names;
+    }) as typeof actual.readdirSync,
+  };
+});
 
 // These tests work on a copy of the fixture tree (tests/fixtures/content/en), which, like
 // content/en, has a claims/ directory next to its content. Only the test that the loaders find
@@ -18,7 +32,10 @@ describe('content discovery', () => {
     dir = mkdtempSync(join(tmpdir(), 'elsewhere-content-'));
     cpSync(FIXTURE_CONTENT_DIR, dir, { recursive: true });
   });
-  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+  afterEach(() => {
+    listing.reversed = false;
+    rmSync(dir, { recursive: true, force: true });
+  });
 
   it('finds every country file, ordered by file name', () => {
     const tree = readContentTree(FIXTURE_CONTENT_DIR);
@@ -32,9 +49,10 @@ describe('content discovery', () => {
     expect(tree.home.file).toBe(join(FIXTURE_CONTENT_DIR, 'home.json'));
   });
 
-  it('orders country files by name, not by when they were written', () => {
+  it('orders country files by name, whatever order the file system lists them in', () => {
     writeFileSync(join(dir, 'countries', 'aaa.json'), '{}');
     writeFileSync(join(dir, 'countries', 'zzz.json'), '{}');
+    listing.reversed = true;
     expect(readContentTree(dir).countryFiles.map(({ file }) => file)).toEqual(
       ['aaa', 'france', 'malaysia', 'singapore', 'united-states', 'zzz'].map((slug) =>
         join(dir, 'countries', `${slug}.json`),

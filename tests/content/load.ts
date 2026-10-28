@@ -21,13 +21,18 @@ export const FIXTURE_CONTENT_DIR = 'tests/fixtures/content/en';
  * (reopening it, revising it, the prototype's redirects to it) and about drafting the countries
  * that were still unwritten (Chile, Argentina and the rest) use it. Frozen: it does not change
  * when content/en does.
+ *
+ * It is a content tree like any other, and nothing else keeps it current: when the schema or a
+ * validation rule changes in a way that existing content must follow (a new required field, a
+ * stricter rule), migrate this tree along with content/en. validate.test.ts checks that it still
+ * passes `validateContent`, and fails when a change left it behind.
  */
 export const HAND_CONVERTED_CONTENT_DIR = 'tests/fixtures/hand-converted/en';
 
 export const readJson = (file: string): unknown => JSON.parse(readFileSync(file, 'utf8'));
 const entry = (file: string) => ({ file, data: readJson(file) });
 
-function contentInput(dir: string): Omit<ContentInput, 'land'> {
+export function contentInput(dir: string): Omit<ContentInput, 'land'> {
   return {
     ...readContentTree(dir),
     gazetteer: entry('data/geo/gazetteer.json'),

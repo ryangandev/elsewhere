@@ -1,5 +1,5 @@
 import { expectAnswer, globeRegion } from './atlas';
-import { getStory, storyPath } from './content';
+import { exampleStory, storyPath } from './content';
 import { expect, test } from './fixtures';
 
 // Every spec runs with the production headers from vercel.json (see ./fixtures.ts) and fails on
@@ -8,7 +8,7 @@ import { expect, test } from './fixtures';
 test('pages carry the production security headers, and the globe draws under them', async ({
   page,
 }) => {
-  const story = getStory('SGP', 'shipping');
+  const story = exampleStory('SGP', 'shipping');
   const response = await page.goto(storyPath(story));
 
   const headers = response!.headers();

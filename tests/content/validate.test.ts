@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { StoryRef, TrailStop } from '../../src/content/schema';
 import { validateContent } from '../../src/content/validate';
-import { fixtureInput, landIndex, liveContentInput } from './load';
+import {
+  HAND_CONVERTED_CONTENT_DIR,
+  contentInput,
+  fixtureInput,
+  landIndex,
+  liveContentInput,
+} from './load';
 
 // The only tests here that read content/en. They go red when production content is invalid, and
 // for no other reason: they assert nothing about how many countries it has or what is reviewed.
@@ -28,6 +34,13 @@ describe('production content', () => {
 describe('fixture content', () => {
   it('is valid, so each test below changes one thing in a tree that passes', () => {
     expect(validateContent({ ...fixtureInput(), land: landIndex() })).toEqual([]);
+  });
+
+  // Many pipeline, deployment and page tests run on this frozen tree. Schema and rule changes
+  // must migrate it with content/en, or those tests would exercise content the site rejects.
+  it('keeps the frozen hand-converted tree valid under the current schema and rules', () => {
+    const input = contentInput(HAND_CONVERTED_CONTENT_DIR);
+    expect(validateContent({ ...input, land: landIndex() })).toEqual([]);
   });
 });
 

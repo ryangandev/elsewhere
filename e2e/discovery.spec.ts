@@ -1,4 +1,4 @@
-import { editions, getStory, storyPath } from './content';
+import { editions, exampleStory, storyPath } from './content';
 import { expect, test } from './fixtures';
 
 // What search engines and link previews read from the built site.
@@ -32,7 +32,7 @@ test.describe('discovery files', () => {
     page,
   }) => {
     const canonical = page.locator('link[rel="canonical"]');
-    const story = getStory('SGP', 'shipping');
+    const story = exampleStory('SGP', 'shipping');
 
     await page.goto(`${storyPath(story)}?trail=water-connects`);
     expect(new URL((await canonical.getAttribute('href'))!).pathname).toBe(storyPath(story));

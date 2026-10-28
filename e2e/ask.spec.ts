@@ -1,13 +1,13 @@
 import { expectAnswer, expectPath, openAtlas, pathOf, questionInput } from './atlas';
-import { getStory, storyPath } from './content';
+import { askedAs, exampleStory, storyPath, suggestedStories } from './content';
 import { expect, test } from './fixtures';
 
 test.describe('asking a question', () => {
   test('a question the atlas answers leads to its story', async ({ page }) => {
-    const story = getStory('SGP', 'wealth');
+    const story = exampleStory('SGP', 'wealth');
     await openAtlas(page);
 
-    await questionInput(page).fill('What makes Singapore wealthy?');
+    await questionInput(page).fill(askedAs(story));
     // The atlas index loads on first focus; Enter opens the top result once it is listed.
     await expect(page.getByRole('option', { name: new RegExp(story.question) })).toBeVisible();
     await questionInput(page).press('Enter');
@@ -17,6 +17,8 @@ test.describe('asking a question', () => {
   });
 
   test('a question the atlas cannot answer says so instead of failing', async ({ page }) => {
+    // It offers the home page's suggested questions to begin with.
+    test.skip(suggestedStories().length === 0, 'content/en suggests no reviewed question');
     await openAtlas(page);
 
     await questionInput(page).fill('Why is the sky blue?');

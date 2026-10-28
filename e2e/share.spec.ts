@@ -1,10 +1,15 @@
 import type { Page } from '@playwright/test';
 import { openAtlas, panel } from './atlas';
-import { getCountry, getStory, storyPath } from './content';
+import { exampleStory, getCountry, storyPath, type Country, type Story } from './content';
 import { expect, test } from './fixtures';
 
-const story = getStory('SGP', 'shipping');
-const country = getCountry(story.countryId);
+let story: Story;
+let country: Country;
+
+test.beforeEach(() => {
+  story = exampleStory('SGP', 'shipping');
+  country = getCountry(story.countryId);
+});
 
 type Recorded = { __e2eCopied?: string[]; __e2eShared?: { title: string; url: string }[] };
 

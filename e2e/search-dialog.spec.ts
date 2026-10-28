@@ -1,12 +1,14 @@
 import { expectAnswer, expectPath, openAtlas, panel } from './atlas';
-import { getCountry, getStory, storyPath, suggestedStories } from './content';
+import { exampleStory, getCountry, storyPath, suggestedStories } from './content';
 import { expect, test } from './fixtures';
 
 const dialogName = 'Ask the atlas';
 
 test.describe('search dialog', () => {
   test('Ctrl K opens it and a story can be found from there', async ({ page }) => {
-    const story = suggestedStories()[1];
+    const suggested = suggestedStories();
+    const story = suggested[1] ?? suggested[0];
+    test.skip(!story, 'content/en suggests no reviewed question on the home page');
     await openAtlas(page);
 
     await page.keyboard.press('ControlOrMeta+k');
@@ -40,8 +42,8 @@ test.describe('search dialog', () => {
   });
 
   test('a reader can ask something else from inside a story', async ({ page }) => {
-    const story = getStory('SGP', 'wealth');
-    const other = getStory('TUR', 'straits');
+    const story = exampleStory('SGP', 'wealth');
+    const other = exampleStory('TUR', 'straits', { not: story });
     await openAtlas(page, storyPath(story));
 
     await panel(page, getCountry(story.countryId).name)

@@ -1,9 +1,17 @@
 import { expectAnswer, expectPath, openAtlas, panel } from './atlas';
-import { getCountry, getStory, storyPath, trails } from './content';
+import { getCountry, getStory, storyPath, trails, type Story, type Trail } from './content';
 import { expect, test } from './fixtures';
 
-const [trail] = trails();
-const [first, second] = trail.stops.map((stop) => getStory(stop.countryId, stop.storyId));
+let trail: Trail;
+let first: Story;
+let second: Story;
+
+// The first trail the drawer lists, with the stops that production publishes.
+test.beforeEach(() => {
+  [trail] = trails();
+  test.skip(!trail, 'content/en has no trail with two reviewed stories');
+  [first, second] = trail.stops.map((stop) => getStory(stop.countryId, stop.storyId));
+});
 
 test.describe('trails', () => {
   test('the drawer lists every trail and follows one from its first stop', async ({ page }) => {
