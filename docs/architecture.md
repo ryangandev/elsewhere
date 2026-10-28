@@ -111,8 +111,10 @@ What changed from the prototype:
   A static page cannot see the query string of the request that loaded it, so the redirect has to happen in front of the files.
   Each rule matches the home path and the query by permanent ID: the country case-insensitively (the prototype accepted `sgp` and `SGP`), the question and trail exactly.
   Rules are ordered most specific first, because Vercel applies the first match: a trail stop keeps its trail, any other question drops it, and any other country URL opens the country, so a question that no longer exists still lands on its country.
-  `src/domain/legacy-redirects.ts` builds the rules through `destinationPath`, from the frozen list of questions and trails the prototype published plus every map identity (the prototype had the same 258), and `npm run redirects:build` writes them into `vercel.json`.
+  `src/domain/legacy-redirects.ts` builds the rules through `destinationPath`, from the frozen list of questions and trails the prototype published (`src/domain/prototype-urls.ts`) plus every map identity (the prototype had the same 258), and `npm run redirects:build` writes them into `vercel.json`.
   Content added since never had a query URL, so new questions do not add rules.
+  The rules follow the content a production build publishes (`publishedContent`), whatever `NODE_ENV` the builder runs under: a prototype question that is a draft in production, reopened after review for example, gets no rule of its own and falls through to its country, whose page production always builds.
+  So the rules change when review does: run `npm run redirects:build` after `content:review -- reopen` or `approve` changes what production publishes (both print this), and commit `vercel.json` with the content.
   `tests/deployment.test.ts` compiles `vercel.json` with Vercel's own routing utilities, matches requests against the result, and fails when the committed rules differ from what the builder produces.
   Vercel passes the original query string on to the destination, so a redirected URL can keep `country` and `topic`; pages ignore them, and a trail the question is not on is ignored too.
   There is no in-browser fallback: Vercel is the only host, and keeping a second copy of the mapping in the client would cost a script and an index fetch on the home page for links that only ever pointed at the prototype.
@@ -170,6 +172,7 @@ Rules:
   Country IDs are the ISO 3166 alpha-3 codes of the map identities in `data/geo/countries.json`; story IDs are unique within a country.
 - Slugs are readable URL segments and may change; IDs may not.
   A country's slug must match its map identity, and its file is named after the slug so content paths match URLs.
+  A revision keeps each story's slug, since readers, links and the prototype redirects already use its URL; only a whole-country draft sets new ones.
 - Every section, overview item and quick fact lists the source IDs that support it, and every declared source is cited.
 - `placeIds` and route `via` lists reference gazetteer IDs; coordinates are looked up from `data/geo`, never written by hand or by the model.
 - `sea` routes must stay at sea (see [Content pipeline](#content-pipeline)).
@@ -187,7 +190,8 @@ Rules:
 - Only reviewed content names a reviewer (`reviewedBy`, `reviewedAt`).
   Content that review reopened is a draft again, and its revision request records the review it undid in `reopened` (see the Review step of [Content pipeline](#content-pipeline)).
 - Only `reviewed` content is built into production.
-  In production the loaders drop drafts and every starter question, next question and trail stop that points at one; development shows drafts.
+  In production the loaders drop drafts and every starter question, next question, trail stop and home screen suggestion that points at one; development shows drafts.
+  The home screen must still publish at least three suggestions while some are drafts: with SGP/shipping, FRA/overseas, USA/dollar and MYS/electronics suggested, reopening any two of them (or the overview of their country) leaves production two, which `content:check` reports on `home.json`.
 - Locale is a directory, so a Chinese edition is a parallel `content/zh/` tree with the same IDs.
 
 Loaders in `src/content/index.ts` are synchronous and server-only (see [Server and client boundary](#server-and-client-boundary)):
@@ -254,11 +258,15 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Places come from the gazetteer: the system prompt lists every water body and country, the task lists cities and regions in and near the country, and a `find_places` tool searches the rest.
    The draft is submitted through a tool (`submit_draft`) whose schema carries every constraint, then parsed with zod and checked with every `content:check` rule inside the current tree.
    The tool is not strict: the API refuses to compile a whole country draft into a strict grammar, so a shape mistake goes through the repair loop like any other problem.
-   The pipeline adds its own rules: every cited URL came back from a search or fetch in the same conversation, next questions point to existing or planned stories, planned and inbound story IDs are kept, a country has 4 to 6 stories, and text is English.
+   The pipeline adds its own rules: every cited URL came back from a search or fetch in the same conversation, next questions point to existing or planned stories, a country has 4 to 6 stories, and text is English.
+   A whole-country draft keeps every story ID that something else names: planned stories, stories other countries link to, the home screen's suggestions, trail stops, and the questions the prototype published (whose old URLs redirect to them); `content:check` reports a missing home or trail story against `home.json` or `trails.json`, so the draft check names it for the country instead.
    Problems go back to the model as a tool error, up to three repairs; a job that still fails saves its last draft and log in `pipeline/.cache/failed/`.
    The pipeline fills in what the model does not write: known IDs, each entry's own source list with tracking parameters removed from its URLs, `accessedAt` (the run date) and `provenance: { generatedBy, generatedAt, promptVersion, status: 'draft' }`.
    The model never sets a camera; the globe frames the scene.
-   Only content converted by hand has one, and a revision keeps the camera of the part it replaces (`keepCamera` in `pipeline/generate/assemble.ts`), since every hand-converted country scene sets one and a story without one borrows it; dropping Singapore's would frame its stories from its tiny area.
+   Only content converted by hand has one, and a revision decides whether to keep the camera of the part it replaces (`keepsCamera` in `pipeline/generate/assemble.ts`).
+   A country part always keeps it, since every hand-converted country scene sets one and a story without one borrows it; dropping Singapore's would frame its stories from its tiny area.
+   A story camera frames that story's own places and routes (France's "overseas" and the United States' "dollar" have one), so a revised story keeps it only while its scene has the same highlights, places and routes, in order, and otherwise drops it, so the globe frames the new scene itself.
+   `content:review -- show` prints a hand-set camera, and a revision brief says under each part with one whether it will be kept.
    An existing draft is replaced only with `--regenerate`, and a file with reviewed content, or content reopened after review, only with `--force`.
 3. **Verify.**
    `content:verify` runs every `content:check` rule, lists pending references, and checks every source URL.
@@ -344,6 +352,8 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Each API conversation is checked against the file as it was when the run started, so an overview and a story of one country redrafted in the same run are each checked alone, and `content:verify` checks the merged file.
    For the same reason the API path cannot move a source ID that the overview and a story share to a corrected URL; an agent revision session that revises both parts can.
    v3 gained `revise-overview.md` without a new version: a template only overview revisions use changes no text a recorded v3 draft was made from.
+   The reference example in the system prompt is frozen into each drafting version as `reference.json` (`pipeline/prompts/<version>/`, the same in all six today): the Singapore file as it was reviewed, without paraphrases, byte for byte as it rendered when it was read live from `content/en`.
+   Reopening or redrafting Singapore therefore changes no version's text or cached prefix, which `tests/pipeline/reference.test.ts` checks against the hash of the rendered v3 and agent-v3 text; refreshing the reference means a new prompt version.
    [Agent drafting](#agent-drafting) does the same in a Claude Code subagent: `content:agent -- start <country> --revisions` for a country's sent-back overview and stories in one session, with the same checks and the stricter evidence rule, and `content:agent -- start <country>` for a whole country sent back.
    Either way the claim check results of the unchanged units stay current, since results are keyed by the unit's text, so the next claim check covers only what changed.
    A whole country can be sent back only while nothing in it is reviewed or reopened.
@@ -352,10 +362,13 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Reviewed content is never sent back with `revise`; it is reopened first, because review found a problem after it signed off (the claim check flags most claims of the ten hand-converted countries, for example).
    `reopen <country> <story> --notes "..."` reopens one reviewed story, `reopen <country> --overview --notes "..."` the reviewed country part, and `reopen <country> --all --notes "..."` the overview and every reviewed story (`--by` as for `approve`).
    Each part becomes a draft again with a revision request, the same `{ notes, requestedBy, requestedAt }` as `revise` records (`scope: "overview"` on the country part), so both redraft paths above take it with every check they apply, and nothing else is needed.
-   `reopen` refuses a part that is not reviewed (a draft goes back with `revise`), an unknown story, and a call that names no part.
+   `reopen` refuses a part that is not reviewed, an unknown story, and a call that names no part.
+   A draft goes back with `revise` instead, and so do new notes on a part already reopened or sent back; the refusal gives the command.
    It never reopens a whole country as one file: a whole-file redraft could renumber or drop stories, and story IDs are permanent and linked from other countries.
    For the same reason `revise <country>` without a story, `content:generate` on the country without `--force`, and agent drafting's `start` without `--revisions` (even with `--regenerate`) refuse a file while any part of it is reopened, as they do while any part is reviewed.
    It prints what it reopened, with the review each part undid, and the next commands: the redraft, `content:verify`, the claim check, the paraphrases when stories were reopened, and `show` and `approve`.
+   When review had sent back the whole country before (approval does not stop a story being approved meanwhile), the first step narrows that request to the overview with `revise <country> --overview`, since a whole-country redraft never replaces reopened content and `start <country> --revisions` redrafts everything in place.
+   It also says to rebuild the prototype URL redirects and that `content:check` catches a home screen left with fewer than three published questions.
    `list` marks what is reopened ("overview (reopened), 3 stories (3 reopened)"), and `show` gives each reopened part the status "draft (reopened)" and a line naming the review it undid.
    New notes on a reopened part from `revise` keep that record.
 
@@ -364,9 +377,10 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    Keeping it there rather than only in git history lets `list`, `show` and the refusals above tell a reopened part from a draft nobody approved without reading history, and it travels with the request into revision sessions, which compare requests exactly.
    The redraft replaces the part's provenance, as every revision does, which clears the request and the record with it; from then on the part is an ordinary pipeline draft, and git history keeps the hand-written text and its review, since git history is the content history.
    A reopened part is a draft, so production builds leave it out until it is approved again, with every link to it, and a reopened overview takes its whole country out of production; reopen a country when its redraft can follow, not long before.
+   Its prototype URL falls through to its country page once the redirects are rebuilt with `npm run redirects:build` (see [Platform](#platform)), and the home screen loses it as a suggestion (see [Content model](#content-model)).
    Approval refuses while the request waits, so a part reopened by mistake is restored from git (`git checkout -- content/en/countries/<slug>.json`).
    A revision of hand-converted content works like any other: the revision prompt and brief show the part as written (the API task in the content shape, where a hand-converted source simply has no `accessedAt`; the agent brief and its starting `draft.json` in the submission's shape), the story keeps its ID, and a redraft may keep any wording that a page it fetched in the session states, since only a part identical to the old one is refused.
-   It keeps the part's hand-set camera (see Draft above).
+   It keeps the part's hand-set camera by the rule in Draft above, and its stories' slugs.
 7. **Commit.**
    Reviewed JSON is committed like code, with its claim check results in `content/en/claims/`; git history is the content history.
    A new country file needs nothing else: the loaders discover it.
@@ -377,7 +391,7 @@ They resolve when the target country is drafted, because its draft must keep the
 
 Cost controls:
 
-- Prompt caching: the system prompt (instructions, the Singapore file as a reference example, the shared gazetteer) and the list of link targets are identical for every task in a run and end in cache breakpoints, and automatic caching covers the growing conversation.
+- Prompt caching: the system prompt (instructions, a reference example, the shared gazetteer) and the list of link targets are identical for every task in a run and end in cache breakpoints, and automatic caching covers the growing conversation.
   History is append-only so later turns keep reading the cache.
 - Limits per job in `pipeline/config.ts`: 12 searches and 16 fetches per request, 3 repairs, 2 reminders to submit, 6 research continuations, 24 requests, and the model's 128k output tokens per request.
 - `--mode batch` sends each round of requests through the Message Batches API at half price with a 1-hour cache lifetime.
