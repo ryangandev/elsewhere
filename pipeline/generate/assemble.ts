@@ -135,8 +135,8 @@ export const sameSceneContent = (a: SceneSpec, b: SceneSpec): boolean =>
 /**
  * Whether a revised part keeps the camera of the part it replaces. The model never sets a camera,
  * so only content converted by hand has one. A country camera frames the country itself, and a
- * story scene without a camera borrows it (Singapore's stories need it, since framing from its
- * tiny area is too close), so a revised country part always keeps it. A story camera frames that
+ * story scene without a camera borrows it (dropping it would move the view of every one of the
+ * country's stories), so a revised country part always keeps it. A story camera frames that
  * story's own places and routes, so it is kept only while the revised scene shows the same
  * highlights, places and routes; otherwise the globe frames the new scene itself.
  */

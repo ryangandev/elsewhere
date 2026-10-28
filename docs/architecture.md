@@ -203,7 +203,7 @@ The loaders, `content:check`, the pipeline and the tests all read content this w
 In development the loaders compare the tree's file sizes and modification times at most twice a second and reload content when they change, so an edited or new file shows on the next page load without restarting the server.
 
 A story scene without a `camera` borrows its country scene's camera when both focus the same country.
-Framing from the focus country's area alone is too close for very small countries such as Singapore, and a story's route then leaves the frame.
+So a question opens on the same view as its overview; a scene with neither camera is framed by the globe from its country and everything it shows (see [Globe](#globe)).
 
 Why: the prototype keyed Chinese text by array index and spread translations across five mechanisms.
 One schema, ID-only references, and locale-as-directory remove both problems.
@@ -264,7 +264,7 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    The pipeline fills in what the model does not write: known IDs, each entry's own source list with tracking parameters removed from its URLs, `accessedAt` (the run date) and `provenance: { generatedBy, generatedAt, promptVersion, status: 'draft' }`.
    The model never sets a camera; the globe frames the scene.
    Only content converted by hand has one, and a revision decides whether to keep the camera of the part it replaces (`keepsCamera` in `pipeline/generate/assemble.ts`).
-   A country part always keeps it, since every hand-converted country scene sets one and a story without one borrows it; dropping Singapore's would frame its stories from its tiny area.
+   A country part always keeps it, since every hand-converted country scene sets one and a story without one borrows it; dropping Singapore's would move the view of every Singapore story.
    A story camera frames that story's own places and routes (Brazil's "language", France's "overseas" and the United States' "dollar" have one), so a revised story keeps it only while its scene has the same highlights, places and routes, in order, and otherwise drops it, so the globe frames the new scene itself.
    `content:review -- show` prints a hand-set camera, and a revision brief says under each part with one whether it will be kept.
    An existing draft is replaced only with `--regenerate`, and a file with reviewed content, or content reopened after review, only with `--force`.
@@ -729,7 +729,11 @@ How a scene is applied:
 
 - Scenes are diffed (`scene-diff.ts`); a structurally equal scene does nothing, and each changed layer updates on its own.
 - The camera moves only when the scene's target view changes.
-  The target is the focused place, else the explicit `camera`, else a view framed from the focus country's area (`camera.ts`), else home.
+  The target is the focused place, else the explicit `camera`, else a view framed from the focus country and everything the scene shows (`camera.ts`), else home.
+  That view is the focus country's own, from its label point and area, while every place and route point sits within 60% of the view's half-height from its middle, so a country overview holds still.
+  A scene that reaches farther is framed as a whole: the camera looks at the center of a near-smallest cap on the sphere holding the country and every point (Badoiu and Clarkson's method), from the altitude at which that cap fills half of the half-height.
+  It is never closer than the country's own view nor farther out than home, which also frames a scene wider than a hemisphere, and working on unit vectors keeps it right across the antimeridian.
+  The globe area already sits beside the reading panel, so the fill only has to keep the outermost places and their labels clear of the map note at the bottom.
   Reset returns to the scene's view without the focused place.
 - Country names are created once and updated in place.
   Place labels and routes are keyed by id, so navigation only creates, moves, or removes the ones that changed.

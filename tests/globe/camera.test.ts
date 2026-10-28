@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
+import { getMapCountry } from '../../src/content/geo';
+import { resolveScene } from '../../src/content/store';
 import {
   HOME_VIEW,
+  SCENE_FILL,
   ZOOM_LIMITS,
   countryAltitude,
+  countryView,
   placeView,
   sceneTarget,
   sceneView,
+  viewOffset,
   zoomView,
 } from '../../src/globe/camera';
-import { EMPTY_SCENE, type MapScene } from '../../src/globe/scene';
+import { EMPTY_SCENE, type MapScene, type ScenePlace } from '../../src/globe/scene';
 
 const countries = new Map([
   ['RUS', { lat: 61.98, lng: 96.69, area: 0.4 }],
@@ -74,5 +79,133 @@ describe('camera framing', () => {
     expect(zoomView(view, 'out').altitude).toBeCloseTo(1.26);
     expect(zoomView({ ...view, altitude: 0.07 }, 'in').altitude).toBe(ZOOM_LIMITS.min);
     expect(zoomView({ ...view, altitude: 4 }, 'out').altitude).toBe(ZOOM_LIMITS.max);
+  });
+});
+
+describe('scene framing', () => {
+  const egypt = new Map([['EGY', getMapCountry('EGY')!]]);
+  const place = (id: string, lat: number, lng: number): ScenePlace => ({
+    id,
+    name: id,
+    lat,
+    lng,
+    kind: 'place',
+  });
+  const pointsOf = (scene: MapScene) => [
+    ...scene.places,
+    ...scene.routes.flatMap((route) => route.points.map(([lat, lng]) => ({ lat, lng }))),
+  ];
+
+  // Egypt's "Where does the Nile begin?" story, which runs far south of Egypt.
+  const nileSource = resolveScene({
+    focusCountryId: 'EGY',
+    highlights: [],
+    placeIds: [
+      'lake-victoria',
+      'ethiopian-highlands',
+      'sudd',
+      'khartoum',
+      'white-nile-river',
+      'nile-river',
+    ],
+    routes: [
+      {
+        id: 'white-nile',
+        kind: 'river',
+        via: [
+          'lake-victoria',
+          'victoria-nile-river',
+          'lake-kyoga',
+          'lake-albert',
+          'albert-nile-river',
+          'mountain-nile-river',
+          'sudd',
+          'white-nile-river',
+          'khartoum',
+          'nile-river',
+          'cairo',
+        ],
+      },
+      { id: 'blue-nile', kind: 'river', via: ['lake-tana', 'blue-nile-river', 'khartoum'] },
+    ],
+  });
+
+  it('frames a scene that reaches beyond its country, from Lake Victoria to Cairo', () => {
+    const country = countryView(egypt.get('EGY')!);
+    const lakeVictoria = nileSource.places.find((item) => item.id === 'lake-victoria')!;
+    // Framed from Egypt alone, Lake Victoria is off the bottom of the view.
+    expect(viewOffset(country, lakeVictoria)).toBeGreaterThan(1);
+
+    const view = sceneView(nileSource, egypt);
+    for (const point of pointsOf(nileSource))
+      expect(viewOffset(view, point)).toBeLessThanOrEqual(SCENE_FILL + 1e-6);
+    // Centered between the lake and the delta, and only as far out as the route needs.
+    expect(view.lat).toBeGreaterThan(10);
+    expect(view.lat).toBeLessThan(20);
+    expect(view.lng).toBeGreaterThan(29);
+    expect(view.lng).toBeLessThan(34);
+    expect(view.altitude).toBeGreaterThan(country.altitude);
+    expect(view.altitude).toBeLessThan(1.3);
+    // The route reaches as far as its frame allows on at least one side.
+    const fill = Math.max(...pointsOf(nileSource).map((point) => viewOffset(view, point)));
+    expect(fill).toBeGreaterThan(SCENE_FILL * 0.9);
+  });
+
+  it('keeps the country view for a scene inside or near its country', () => {
+    const overview = resolveScene({
+      focusCountryId: 'EGY',
+      highlights: [],
+      placeIds: ['cairo', 'alexandria', 'nile-river', 'suez-canal', 'mediterranean-sea', 'red-sea'],
+      routes: [],
+    });
+    expect(sceneView(overview, egypt)).toEqual(countryView(egypt.get('EGY')!));
+  });
+
+  it('still prefers an explicit camera, a focused place and home', () => {
+    const camera = { lat: 26, lng: 30, altitude: 0.8 };
+    expect(sceneView({ ...nileSource, camera }, egypt)).toEqual(camera);
+    const focused = { ...nileSource, focusPlaceId: 'lake-victoria' };
+    expect(sceneTarget(focused, egypt)).toEqual(
+      placeView(sceneView(nileSource, egypt), nileSource.places[0]),
+    );
+    expect(sceneView({ ...nileSource, focusCountryId: undefined }, egypt)).toEqual(HOME_VIEW);
+  });
+
+  it('frames across the antimeridian', () => {
+    const fiji = new Map([['FJI', { lat: -17.8, lng: 178, area: 0.0006 }]]);
+    const scene: MapScene = {
+      ...EMPTY_SCENE,
+      focusCountryId: 'FJI',
+      places: [place('samoa', -13.8, -172), place('tonga', -21.2, -175.2)],
+    };
+    const view = sceneView(scene, fiji);
+    expect(Math.abs(view.lng)).toBeGreaterThan(175);
+    expect(view.altitude).toBeLessThan(0.6);
+    for (const point of scene.places)
+      expect(viewOffset(view, point)).toBeLessThanOrEqual(SCENE_FILL + 1e-6);
+  });
+
+  it('frames a scene that spans the world no farther out than home', () => {
+    const scene: MapScene = {
+      ...EMPTY_SCENE,
+      focusCountryId: 'EGY',
+      places: [place('jakarta', -6.2, 106.8), place('lima', -12, -77)],
+    };
+    expect(sceneView(scene, egypt).altitude).toBe(HOME_VIEW.altitude);
+    const home = { lat: 0, lng: 0, altitude: 2.5 };
+    expect(sceneView(scene, egypt, home).altitude).toBe(2.5);
+    // Points all around the globe need a cap wider than a hemisphere, which no altitude fits.
+    const around: MapScene = {
+      ...scene,
+      places: [
+        place('a', 0, 0),
+        place('b', 0, 90),
+        place('c', 0, 180),
+        place('d', 0, -90),
+        place('north', 90, 0),
+        place('south', -90, 0),
+      ],
+    };
+    expect(sceneView(around, egypt).altitude).toBe(HOME_VIEW.altitude);
   });
 });
