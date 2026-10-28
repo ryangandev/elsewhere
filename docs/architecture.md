@@ -591,17 +591,25 @@ It never reads the drafting session or draft notes, so the check stays independe
 The API claim check stays as a reserve and writes the same results.
 
 ```sh
-npm run content:claims-agent -- start CHL [story] [--recheck] [--drafts] [--sources-per-session <n>] [--content-dir <dir>] [--claims-dir <dir>] [--model <id>] [--effort <label>] [--fresh]
+npm run content:claims-agent -- start CHL [story] [--overview] [--recheck] [--drafts] [--sources-per-session <n>] [--content-dir <dir>] [--claims-dir <dir>] [--model <id>] [--effort <label>] [--fresh]
 npm run content:claims-agent -- fetch <session> "<url>" [--offset <n>] [--find <words>]... [--matches <n>] [--refresh]
 npm run content:claims-agent -- submit <session> [<verdicts.json>] [--dry-run]
 npm run content:claims-agent -- status <session or country>
 ```
 
-- `start` picks the due units with the API path's plan (`claimsJobs` in `pipeline/claims/plan.ts`): units without a result for their current text, or every selected unit with `--recheck`.
-  It packs them into sessions of at most `--sources-per-session` cited sources (10 by default), exactly as the API path packs conversations, and creates them all at once, one directory each in `pipeline/.cache/claims-agent/<session>/`, named like `CHL`, `CHL-length` or `CHL-part2`.
+- `start` picks the units to check with the API path's plan (`claimsJobs` in `pipeline/claims/plan.ts`).
+  Scope has two steps, and each option acts on exactly one of them.
+  First, which part of the country: all of it (the overview units and every story's units) by default, only one story with `[story]`, or only the overview units (summary and geography, each why-it-matters item, each quick fact) with `--overview`.
+  `[story]` and `--overview` exclude each other, and `--drafts` further drops the overview and stories that are no longer drafts.
+  Second, which units of that part are due: those without a result for their current text, or every unit of the part with `--recheck`.
+  So `start CHL --overview --recheck` re-checks the overview units and no story unit, `start CHL length --recheck` re-checks that one story, and `start CHL --recheck` re-checks everything.
+  It packs the due units into sessions of at most `--sources-per-session` cited sources (10 by default), exactly as the API path packs conversations, and creates them all at once, one directory each in `pipeline/.cache/claims-agent/<session>/`, named `CHL` for the whole country, `CHL-length` for one story, `CHL-overview` for the overview alone, and with `-part2` and so on when a part is split.
   Planning every part from one reading of the claims file is what keeps parts apart: if each subagent planned its own part, a result saved in between would shift the packing.
-  It refuses while an unfinished session of the country holds a unit it would hand out; such a session can be continued by another subagent, or discarded with `--fresh`.
-  A session that started on prompts older than claims-agent-v3 (`MIN_CLAIMS_AGENT_PROMPT_VERSION`) cannot be continued, because its brief describes the fetch command as it no longer works: `fetch` and `submit` refuse it, and `start` asks for `--fresh`.
+  It refuses while an unfinished session of the country holds a unit it would hand out; such a session can be continued by another subagent, or set aside with `--fresh`.
+  A session that `start` replaces is never deleted: it moves to `pipeline/.cache/claims-agent/finished/<session>-<time of its last submission, or of its start>` (with `-2`, `-3` after a name already taken), the way `content:agent` archives a finished drafting session, so its reading copies, fetch records and submissions stay for audit.
+  That covers a finished session of the same name, an unfinished one that holds no unit this `start` would hand out (its text changed since), and, with `--fresh`, every session of the country, unfinished ones too.
+  The archive is not a session: `status` and the overlap check never see it, and nothing reads from it.
+  A session that started on prompts older than claims-agent-v3 (`MIN_CLAIMS_AGENT_PROMPT_VERSION`) cannot be continued, because its brief describes the fetch command as it no longer works: `fetch` and `submit` refuse it, and `start` asks for `--fresh` (which sets it aside).
   Each session has `session.json` (the units by ID and key, the sources, model, effort, prompt version, fetches and submissions) and `brief.md`.
   The brief is the claims-agent-v3 system prompt and task, rendered from the same values as the API task (`claimsTaskValues` in `pipeline/claims/session.ts`), followed by the commands and the JSON Schema of the verdict file, which is the schema of the API path's `submit_verdicts` tool.
   Its prompts are their own version line, `pipeline/prompts/claims-agent-v<n>/`: claims-agent-v1 is claims-v1 with the reading and submission instructions rewritten for these commands, and every judging rule unchanged (a test compares the two from `# Verdicts` on).

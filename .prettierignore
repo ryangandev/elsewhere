@@ -16,7 +16,7 @@ scripts
 
 # Third-party stylesheet, kept as published.
 vendor
-.claude
+/.claude
 
 # Written by the content pipeline as JSON.stringify output; reformatting would churn every regeneration.
 content
