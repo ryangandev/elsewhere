@@ -63,3 +63,12 @@ export const {
   getPlaceNote,
   resolveScene,
 } = store;
+
+/**
+ * The content a production build publishes, reviewed only, whatever NODE_ENV says. Generated files
+ * that must match the production site, such as the prototype redirects in vercel.json, read this
+ * store, so they come out the same from the build script, the tests and development.
+ */
+export const publishedContent = createContentStore(() => readContentTree(contentDir), {
+  includeDrafts: false,
+});

@@ -5,6 +5,8 @@
 //   approve <country> [story] [--all] [--by me]  mark the overview, a story, or everything reviewed
 //   revise <country> [story] --notes "..."       send a draft back for regeneration
 //   revise <country> --overview --notes "..."    send back only the country part
+//   reopen <country> <story> | --overview | --all --notes "..."
+//                                                turn reviewed parts back into drafts to redraft
 import { parseArgsOnce } from '../cli-args';
 import { DEFAULT_CONTENT_DIR, today } from '../config';
 import { parsedCountryFiles, countryFilePath } from '../content-tree';
@@ -13,11 +15,13 @@ import {
   approve,
   fileReport,
   loadCountry,
+  reopen,
   requestRevision,
+  resolveCountry,
   reviewerName,
   ReviewError,
 } from './actions';
-import { countrySummary, listing } from './summary';
+import { countrySummary, listing, redirectsNote, reopenReport, sentBackText } from './summary';
 
 const USAGE = `Usage: npm run content:review -- <command> [options]
 
@@ -37,10 +41,17 @@ const USAGE = `Usage: npm run content:review -- <command> [options]
                                        every story as it is
        --notes "<what to change>"      reviewer notes the regeneration must address
        --by <name>                     reviewer (default: git user.name)
+  reopen <country> <story>             turn a reviewed story back into a draft sent back for
+                                       revision, recording the review it undid
+       --overview                      instead: the reviewed country part alone
+       --all                           instead: the overview and every reviewed story, each
+                                       redrafted in place (never the whole file)
+       --notes "<why, what to change>" reviewer notes the regeneration must address
+       --by <name>                     reviewer (default: git user.name)
   --content-dir <dir>                  content tree (default ${DEFAULT_CONTENT_DIR})
   --claims-dir <dir>                   claim check results (default: claims/ in the content directory)
 
-<country> is a country ID (CHL) or slug (chile). After revise, redraft everything sent back
+<country> is a country ID (CHL) or slug (chile). After revise or reopen, redraft everything sent back
 with npm run content:generate -- --revisions, or a country's overview and stories in a Claude
 Code subagent with npm run content:agent -- start <country> --revisions (a whole country:
 start <country>).`;
@@ -81,13 +92,8 @@ async function main(): Promise<number> {
       return 0;
     }
     for (const row of rows) {
-      const sentBack = [
-        ...(row.countryRevision ? [row.countryRevision] : []),
-        ...(row.storyRevisions
-          ? [`${row.storyRevisions} ${row.storyRevisions === 1 ? 'story' : 'stories'}`]
-          : []),
-      ];
-      const revisions = sentBack.length ? `, sent back: ${sentBack.join(', ')}` : '';
+      const sentBack = sentBackText(row);
+      const revisions = sentBack ? `, sent back: ${sentBack}` : '';
       console.log(
         `${row.countryId}  ${row.name.padEnd(24)} overview ${row.countryStatus.padEnd(8)} stories: ${row.draftStories} draft, ${row.reviewedStories} reviewed${revisions}  (${row.generatedBy})`,
       );
@@ -139,6 +145,9 @@ async function main(): Promise<number> {
     console.log(
       `Approved ${result.approved.join(', ') || 'nothing'} in ${result.file}.${accepted}`,
     );
+    if (result.approved.length) {
+      for (const line of redirectsNote(resolveCountry(country).id)) console.log(line);
+    }
     return 0;
   }
 
@@ -155,6 +164,21 @@ async function main(): Promise<number> {
     console.log(
       `Sent ${result.target} back in ${result.file}. Redraft it with npm run content:generate -- --revisions, or in a Claude Code subagent with ${result.agentCommand}.`,
     );
+    return 0;
+  }
+
+  if (command === 'reopen') {
+    const result = reopen({
+      contentDir,
+      country,
+      storyId,
+      overview: values.overview,
+      all: values.all,
+      notes: values.notes ?? '',
+      by: reviewerName(values.by),
+      date: today(),
+    });
+    console.log(reopenReport(result));
     return 0;
   }
 

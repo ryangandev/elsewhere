@@ -127,6 +127,34 @@ export function assembleCountry(draft: CountryDraft, context: AssembleContext): 
   };
 }
 
+/** Whether two scenes show the same thing: the same highlights, places and routes, in order. */
+export const sameSceneContent = (a: SceneSpec, b: SceneSpec): boolean =>
+  JSON.stringify([a.highlights, a.placeIds, a.routes]) ===
+  JSON.stringify([b.highlights, b.placeIds, b.routes]);
+
+/**
+ * Whether a revised part keeps the camera of the part it replaces. The model never sets a camera,
+ * so only content converted by hand has one. A country camera frames the country itself, and a
+ * story scene without a camera borrows it (Singapore's stories need it, since framing from its
+ * tiny area is too close), so a revised country part always keeps it. A story camera frames that
+ * story's own places and routes, so it is kept only while the revised scene shows the same
+ * highlights, places and routes; otherwise the globe frames the new scene itself.
+ */
+export function keepsCamera(kind: 'country' | 'story', revised: SceneSpec, replaced: SceneSpec) {
+  return !!replaced.camera && (kind === 'country' || sameSceneContent(revised, replaced));
+}
+
+/** A revised part with the camera of the part it replaces, when it keeps it (`keepsCamera`). */
+export function keepCamera<Part extends { scene: SceneSpec }>(
+  kind: 'country' | 'story',
+  part: Part,
+  replaced: SceneSpec,
+): Part {
+  return keepsCamera(kind, part.scene, replaced)
+    ? { ...part, scene: { camera: replaced.camera, ...part.scene } }
+    : part;
+}
+
 /** Replace the country part of a file, keeping every story as it is. */
 export function replaceCountryPart(file: CountryFile, country: Country): CountryFile {
   return { country, stories: file.stories };

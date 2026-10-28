@@ -2,7 +2,6 @@
 // first turn for drafting a whole country, revising one story or revising the country part. The prompt texts and the
 // submission check are also used by agent drafting (pipeline/agent), which hands the same
 // instructions to a Claude Code subagent and checks its submission the same way.
-import { readFileSync } from 'node:fs';
 import type {
   BetaTextBlockParam,
   BetaTool,
@@ -11,13 +10,14 @@ import type {
 import { z } from 'zod';
 import type { LandIndex } from '../../src/content/geometry';
 import type { Country, CountryFile, Source, Story } from '../../src/content/schema';
-import { REFERENCE_COUNTRY_FILE, type Effort, type GenerationLimits } from '../config';
+import type { Effort, GenerationLimits } from '../config';
 import { parsedCountryFiles, requireMapCountry } from '../content-tree';
 import { render, type PromptSet } from '../prompts';
 import {
   assembleCountry,
   assembleCountryPart,
   assembleStory,
+  keepCamera,
   replaceCountryPart,
   replaceStory,
   toDraftCountry,
@@ -122,14 +122,10 @@ export function withoutParaphrases<T>(value: T): T {
  * shared gazetteer. `schemaName` says where the submission's shape is given.
  */
 export function sharedSystemText(
-  prompts: Pick<PromptSet, 'system'>,
+  prompts: Pick<PromptSet, 'system' | 'reference'>,
   schemaName = 'the tool schema',
 ): string {
-  const reference = `${JSON.stringify(
-    withoutParaphrases(JSON.parse(readFileSync(REFERENCE_COUNTRY_FILE, 'utf8'))),
-    null,
-    2,
-  )}\n`;
+  const { reference } = prompts;
   return [
     render(prompts.system, {}),
     '# Reference example',
@@ -475,7 +471,7 @@ export function checkRevisions(
     sources: DraftSource[];
   },
   options: RevisionCheckOptions,
-): { ok: true; file: CountryFile } | { ok: false; issues: string[] } {
+): { ok: true; file: CountryFile; notices: string[] } | { ok: false; issues: string[] } {
   const { storyIds } = sentBack;
   const idIssues: string[] = [];
   if (submission.country && !sentBack.overview) {
@@ -498,6 +494,12 @@ export function checkRevisions(
       );
     } else if (seen.has(story.id)) {
       idIssues.push(`${path}.id: "${story.id}" appears more than once; submit each story once`);
+    } else {
+      // The slug is the story's URL, which links, redirects and readers already use.
+      const { slug } = existing.stories.find((entry) => entry.id === story.id)!;
+      if (story.slug !== slug) {
+        idIssues.push(`${path}.slug: keep the slug "${slug}"; it is the story's URL`);
+      }
     }
     seen.add(story.id);
   }
@@ -512,14 +514,21 @@ export function checkRevisions(
   // read as the same page (a redirect on the same host), keeps the file's URL, so the ID still
   // names one URL in the file.
   const kept = keptDeclarations(existing, sentBack);
+  const notices: string[] = [];
   const sources = submission.sources.map((source) => {
     const other = kept.get(source.id);
-    return other &&
+    if (
+      other &&
       other.url !== source.url &&
       hostOf(other.url) === hostOf(source.url) &&
       options.samePage?.(other.url, source.url)
-      ? { ...source, url: other.url }
-      : source;
+    ) {
+      notices.push(
+        `Source "${source.id}" is declared by ${other.where}, which this revision does not change, with ${other.url}; this submission declares it with ${source.url}, the same page after a redirect. The file keeps ${other.url} (the URL of ${other.where} wins), so your change to ${source.url} did not land. To change the URL everywhere, say so in your report, so the editor sends ${other.where} back too.`,
+      );
+      return { ...source, url: other.url };
+    }
+    return source;
   });
 
   const assembleContext = {
@@ -533,11 +542,20 @@ export function checkRevisions(
   if (submission.country) {
     file = replaceCountryPart(
       file,
-      assembleCountryPart(submission.country.country, sources, assembleContext),
+      keepCamera(
+        'country',
+        assembleCountryPart(submission.country.country, sources, assembleContext),
+        existing.country.scene,
+      ),
     );
   }
   for (const { story } of submission.stories) {
-    file = replaceStory(file, assembleStory(story, sources, assembleContext));
+    // The ID checks above make sure every submitted story replaces one in the file.
+    const replaced = existing.stories.find((entry) => entry.id === story.id)!;
+    file = replaceStory(
+      file,
+      keepCamera('story', assembleStory(story, sources, assembleContext), replaced.scene),
+    );
   }
   const scopes = [
     ...(sentBack.overview ? ['overview' as const] : []),
@@ -599,7 +617,9 @@ export function checkRevisions(
       `sources: "${source.id}" is declared by ${other.where} with ${other.url}, which this revision does not change, and this submission declares it with ${source.url}. Cite ${other.url} here (read it in this task first), or give the other URL its own source ID; to correct the URL everywhere, say so in your report, so the editor sends ${other.where} back too and both are revised together.`,
     );
   }
-  return problems.length ? { ok: false, issues: [...new Set(problems)] } : { ok: true, file };
+  return problems.length
+    ? { ok: false, issues: [...new Set(problems)] }
+    : { ok: true, file, notices };
 }
 
 /**

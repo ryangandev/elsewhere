@@ -9,8 +9,11 @@
 //   submissions/    every verdict file submitted, numbered, for audit
 //   verdicts.json   where the subagent writes its verdicts
 //
+// A session that start replaces moves to pipeline/.cache/claims-agent/finished/ instead of being
+// deleted, so its fetch records and submissions stay for audit.
+//
 // Nothing here is trusted to verify a quote: submit fetches every quoted page live from the web.
-import { existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { CountryId } from '../../src/content/schema';
@@ -116,6 +119,26 @@ export function readSession(dir: string, sessionId: string): ClaimsAgentSession 
 export function writeSession(dir: string, session: ClaimsAgentSession): void {
   mkdirSync(dir, { recursive: true });
   writeJson(sessionFile(dir), ClaimsAgentSession.parse(session));
+}
+
+/**
+ * Move a session out of the way, into `finished/<session>-<time of its last submission, or of its
+ * start>` under the sessions root, and return where it went. The archive is not a session
+ * directory, so listing and status never see it.
+ */
+export function archiveSession(root: string, session: ClaimsAgentSession): string {
+  const stamp = (session.submissions.at(-1)?.submittedAt ?? session.startedAt).replace(
+    /[:.]/g,
+    '-',
+  );
+  const folder = join(root, 'finished');
+  mkdirSync(folder, { recursive: true });
+  let target = join(folder, `${session.sessionId}-${stamp}`);
+  for (let n = 2; existsSync(target); n += 1) {
+    target = join(folder, `${session.sessionId}-${stamp}-${n}`);
+  }
+  renameSync(sessionDir(root, session.sessionId), target);
+  return target;
 }
 
 /** Units of a session without a passing verdict from it. */

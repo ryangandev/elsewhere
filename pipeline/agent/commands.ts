@@ -55,8 +55,10 @@ import {
   fetchFailure,
   fetchForReading,
   findMatches,
+  isNetworkCut,
   printPart,
   shellQuote,
+  menuOnlyWarning,
   unreadableWarning,
 } from './reading';
 import {
@@ -144,7 +146,7 @@ function conflictMessage(
     ? `Review sent back ${parts}, not the whole country; redraft ${count === 1 ? 'it' : 'them'} in place with: ${command(`start ${country.id} --revisions`)}`
     : undefined;
   if (conflict === 'reviewed') {
-    return `${file} contains reviewed content, which agent drafting never replaces. ${revise ?? 'Send it back with content:review revise first.'}`;
+    return `${file} contains reviewed content, or content reopened after review, which agent drafting never replaces. ${revise ?? `To redraft a reviewed part, reopen it first with npm run content:review -- reopen ${country.id} <story> --notes "..." (or --overview, or --all for the overview and every story), then redraft it in place with: ${command(`start ${country.id} --revisions`)}`}`;
   }
   return revise
     ? `${file} is a draft. ${revise}`
@@ -242,7 +244,7 @@ function revisionRefusal(
     return `The whole of ${country.name} was sent back. Draft it again with: ${command(`start ${country.id}`)}`;
   }
   if (!overviewRevision(existing) && !existing.stories.some((story) => story.provenance.revision)) {
-    return `Nothing in ${country.name} is sent back for revision. Send the overview back with npm run content:review -- revise ${country.id} --overview --notes "...", or a story with npm run content:review -- revise ${country.id} <story> --notes "..."`;
+    return `Nothing in ${country.name} is sent back for revision. Send the overview back with npm run content:review -- revise ${country.id} --overview --notes "...", or a story with npm run content:review -- revise ${country.id} <story> --notes "..."; reviewed content is reopened with npm run content:review -- reopen ${country.id} <story> --notes "..." (or --overview, or --all).`;
   }
   return undefined;
 }
@@ -398,18 +400,26 @@ function notRequestedWarning(reason: string): string {
  * read of the stored copy), or undefined without a redirect. A page that is not the one requested
  * gets its warning instead, every time.
  */
-export function redirectNote(record: EvidenceRecord): string | undefined {
+export function redirectNote(record: EvidenceRecord, revision = false): string | undefined {
   if (record.finalUrl === record.requestedUrl) return undefined;
   if (notTheRequestedPage(record)) return `Redirected to ${record.finalUrl}.`;
+  const sharedIds = revision ? ` ${SHARED_ID_NOTE}` : '';
   switch (redirectKind(record)) {
     case 'file':
-      return `Redirected to ${record.finalUrl}, the file the link downloads. Cite the file's URL, ${record.finalUrl}: a download link may change or lead somewhere else later.`;
+      return `Redirected to ${record.finalUrl}, the file the link downloads. Cite the file's URL, ${record.finalUrl}: a download link may change or lead somewhere else later.${sharedIds}`;
     case 'unrelated':
-      return `WARNING: redirected to ${record.finalUrl}, whose address shares no word with the one asked for, so it may be an error, search or index page. Read it before you cite it; if it is the page you wanted, cite ${record.finalUrl}.`;
+      return `WARNING: redirected to ${record.finalUrl}, whose address shares no word with the one asked for, so it may be an error, search or index page. Read it before you cite it; if it is the page you wanted, cite ${record.finalUrl}.${sharedIds}`;
     default:
-      return `Redirected to ${record.finalUrl}; either URL may be cited.`;
+      return `Redirected to ${record.finalUrl}; either URL may be cited.${sharedIds}`;
   }
 }
+
+/**
+ * Said with a redirect: in a revision, a source ID that a part left as it is also declares keeps
+ * that part's URL (checkRevisions), so citing the other URL under the same ID changes nothing.
+ */
+const SHARED_ID_NOTE =
+  "In this revision, a source ID that a part you are not revising also declares keeps that part's URL, whichever you cite; submit prints a notice when that happens. To cite the other URL, give it its own source ID.";
 
 /** The note for a page asked for over http, since sources are cited by their https URL. */
 export function httpNote(url: URL): string | undefined {
@@ -472,7 +482,9 @@ export async function fetchCommand(options: FetchOptions, deps: AgentDeps): Prom
       });
       writeSession(dir, session);
       deps.out(
-        `Could not read ${options.url}: ${reason}. Nothing was stored, so it cannot be cited; choose another source.`,
+        isNetworkCut(error)
+          ? `Could not read ${options.url}: ${reason}. Nothing was stored. Run the same command again in a minute; if it keeps failing, choose another source.`
+          : `Could not read ${options.url}: ${reason}. Nothing was stored, so it cannot be cited; choose another source.`,
       );
       return 1;
     }
@@ -482,11 +494,14 @@ export async function fetchCommand(options: FetchOptions, deps: AgentDeps): Prom
   deps.out(describeRecord(record));
   const notRequested = notTheRequestedPage(record);
   if (fresh) {
-    for (const note of [httpNote(parsedUrl), redirectNote(record)]) if (note) deps.out(note);
+    for (const note of [httpNote(parsedUrl), redirectNote(record, Boolean(session.revisions))])
+      if (note) deps.out(note);
   }
   if (notRequested) deps.out(notRequestedWarning(notRequested));
   const unreadable = unreadableWarning(record);
   if (unreadable) deps.out(unreadable);
+  const menuOnly = menuOnlyWarning(record);
+  if (menuOnly) deps.out(menuOnly);
   return printPart(
     record,
     { ...options, matches },
@@ -558,7 +573,9 @@ function revisionChanged(
   return undefined;
 }
 
-type Checked = { ok: true; file: CountryFile } | { ok: false; issues: string[] };
+/** `notices` are things a passing submission changed or did not change that the drafter should know. */
+type Checked =
+  { ok: true; file: CountryFile; notices?: string[] } | { ok: false; issues: string[] };
 
 /**
  * Check a revision as the API revision path does, with the session's evidence: the revised
@@ -720,6 +737,7 @@ export function submit(options: SubmitOptions, deps: AgentDeps): number {
       ref.from.countryId === country.id && (!revisedIds || revisedIds.includes(ref.from.storyId)),
   );
   const drafted = sentBack ? `the revised ${revisedText(sentBack)}` : 'the draft';
+  for (const notice of submission.notices ?? []) deps.out(`NOTICE: ${notice}`);
   if (options.dryRun) {
     deps.out(
       `Dry run: ${drafted} would pass. Nothing was written; run ${command(`submit ${country.id}`)} to submit it.`,

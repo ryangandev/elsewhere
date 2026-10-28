@@ -35,6 +35,7 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
      Or draft without API credit: ask Claude Code to run the `content-drafter` subagent for each country in the batch, which drafts through `npm run content:agent` from the same plan; see [Agent drafting](architecture.md#agent-drafting).
   5. Run `npm run content:verify`, then check the drafted text against its sources: ask Claude Code to run the `claim-checker` subagent for each country, which checks through `npm run content:claims-agent` and saves only verdicts whose quotes are on the live pages; see [Agent claim check](architecture.md#agent-claim-check).
      For a large country, run `npm run content:claims-agent -- start <country>` first and give each session it prints to its own subagent.
+     `start <country> --overview` checks only the overview units and `start <country> <story>` only one story; add `--recheck` to check units that already have a result.
      The API claim check, `npm run content:claims -- --drafts`, is kept as a reserve with the same results (roughly $1 to $3 a country, more when a source is a long PDF).
   6. Run `npm run content:paraphrase -- --all` to write search phrasings for the new stories (a few cents per country).
   7. Review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back, or the `content-drafter` subagent with `npm run content:agent -- start <country> --revisions` to redraft a country's sent-back overview and stories without API credit.
@@ -60,6 +61,12 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
   Japan: 11 of 13 units flagged, including the "Capital" and "Language" quick facts and "The less visible strengths", which the statistics handbook does not state.
   Most flags are true facts cited to a page that does not say them, so the fix is usually a better source rather than different text.
   The other eight hand-converted countries have not been checked; run `npm run content:claims -- --all` before they are treated like pipeline-reviewed content.
+  To fix a hand-converted country, `npm run content:review -- reopen <country> --all --notes "..."` turns its reviewed overview and stories back into drafts sent back for revision (or `reopen <country> <story>` and `--overview` for single parts), and the `content-drafter` subagent redrafts them with `npm run content:agent -- start <country> --revisions`, keeping each story's ID and any wording a fetched source states; see the Review step of [Content pipeline](architecture.md#content-pipeline).
+  A reopened overview takes its whole country out of production builds until it is approved again, so reopen a country when its redraft can follow.
+  After reopening or approving in a country the prototype had questions in (the commands say so), run `npm run redirects:build` and commit `vercel.json`, so prototype URLs point only at published pages.
+  The home screen suggests SGP/shipping, FRA/overseas, USA/dollar and MYS/electronics; while two of them (or their countries' overviews) are reopened, production would show fewer than three, and `content:check` fails until one is approved again or `home.json` suggests reviewed questions instead.
+- Approval does not stop a story being approved while its country waits for a whole-country redraft, which then refuses the file because a part is reviewed.
+  `reopen` handles that state by narrowing the request to the overview first; a follow-up could make `approve` refuse to create it.
 - Claim check follow-ups:
   `--mode batch` has no `--resume`, so a round in flight is lost when a run stops (results already saved stay, and the next run checks only what is still due).
   The server-side fetch's size cap does not apply to PDFs, so a long statistics PDF costs its full length on every read (Japan's 475k-token handbook is about $2.40 a read); consider a local text extract or a page range for large PDFs.

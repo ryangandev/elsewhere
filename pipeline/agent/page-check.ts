@@ -103,7 +103,7 @@ function parse(url: string): URL | undefined {
  * ("data.ons.gov.uk" for "www.ons.gov.uk") is not suspicious; the redirect target decides.
  */
 export function notTheRequestedPage(
-  record: Pick<EvidenceRecord, 'requestedUrl' | 'finalUrl' | 'text'>,
+  record: Pick<EvidenceRecord, 'requestedUrl' | 'finalUrl' | 'text'> & { contentType?: string },
 ): string | undefined {
   const requested = parse(record.requestedUrl);
   const final = parse(record.finalUrl);
@@ -127,6 +127,64 @@ export function notTheRequestedPage(
     return `its text is only ${record.text.length} characters, too short to be the page (probably a script stub, an error or a login form)`;
   }
   return undefined;
+}
+
+/** A line of this many words or more is prose: a sentence, or part of a paragraph. */
+export const PROSE_WORDS = 6;
+/** A page needs this many characters of content lines, and this share of its text in them. */
+const MIN_CONTENT_CHARACTERS = 300;
+const MIN_CONTENT_SHARE = 0.1;
+/** Menus and footers are many lines; fewer lines than this is not a page of navigation. */
+const MIN_MENU_LINES = 8;
+
+/** Scripts that write without spaces: every two characters count as a word. */
+const UNSPACED_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}]/gu;
+
+/** The words of a line: spaced words, and for Chinese, Japanese and Thai, two characters a word. */
+function wordsOf(line: string): number {
+  const unspaced = line.match(UNSPACED_SCRIPT)?.length ?? 0;
+  const spaced = line
+    .replace(UNSPACED_SCRIPT, ' ')
+    .split(/\s+/)
+    .filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
+  return spaced + Math.ceil(unspaced / 2);
+}
+
+/**
+ * Whether a line of a page's text is content and not navigation: prose of at least six words (a
+ * line of links is cut at its "|" separators and counts by its longest part, and a paragraph that
+ * the page's source wraps over several lines still has lines of six words or more), a row of
+ * figures or a dated line (a digit and at least two words), or a "label: value" line of a fact
+ * sheet. Menu entries are one to four words, with no digit and no colon.
+ */
+function isContentLine(line: string): boolean {
+  const longest = Math.max(...line.split(/\s[|•·]\s/).map(wordsOf));
+  if (longest >= PROSE_WORDS) return true;
+  if (/\p{N}/u.test(line) && (wordsOf(line) >= 2 || line.startsWith('|'))) return true;
+  return /^[^:|]{1,60}:\s*[\p{L}\p{N}]/u.test(line);
+}
+
+/**
+ * Why an HTML page is probably only its menus and footer, or undefined. Some sites build their
+ * answer text with scripts (mnd.gov.sg did), and the fetch gets the navigation, the footer and
+ * little else, long enough to pass the length check. A page with content has at least 300
+ * characters, and at least a tenth of its text, in content lines (see isContentLine). A page of
+ * fewer than eight lines is not tested, and neither are PDFs and plain text, whose lines are cut
+ * by the page's width. This is only a guess from the text, so it is a warning that the fetch
+ * commands print and never a reason to refuse a page: a short page of facts, a table among menus
+ * or a language the guess does not know may still be the page.
+ */
+export function menuOnlyText(record: { text: string; contentType?: string }): string | undefined {
+  if (record.contentType !== undefined && !/html/i.test(record.contentType)) return undefined;
+  if (record.text.startsWith('[Page 1]')) return undefined;
+  const lines = record.text.split('\n').filter((line) => line.trim());
+  if (lines.length < MIN_MENU_LINES) return undefined;
+  const content = lines.filter(isContentLine).reduce((total, line) => total + line.length, 0);
+  if (content >= MIN_CONTENT_CHARACTERS && content >= record.text.length * MIN_CONTENT_SHARE) {
+    return undefined;
+  }
+  const longest = Math.max(...lines.map(wordsOf));
+  return `almost all of its text is short navigation lines (${lines.length} lines, the longest has ${longest === 1 ? '1 word' : `${longest} words`}), so it is probably only the site's menus and footer, with the answer text built by scripts that are not run here`;
 }
 
 /** Words of a path, for telling whether a redirect stayed on the same subject. */
@@ -171,8 +229,12 @@ export function redirectKind(
 
 /** The share of characters that no text has: U+FFFD, private-use characters and controls. */
 const BROKEN_CHARACTER = /[\uFFFD\uE000-\uF8FF\u0001-\u0008\u000E-\u001F]/gu;
-/** A number, a date, a percentage or a range, which says nothing about whether text is words. */
-const NUMBER_TOKEN = /^[\p{N}.,:;%+\-\u2013/()[\]]+$/u;
+/**
+ * A token that says nothing about whether text is words: one with a digit in it (a number, a date,
+ * a percentage, a range, "Rs.1,234", "2023-24", "Q3") or a lone separator, such as the "|" between
+ * the cells of a table.
+ */
+const NEUTRAL_TOKEN = /\p{N}|^[|\u2013\u2014\u2022\u00b7/\\:;,.\-]$/u;
 /** A word: letters with an apostrophe or hyphen inside, and punctuation around it. */
 const WORD_TOKEN = /^[("'\u2018\u201C\[]*\p{L}[\p{L}\p{M}'\u2019-]*[)"'\u2019\u201D\].,;:!?%]*$/u;
 const LATIN_VOWEL = /[aeiouyàáâãäåæèéêëìíîïòóôõöøùúûüýÿœ]/i;
@@ -184,8 +246,9 @@ const LATIN_VOWEL = /[aeiouyàáâãäåæèéêëìíîïòóôõöøùúûüý
  * page states finds nothing. The text is unreadable when more than 5% of its characters are
  * replacement, private-use or control characters, or when fewer than half of its tokens that are
  * not numbers are words. A Latin word of four letters or more needs a vowel, which catches glyphs
- * mapped to shifted letters ("Kdssb"). Tables of words and numbers pass, since numbers are left
- * out and their labels are words.
+ * mapped to shifted letters ("Kdssb"). Numbers are left out, and so are the "|" between table
+ * cells, so a table of numbers and short labels passes: numbers are not unreadable, and the check
+ * is for font-encoded garbage.
  */
 export function unreadableText(text: string): string | undefined {
   const sample = text.length > 400_000 ? text.slice(0, 400_000) : text;
@@ -198,7 +261,7 @@ export function unreadableText(text: string): string | undefined {
   const tokens = sample
     .replace(/^\[Page \d+\]$/gm, '')
     .split(/\s+/)
-    .filter((token) => token && !NUMBER_TOKEN.test(token));
+    .filter((token) => token && !NEUTRAL_TOKEN.test(token));
   if (tokens.length < 100) return undefined;
   const words = tokens.filter((token) => {
     if (!WORD_TOKEN.test(token)) return false;
