@@ -12,6 +12,7 @@
     "start": "serve out",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "maps:build": "node scripts/build-map-assets.mjs",
