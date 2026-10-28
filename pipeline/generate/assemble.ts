@@ -127,6 +127,18 @@ export function assembleCountry(draft: CountryDraft, context: AssembleContext): 
   };
 }
 
+/**
+ * A revised part with the camera of the part it replaces. The model never sets a camera, so only
+ * content converted by hand has one, chosen for that country's framing (a story scene without one
+ * borrows its country's), and a revision of it keeps it rather than reframing the globe.
+ */
+export function keepCamera<Part extends { scene: SceneSpec }>(
+  part: Part,
+  replaced: SceneSpec,
+): Part {
+  return replaced.camera ? { ...part, scene: { camera: replaced.camera, ...part.scene } } : part;
+}
+
 /** Replace the country part of a file, keeping every story as it is. */
 export function replaceCountryPart(file: CountryFile, country: Country): CountryFile {
   return { country, stories: file.stories };

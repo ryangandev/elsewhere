@@ -49,7 +49,7 @@ import {
   loadAgentPrompts,
   loadAgentRevisionPrompts,
 } from '../../pipeline/prompts';
-import { requestRevision } from '../../pipeline/review/actions';
+import { reopen, requestRevision } from '../../pipeline/review/actions';
 import { chileDraft } from './fixtures/build-replay';
 import { RUN_DATE, minimalPdf, tempContentTree, tempDir } from './helpers';
 
@@ -1958,6 +1958,131 @@ describe('agent revision session', () => {
       const andes = readCountryFile(contentDir, 'chile')!.stories[3];
       expect(andes.sources.map((source) => source.url)).toEqual([geography().url]);
       expect(readSession(dir, 'CHL').written).toBeDefined();
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
+});
+
+describe('agent revision of reopened hand-written content', () => {
+  const NOTES = 'The cited page does not state the second section; cite one that does.';
+  const NEW_SOURCE = {
+    id: 'insee-overseas',
+    title: 'Overseas France',
+    publisher: 'INSEE',
+    url: 'https://www.insee.fr/en/statistiques/overseas',
+  };
+
+  it(
+    'starts on a reopened story, keeps its ID, camera and the wording a fetched page supports',
+    async () => {
+      const original = readCountryFile('content/en', 'france')!;
+      const overseas = original.stories.find((story) => story.id === 'overseas')!;
+      const { contentDir, root, deps, output } = setup({
+        pages: Object.fromEntries(
+          [...overseas.sources, NEW_SOURCE].map((source) => [
+            source.url,
+            { type: 'text/html', body: fullPage(source.title, `Text of ${source.id}.`) },
+          ]),
+        ),
+      });
+      const options = {
+        countryId: 'FRA',
+        contentDir,
+        model: DEFAULT_MODEL,
+        date: RUN_DATE,
+        regenerate: false,
+        fresh: false,
+      };
+      const dir = sessionDir(root, 'FRA');
+      const file = countryFilePath(contentDir, 'france');
+      reopen({
+        contentDir,
+        country: 'FRA',
+        storyId: 'overseas',
+        notes: NOTES,
+        by: 'Tester',
+        date: RUN_DATE,
+      });
+      const before = readFileSync(file, 'utf8');
+
+      // A reopened part is never redrafted with its file, even with --regenerate.
+      expect(start({ ...options, regenerate: true }, deps)).toBe(1);
+      expect(output()).toContain(
+        `${file} contains reviewed content, or content reopened after review, which agent drafting never replaces. Review sent back the story "overseas", not the whole country; redraft it in place with: npm run content:agent -- start FRA --revisions`,
+      );
+
+      expect(start({ ...options, revisions: true }, deps)).toBe(0);
+      expect(output()).toContain(
+        `Agent revision session for France (FRA) in ${dir}, revising "overseas".`,
+      );
+      expect(readSession(dir, 'FRA').revisions).toEqual([
+        {
+          storyId: 'overseas',
+          request: {
+            notes: NOTES,
+            requestedBy: 'Tester',
+            requestedAt: RUN_DATE,
+            reopened: { reviewedBy: 'ryan', reviewedAt: '2026-09-27' },
+          },
+        },
+      ]);
+      // The brief shows the hand-written story as written, in the submission's shape.
+      const asDrafted = {
+        story: toDraftStory(overseas),
+        sources: toDraftSources(overseas.sources),
+      };
+      const brief = readFileSync(briefFile(dir), 'utf8');
+      expect(brief).toContain(
+        `### "overseas": Why is France on more than one continent?\n\n#### Editor's notes\n\n${NOTES}\n\n#### The story as drafted\n\n\`\`\`json\n${JSON.stringify(asDrafted, null, 2)}\n\`\`\``,
+      );
+      expect(brief).toContain('Other stories in France (country ID FRA): "paris"');
+      expect(JSON.parse(readFileSync(draftFile(dir), 'utf8'))).toEqual({
+        stories: [asDrafted.story],
+        sources: asDrafted.sources,
+      });
+
+      // Keep the wording, and cite a newly read page for the second section.
+      for (const source of [...overseas.sources, NEW_SOURCE]) {
+        await fetchCommand({ countryId: 'FRA', url: source.url, refresh: false }, deps);
+      }
+      output();
+      const draft = toDraftStory(overseas);
+      draft.sections[1].sourceIds = [NEW_SOURCE.id];
+      writeFileSync(
+        draftFile(dir),
+        JSON.stringify({ stories: [draft], sources: [...asDrafted.sources, NEW_SOURCE] }),
+      );
+      expect(submit({ countryId: 'FRA' }, deps)).toBe(0);
+      expect(output()).toContain(
+        `Submission 1 passed. Wrote "overseas" into ${file} (draft, ${CURRENT_AGENT_PROMPT_VERSION}, ${DEFAULT_MODEL}); the revision requests are cleared`,
+      );
+
+      const after = readCountryFile(contentDir, 'france')!;
+      const revised = after.stories.find((story) => story.id === 'overseas')!;
+      expect(after.stories.map((story) => story.id)).toEqual(
+        original.stories.map((story) => story.id),
+      );
+      expect(revised.sections.map((section) => section.text)).toEqual(
+        overseas.sections.map((section) => section.text),
+      );
+      // The hand-set camera stays: the model never sets one.
+      expect(revised.scene).toEqual(overseas.scene);
+      expect(revised.next).toEqual(overseas.next);
+      expect(revised.sources.map((source) => source.id)).toEqual(['eu-france', NEW_SOURCE.id]);
+      expect(revised.provenance).toEqual({
+        generatedBy: DEFAULT_MODEL,
+        generatedAt: RUN_DATE,
+        promptVersion: CURRENT_AGENT_PROMPT_VERSION,
+        status: 'draft',
+      });
+      // The rest of the file, its reviewed parts included, is byte for byte as it was.
+      const storyBlock = (text: string) => {
+        const story = JSON.parse(text).stories[2];
+        expect(story.id).toBe('overseas');
+        return JSON.stringify(story, null, 2).replaceAll('\n', '\n    ');
+      };
+      const written = readFileSync(file, 'utf8');
+      expect(written.replace(storyBlock(written), storyBlock(before))).toBe(before);
     },
     SUBMIT_TIMEOUT_MS,
   );

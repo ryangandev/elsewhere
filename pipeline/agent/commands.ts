@@ -144,7 +144,7 @@ function conflictMessage(
     ? `Review sent back ${parts}, not the whole country; redraft ${count === 1 ? 'it' : 'them'} in place with: ${command(`start ${country.id} --revisions`)}`
     : undefined;
   if (conflict === 'reviewed') {
-    return `${file} contains reviewed content, which agent drafting never replaces. ${revise ?? 'Send it back with content:review revise first.'}`;
+    return `${file} contains reviewed content, or content reopened after review, which agent drafting never replaces. ${revise ?? `To redraft a reviewed part, reopen it first with npm run content:review -- reopen ${country.id} <story> --notes "..." (or --overview, or --all for the overview and every story), then redraft it in place with: ${command(`start ${country.id} --revisions`)}`}`;
   }
   return revise
     ? `${file} is a draft. ${revise}`
@@ -242,7 +242,7 @@ function revisionRefusal(
     return `The whole of ${country.name} was sent back. Draft it again with: ${command(`start ${country.id}`)}`;
   }
   if (!overviewRevision(existing) && !existing.stories.some((story) => story.provenance.revision)) {
-    return `Nothing in ${country.name} is sent back for revision. Send the overview back with npm run content:review -- revise ${country.id} --overview --notes "...", or a story with npm run content:review -- revise ${country.id} <story> --notes "..."`;
+    return `Nothing in ${country.name} is sent back for revision. Send the overview back with npm run content:review -- revise ${country.id} --overview --notes "...", or a story with npm run content:review -- revise ${country.id} <story> --notes "..."; reviewed content is reopened with npm run content:review -- reopen ${country.id} <story> --notes "..." (or --overview, or --all).`;
   }
   return undefined;
 }

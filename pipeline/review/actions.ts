@@ -1,9 +1,10 @@
 // Review decisions recorded in the content files themselves: approve a country overview or a story,
-// or send a draft back for regeneration with the reviewer's notes. Every change is validated
-// against the whole tree before it is written, so review can never leave the tree invalid.
+// send a draft back for regeneration with the reviewer's notes, or reopen reviewed content so it
+// is redrafted the same way. An approval is validated against the whole tree before it is
+// written, so review never signs off on an invalid tree.
 // Approval also needs a current claim check (pipeline/claims) for every cited text it covers.
 import { execFileSync } from 'node:child_process';
-import type { CountryFile, Provenance } from '../../src/content/schema';
+import type { CountryFile, Provenance, RevisionRequest } from '../../src/content/schema';
 import {
   acceptFlagged,
   defaultClaimsDir,
@@ -30,7 +31,7 @@ import {
   readCountryFile,
   writeCountryFile,
 } from '../content-tree';
-import { wholeCountryRevision } from '../generate/replace';
+import { isReopened, wholeCountryRevision } from '../generate/replace';
 import { cachedUrlStatuses, type UrlCheckOptions, type UrlStatus } from '../validate/urls';
 
 export class ReviewError extends Error {}
@@ -326,7 +327,9 @@ export function requestRevision(options: ReviseOptions): {
       );
     }
     if (current.country.provenance.status === 'reviewed') {
-      throw new ReviewError(`The overview of ${current.country.id} is already reviewed.`);
+      throw new ReviewError(
+        `The overview of ${current.country.id} is already reviewed. To redraft it, reopen it with npm run content:review -- reopen ${current.country.id} --overview --notes "..."`,
+      );
     }
     const next = {
       ...current,
@@ -334,7 +337,11 @@ export function requestRevision(options: ReviseOptions): {
         ...current.country,
         provenance: {
           ...current.country.provenance,
-          revision: { ...revision, scope: 'overview' as const },
+          revision: {
+            ...revision,
+            scope: 'overview' as const,
+            ...keptReopening(current.country.provenance),
+          },
         },
       },
     };
@@ -342,15 +349,31 @@ export function requestRevision(options: ReviseOptions): {
   }
 
   if (!options.storyId) {
-    const reviewedLabels = [
-      ...(current.country.provenance.status === 'reviewed' ? [current.country.id] : []),
-      ...current.stories
-        .filter((story) => story.provenance.status === 'reviewed')
-        .map((story) => `${current.country.id}/${story.id}`),
+    const parts = [
+      { label: current.country.id, provenance: current.country.provenance },
+      ...current.stories.map((story) => ({
+        label: `${current.country.id}/${story.id}`,
+        provenance: story.provenance,
+      })),
     ];
-    if (reviewedLabels.length) {
+    const reviewedLabels = parts
+      .filter(({ provenance }) => provenance.status === 'reviewed')
+      .map(({ label }) => label);
+    const reopenedLabels = parts
+      .filter(({ provenance }) => isReopened(provenance))
+      .map(({ label }) => label);
+    if (reviewedLabels.length || reopenedLabels.length) {
+      const what = [
+        ...(reviewedLabels.length ? [`${reviewedLabels.join(', ')} is already reviewed`] : []),
+        ...(reopenedLabels.length
+          ? [`${reopenedLabels.join(', ')} was reviewed and is reopened`]
+          : []),
+      ].join(', and ');
+      const reopenHint = reviewedLabels.length
+        ? `; reopen reviewed parts with npm run content:review -- reopen ${current.country.id} --all --notes "..."`
+        : '';
       throw new ReviewError(
-        `A country redraft replaces the whole file, and ${reviewedLabels.join(', ')} is already reviewed. Send back the overview alone (--overview) or single stories instead.`,
+        `A country redraft replaces the whole file and could renumber or drop stories, and ${what}. Send back the overview alone (--overview) or single stories instead${reopenHint}.`,
       );
     }
     const next = {
@@ -363,13 +386,172 @@ export function requestRevision(options: ReviseOptions): {
   const story = current.stories.find((entry) => entry.id === options.storyId);
   if (!story) throw new ReviewError(`${current.country.id} has no story "${options.storyId}"`);
   if (story.provenance.status === 'reviewed') {
-    throw new ReviewError(`${current.country.id}/${story.id} is already reviewed.`);
+    throw new ReviewError(
+      `${current.country.id}/${story.id} is already reviewed. To redraft it, reopen it with npm run content:review -- reopen ${current.country.id} ${story.id} --notes "..."`,
+    );
   }
   const next: CountryFile = {
     ...current,
     stories: current.stories.map((entry) =>
-      entry.id === story.id ? { ...entry, provenance: { ...entry.provenance, revision } } : entry,
+      entry.id === story.id
+        ? {
+            ...entry,
+            provenance: {
+              ...entry.provenance,
+              revision: { ...revision, ...keptReopening(entry.provenance) },
+            },
+          }
+        : entry,
     ),
   };
   return written(next, `${current.country.id}/${story.id}`);
+}
+
+/**
+ * The review a reopened part's request records, kept when review sends the part back again with
+ * new notes, so it still shows that it was reviewed and reopened.
+ */
+const keptReopening = (provenance: Provenance): Pick<RevisionRequest, 'reopened'> =>
+  provenance.revision?.reopened ? { reopened: provenance.revision.reopened } : {};
+
+export type ReopenOptions = {
+  contentDir: string;
+  country: string;
+  /** Reopen one reviewed story. */
+  storyId?: string;
+  /** Reopen the reviewed country part: kicker, overview, quick facts, starter questions, scene. */
+  overview?: boolean;
+  /** Reopen the overview and every story that is reviewed, each as its own part. */
+  all?: boolean;
+  notes: string;
+  by: string;
+  date: string;
+};
+
+/** A part reopened, with the review it undid. */
+export type ReopenedPart = { label: string; reviewedBy: string; reviewedAt: string };
+
+export type ReopenResult = {
+  file: string;
+  countryId: string;
+  /** Whether the overview was reopened, which takes the whole country out of production. */
+  overview: boolean;
+  /** The story IDs reopened. */
+  storyIds: string[];
+  reopened: ReopenedPart[];
+  /** Drafts that --all left as they were. */
+  skipped: string[];
+  /** The agent drafting command that redrafts everything now sent back in the country. */
+  agentCommand: string;
+};
+
+/**
+ * Reopen reviewed content: each named part becomes a draft again with a revision request that
+ * carries the reviewer's notes and the review it undid (`revision.reopened`), so the paths that
+ * redraft what review sent back (npm run content:generate -- --revisions, or
+ * npm run content:agent -- start <country> --revisions) redraft it in place with all their checks.
+ * The overview is reopened with `scope: "overview"` and each story on its own, never the whole
+ * country as one file: a whole-file redraft could renumber or drop stories, whose IDs are
+ * permanent. Production builds leave a reopened part out until it is approved again.
+ */
+export function reopen(options: ReopenOptions): ReopenResult {
+  const current = loadCountry(options.contentDir, options.country);
+  const id = current.country.id;
+  const notes = options.notes.trim();
+  if (!notes) {
+    throw new ReviewError('Say why it is reopened and what should change with --notes "...".');
+  }
+  if (options.all && (options.storyId || options.overview)) {
+    throw new ReviewError(
+      '--all reopens the overview and every reviewed story; leave out the story and --overview.',
+    );
+  }
+  if (options.overview && options.storyId) {
+    throw new ReviewError(
+      '--overview reopens the country part alone; reopen a story on its own, without --overview.',
+    );
+  }
+  if (!options.all && !options.overview && !options.storyId) {
+    throw new ReviewError(
+      `Say what to reopen: a story (reopen ${id} <story>), the overview (--overview), or the overview and every reviewed story (--all). A reviewed country is never redrafted as one file, which could renumber or drop its stories.`,
+    );
+  }
+
+  const notReviewed = (label: string, provenance: Provenance, revise: string) =>
+    new ReviewError(
+      provenance.revision
+        ? `${label} is not reviewed: it is a draft already sent back, so there is nothing to reopen.`
+        : `${label} is not reviewed: it is a draft, so there is nothing to reopen. Send it back with npm run content:review -- revise ${revise} --notes "..."`,
+    );
+  if (options.overview && current.country.provenance.status !== 'reviewed') {
+    throw notReviewed(`The overview of ${id}`, current.country.provenance, `${id} --overview`);
+  }
+  if (options.storyId) {
+    const story = current.stories.find((entry) => entry.id === options.storyId);
+    if (!story) throw new ReviewError(`${id} has no story "${options.storyId}"`);
+    if (story.provenance.status !== 'reviewed') {
+      throw notReviewed(`${id}/${story.id}`, story.provenance, `${id} ${story.id}`);
+    }
+  }
+  const reopenCountry = options.all
+    ? current.country.provenance.status === 'reviewed'
+    : !!options.overview;
+  const storyIds = options.storyId
+    ? [options.storyId]
+    : options.all
+      ? current.stories
+          .filter((story) => story.provenance.status === 'reviewed')
+          .map((story) => story.id)
+      : [];
+  if (!reopenCountry && !storyIds.length) {
+    throw new ReviewError(
+      `Nothing in ${id} is reviewed, so there is nothing to reopen. Send drafts back with npm run content:review -- revise.`,
+    );
+  }
+
+  const revision = { notes, requestedBy: options.by, requestedAt: options.date };
+  const reopened: ReopenedPart[] = [];
+  const reopenPart = (
+    label: string,
+    provenance: Provenance,
+    scope: Pick<RevisionRequest, 'scope'>,
+  ): Provenance => {
+    // The schema requires a reviewed part to name its reviewer and date.
+    const { reviewedBy, reviewedAt, ...rest } = provenance;
+    const review = { reviewedBy: reviewedBy!, reviewedAt: reviewedAt! };
+    reopened.push({ label, ...review });
+    return { ...rest, status: 'draft', revision: { ...revision, ...scope, reopened: review } };
+  };
+  const next: CountryFile = {
+    country: reopenCountry
+      ? {
+          ...current.country,
+          provenance: reopenPart(`${id} overview`, current.country.provenance, {
+            scope: 'overview',
+          }),
+        }
+      : current.country,
+    stories: current.stories.map((story) =>
+      storyIds.includes(story.id)
+        ? { ...story, provenance: reopenPart(`${id}/${story.id}`, story.provenance, {}) }
+        : story,
+    ),
+  };
+  const skipped = options.all
+    ? [
+        ...(reopenCountry ? [] : [`${id} overview`]),
+        ...current.stories
+          .filter((story) => !storyIds.includes(story.id))
+          .map((story) => `${id}/${story.id}`),
+      ]
+    : [];
+  return {
+    file: writeCountryFile(options.contentDir, next),
+    countryId: id,
+    overview: reopenCountry,
+    storyIds,
+    reopened,
+    skipped,
+    agentCommand: agentRedraftCommand(next),
+  };
 }

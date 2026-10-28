@@ -18,6 +18,7 @@ import {
   assembleCountry,
   assembleCountryPart,
   assembleStory,
+  keepCamera,
   replaceCountryPart,
   replaceStory,
   toDraftCountry,
@@ -533,11 +534,19 @@ export function checkRevisions(
   if (submission.country) {
     file = replaceCountryPart(
       file,
-      assembleCountryPart(submission.country.country, sources, assembleContext),
+      keepCamera(
+        assembleCountryPart(submission.country.country, sources, assembleContext),
+        existing.country.scene,
+      ),
     );
   }
   for (const { story } of submission.stories) {
-    file = replaceStory(file, assembleStory(story, sources, assembleContext));
+    // The ID checks above make sure every submitted story replaces one in the file.
+    const replaced = existing.stories.find((entry) => entry.id === story.id)!;
+    file = replaceStory(
+      file,
+      keepCamera(assembleStory(story, sources, assembleContext), replaced.scene),
+    );
   }
   const scopes = [
     ...(sentBack.overview ? ['overview' as const] : []),
