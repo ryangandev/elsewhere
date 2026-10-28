@@ -201,6 +201,20 @@ describe('routes', () => {
       through: ['bellingshausen-sea', 'drake-passage', 'scotia-sea'],
       acrossLand: ['bellingshausen-sea', 'scotia-sea'],
     },
+    {
+      // Natural Earth has only the Bering Sea and Chukchi Sea polygons, which meet across it. The Bering
+      // Sea's label point is in open water, from where a straight line to the strait crosses
+      // St Lawrence Island, so routes enter the strait from its own ends.
+      passage: 'bering-strait',
+      through: ['bering-strait', 'chukchi-sea'],
+      acrossLand: ['norton-sound', 'kotzebue-sound'],
+    },
+    {
+      // Likewise the Black Sea and the Sea of Azov, across the Kerch Strait.
+      passage: 'kerch-strait',
+      through: ['black-sea', 'kerch-strait', 'sea-of-azov'],
+      acrossLand: ['black-sea', 'sea-of-azov'],
+    },
   ];
 
   it.each(passages)('pass through $passage', ({ passage, through, acrossLand }) => {
@@ -260,6 +274,52 @@ describe('routes', () => {
     const outbound = routePoints({ via: ['istanbul', 'bosporus', 'black-sea'] });
     expect(outbound).toContainEqual(blackSeaEnd);
     expect(outbound).not.toContainEqual(path[0]);
+  });
+
+  it('know the places drafters asked for', () => {
+    // Ports and island towns below the default cutoff, the Rhine and South Africa's rivers, Lake
+    // Victoria (Natural Earth's lakes dataset), and the nine provinces for stories by province.
+    const ids = [
+      'rotterdam',
+      'mombasa',
+      'zanzibar',
+      'zanzibar-island',
+      'lamu',
+      'rhine-river',
+      'vaal-river',
+      'orange-river',
+      'lake-victoria',
+      'durban',
+      'cape-town',
+      'strait-of-gibraltar',
+      'bosporus',
+      'dardanelles',
+      'suez-canal',
+      'panama-canal',
+      ...[
+        'eastern-cape',
+        'free-state',
+        'gauteng',
+        'kwazulu-natal',
+        'limpopo',
+        'mpumalanga',
+        'north-west',
+        'northern-cape',
+        'western-cape',
+      ],
+    ];
+    for (const id of ids) expect(getPlace(id), id).toBeDefined();
+    expect(getPlace('lake-victoria')).toMatchObject({ kind: 'water', surface: 'land' });
+    expect(getPlace('gauteng')).toMatchObject({ kind: 'region', source: 'admin1' });
+    // Zanzibar the city and Zanzibar the island are different places.
+    expect(getPlace('zanzibar')).toMatchObject({ kind: 'place', countryId: 'TZA' });
+    expect(getPlace('zanzibar-island')).toMatchObject({ kind: 'region' });
+  });
+
+  it('know the Rhine by one ID although Natural Earth names it in several ways', () => {
+    expect(listPlaces().filter((place) => /^(rhine|rhein) river$/i.test(place.name))).toHaveLength(1);
+    expect(getPlace('rhein-river')).toBeUndefined();
+    expect(getPlace('nyanza')).toBeUndefined();
   });
 
   it('know the Saint Lawrence River by one ID', () => {
