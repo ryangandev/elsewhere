@@ -1,5 +1,7 @@
 // Turn what the model submitted into content-schema shapes: fill in the IDs the pipeline already
 // knows, give each entry the sources it cites, stamp accessedAt and provenance, and drop nulls.
+// The reverse turns content back into the submission's shape, so a revision brief can show a part
+// as drafted in the shape the drafter submits it in.
 import type {
   Country,
   CountryFile,
@@ -8,7 +10,7 @@ import type {
   Source,
   Story,
 } from '../../src/content/schema';
-import type { CountryDraft, DraftSource, DraftStory } from './draft-schema';
+import type { CountryDraft, DraftCountry, DraftSource, DraftStory } from './draft-schema';
 import { cleanUrl } from './evidence';
 
 export type AssembleContext = {
@@ -83,9 +85,13 @@ export function assembleStory(
   };
 }
 
-export function assembleCountry(draft: CountryDraft, context: AssembleContext): CountryFile {
-  const { country: entry } = draft;
-  const country: Country = {
+/** The country part of a file: everything but the stories. */
+export function assembleCountryPart(
+  entry: DraftCountry,
+  sources: DraftSource[],
+  context: AssembleContext,
+): Country {
+  return {
     id: context.countryId,
     slug: context.slug,
     name: entry.name,
@@ -102,7 +108,7 @@ export function assembleCountry(draft: CountryDraft, context: AssembleContext): 
     starterStoryIds: entry.starterStoryIds,
     scene: scene(context.countryId, entry.scene),
     sources: citedSources(
-      draft.sources,
+      sources,
       [
         ...entry.overview.sourceIds,
         ...entry.overview.whyItMatters.flatMap((item) => item.sourceIds),
@@ -112,10 +118,18 @@ export function assembleCountry(draft: CountryDraft, context: AssembleContext): 
     ),
     provenance: provenance(context),
   };
+}
+
+export function assembleCountry(draft: CountryDraft, context: AssembleContext): CountryFile {
   return {
-    country,
+    country: assembleCountryPart(draft.country, draft.sources, context),
     stories: draft.stories.map((story) => assembleStory(story, draft.sources, context)),
   };
+}
+
+/** Replace the country part of a file, keeping every story as it is. */
+export function replaceCountryPart(file: CountryFile, country: Country): CountryFile {
+  return { country, stories: file.stories };
 }
 
 /** Replace one story in a country file, keeping its position. */
@@ -125,3 +139,55 @@ export function replaceStory(file: CountryFile, story: Story): CountryFile {
     stories: file.stories.map((existing) => (existing.id === story.id ? story : existing)),
   };
 }
+
+/** A story in the submission's shape: what assembleStory would turn back into it. */
+export function toDraftStory(story: Story): DraftStory {
+  return {
+    id: story.id,
+    slug: story.slug,
+    question: story.question,
+    category: story.category,
+    summary: story.summary,
+    sections: story.sections,
+    takeaway: story.takeaway,
+    scene: {
+      highlights: story.scene.highlights,
+      placeIds: story.scene.placeIds,
+      routes: story.scene.routes,
+      mapNote: story.scene.mapNote,
+    },
+    next: story.next.map(({ countryId, storyId, reason }) => ({
+      countryId,
+      storyId,
+      reason: reason ?? null,
+    })),
+  };
+}
+
+/** The country part in the submission's shape: what assembleCountryPart would turn back into it. */
+export function toDraftCountry(country: Country): DraftCountry {
+  return {
+    name: country.name,
+    nativeName: country.nativeName ?? null,
+    region: country.region,
+    kicker: country.kicker,
+    overview: country.overview,
+    quickFacts: country.quickFacts.map(({ label, value, asOf, sourceIds }) => ({
+      label,
+      value,
+      asOf: asOf ?? null,
+      sourceIds,
+    })),
+    starterStoryIds: country.starterStoryIds,
+    scene: {
+      highlights: country.scene.highlights,
+      placeIds: country.scene.placeIds,
+      routes: country.scene.routes,
+      mapNote: country.scene.mapNote ?? null,
+    },
+  };
+}
+
+/** Sources in the submission's shape, without the access date the pipeline sets. */
+export const toDraftSources = (sources: Source[]): DraftSource[] =>
+  sources.map(({ id, title, publisher, url }) => ({ id, title, publisher, url }));

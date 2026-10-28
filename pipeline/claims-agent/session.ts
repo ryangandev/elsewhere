@@ -2,7 +2,8 @@
 // named after what it checks: "CHL", "CHL-length", or "CHL-part2" when a country is split.
 //
 //   session.json    what is checked (the units by ID and key, and their sources), with which
-//                   model and prompts, every fetch, and every submission with its live fetches
+//                   model and prompts, every fetch, every failed fetch (one entry per URL), and
+//                   every submission with its live fetches
 //   brief.md        the complete instructions the subagent follows
 //   pages/          reading copies of the pages the fetch command read; never used to verify
 //   submissions/    every verdict file submitted, numbered, for audit
@@ -13,6 +14,7 @@ import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { CountryId } from '../../src/content/schema';
+import { FailedFetch } from '../agent/session';
 import { CACHE_DIR } from '../config';
 import { readJson, writeJson } from '../content-tree';
 
@@ -62,9 +64,8 @@ export const ClaimsAgentSession = z.strictObject({
   passed: z.array(z.string()),
   /** Pages the fetch command read, latest first per URL. A reading log, not evidence. */
   fetches: z.array(FetchLog),
-  failedFetches: z.array(
-    z.strictObject({ url: z.string(), attemptedAt: z.string(), reason: z.string() }),
-  ),
+  /** Pages the fetch command could not read, one entry per URL with its latest attempt. */
+  failedFetches: z.array(FailedFetch),
   submissions: z.array(
     z.strictObject({
       file: z.string(),

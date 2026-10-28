@@ -25,7 +25,17 @@ const NAMES = [
 ] as const;
 export type PromptName = (typeof NAMES)[number];
 
-export type PromptSet = { version: string } & Record<PromptName, string>;
+/**
+ * Templates that a version may lack because they were added to it later without changing any text
+ * it already had. v3 gained `revise-overview`, the task of an overview revision, when the overview
+ * could be sent back alone: a template only overview revisions use changes no text a draft
+ * recorded with v3 was made from, so it needed no new version. Older versions have none, and a
+ * run always drafts with the current version.
+ */
+const OPTIONAL_NAMES = ['revise-overview'] as const;
+
+export type PromptSet = { version: string } & Record<PromptName, string> &
+  Partial<Record<(typeof OPTIONAL_NAMES)[number], string>>;
 
 function loadPromptFiles<Name extends string>(
   version: string,
@@ -38,7 +48,10 @@ function loadPromptFiles<Name extends string>(
 }
 
 export function loadPrompts(version: string = CURRENT_PROMPT_VERSION): PromptSet {
-  return loadPromptFiles(version, NAMES);
+  const optional = OPTIONAL_NAMES.filter((name) =>
+    existsSync(join(PROMPTS_DIR, version, `${name}.md`)),
+  );
+  return { ...loadPromptFiles(version, optional), ...loadPromptFiles(version, NAMES) };
 }
 
 /**
@@ -47,11 +60,15 @@ export function loadPrompts(version: string = CURRENT_PROMPT_VERSION): PromptSet
  * the pipeline's fetch command instead of the API's server tools, so the research and submission
  * instructions differ; every content, tone and sourcing rule is copied unchanged from the drafting
  * version it started from (agent-v1 from v3). It holds only the prompts agent drafting uses.
- * agent-v1 stays as it was for the drafts that recorded it. agent-v2 recommends sources the fetch
- * command can read, documents `--links`, and forbids other HTTP tools and personal information in
- * requests, and holds the revise-story template of agent revision sessions.
+ * Earlier versions stay as they were for the drafts that recorded them. agent-v2 recommends
+ * sources the fetch command can read, documents `--links`, and forbids other HTTP tools and
+ * personal information in requests, and holds the revise-story template of agent revision
+ * sessions. agent-v3 says that source URLs are https and that the fetch command reads http and
+ * https as one page, how redirects are cited, how `--find` takes several terms and where a page's
+ * main text starts, and adds revise-overview, the task of a revision session that includes the
+ * overview.
  */
-export const CURRENT_AGENT_PROMPT_VERSION = 'agent-v2';
+export const CURRENT_AGENT_PROMPT_VERSION = 'agent-v3';
 
 const AGENT_NAMES = ['system', 'link-targets', 'draft-country', 'repair'] as const;
 export type AgentPromptSet = { version: string } & Record<(typeof AGENT_NAMES)[number], string>;
@@ -61,22 +78,46 @@ export function loadAgentPrompts(version: string = CURRENT_AGENT_PROMPT_VERSION)
 }
 
 /**
- * Agent revision sessions redraft the stories review sent back with one more template,
- * `revise-story`, the agent counterpart of the API's revise-story task. agent-v2 gained it when
- * revisions came to agent drafting: a template that only revision sessions use changes no text
- * that a drafting brief or a recorded draft was made from, so it needed no new version. agent-v1
- * has none, and a revision session always starts on the current version.
+ * Agent revision sessions redraft what review sent back with one more template: `revise-story`,
+ * the agent counterpart of the API's revise-story task, for the stories sent back, or
+ * `revise-overview` when the overview is sent back too (with or without stories). agent-v2 gained
+ * revise-story when revisions came to agent drafting: a template that only revision sessions use
+ * changes no text that a drafting brief or a recorded draft was made from, so it needed no new
+ * version. revise-overview came with agent-v3. agent-v1 has neither, and a revision session
+ * always starts on the current version.
  */
-export type AgentRevisionPromptSet = AgentPromptSet & { 'revise-story': string };
+export type AgentRevisionPromptSet = AgentPromptSet & { 'revise-story': string } & {
+  'revise-overview'?: string;
+};
 
 export function loadAgentRevisionPrompts(
   version: string = CURRENT_AGENT_PROMPT_VERSION,
+  options: { overview?: boolean } = {},
 ): AgentRevisionPromptSet {
-  if (!existsSync(join(PROMPTS_DIR, version, 'revise-story.md'))) {
+  const has = (name: string) => existsSync(join(PROMPTS_DIR, version, `${name}.md`));
+  if (!has('revise-story')) {
     throw new Error(`The ${version} agent prompts have no revise-story template.`);
   }
-  return loadPromptFiles(version, [...AGENT_NAMES, 'revise-story'] as const);
+  if (options.overview && !has('revise-overview')) {
+    throw new Error(`The ${version} agent prompts have no revise-overview template.`);
+  }
+  return {
+    ...(has('revise-overview') ? loadPromptFiles(version, ['revise-overview'] as const) : {}),
+    ...loadPromptFiles(version, [...AGENT_NAMES, 'revise-story'] as const),
+  };
 }
+
+/** The number of a prompt version on its line: 2 for "agent-v2", 3 for "claims-agent-v3". */
+export const promptVersionNumber = (version: string) =>
+  Number(/-v(\d+)$/.exec(version)?.[1] ?? /^v(\d+)$/.exec(version)?.[1] ?? 0);
+
+/**
+ * The oldest prompt version an unfinished agent revision session may continue on. The revision
+ * brief of an agent-v3 session shows each part in the submission's shape, lists the sources its
+ * last claim check could not read, and describes the fetch command as it works now; rebuilding
+ * the brief of an older session would give text that differs from what its version recorded.
+ */
+export const MIN_AGENT_REVISION_PROMPT_VERSION = 'agent-v3';
 
 export const CURRENT_CLAIMS_PROMPT_VERSION = 'claims-v1';
 
@@ -100,9 +141,18 @@ export function loadClaimsPrompts(
  * it was for the results that recorded it. claims-agent-v2 says what the quote check ignores and
  * what it enforces (the 300-character gap, quotes under 30 words, PDF line-end hyphens, lost
  * ligatures and page breaks), how --find pages its matches, and to read long pages with --offset
- * instead of saving them.
+ * instead of saving them. claims-agent-v3 adds that the fetch command reads http and https as one
+ * page, that a "..." does not lower a quote's word count, where PDF footnotes are, how --find
+ * takes several terms, and where a page's main text starts.
  */
-export const CURRENT_CLAIMS_AGENT_PROMPT_VERSION = 'claims-agent-v2';
+export const CURRENT_CLAIMS_AGENT_PROMPT_VERSION = 'claims-agent-v3';
+
+/**
+ * The oldest prompt version an unfinished agent claim check session may continue on: earlier
+ * briefs describe the fetch command as it no longer works (--find listing 20 places at a time,
+ * printing from the start of a page, no footnote section in a PDF's text).
+ */
+export const MIN_CLAIMS_AGENT_PROMPT_VERSION = 'claims-agent-v3';
 
 const CLAIMS_AGENT_NAMES = ['system', 'task', 'repair'] as const;
 export type ClaimsAgentPromptSet = { version: string } & Record<

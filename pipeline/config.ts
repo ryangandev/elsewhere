@@ -9,6 +9,12 @@ export const CACHE_DIR = 'pipeline/.cache';
 
 export const BATCHES_DIR = 'pipeline/batches';
 
+/**
+ * What the Message Batches API accepts as a request's custom_id. Every request's tag becomes one,
+ * so every tag must match.
+ */
+export const BATCH_CUSTOM_ID = /^[a-zA-Z0-9_-]{1,64}$/;
+
 /** Geo data the pipeline reads; never written by the pipeline. */
 export const GAZETTEER_FILE = 'data/geo/gazetteer.json';
 export const MAP_COUNTRIES_FILE = 'data/geo/countries.json';

@@ -5,6 +5,7 @@ import type { ParseArgsConfig } from 'node:util';
 import { parseArgsOnce } from '../cli-args';
 import { ignoreClosedOutput } from '../closed-output';
 import { CLAIM_SOURCES_PER_SESSION, DEFAULT_CONTENT_DIR, DEFAULT_MODEL } from '../config';
+import { DEFAULT_FIND_MATCHES, MAX_FIND_MATCHES } from '../agent/reading';
 import { fetchCommand, start, status, submit, type ClaimsAgentDeps } from './commands';
 
 const USAGE = `Usage: npm run content:claims-agent -- <command> ... [options]
@@ -23,9 +24,11 @@ Commands:
     --effort <level>        recorded with it (default "default", the subagent's own)
     --fresh                 discard every existing session of the country first
   fetch <session> <url>     read one of the session's cited pages and print a part
-    --offset <n>            print the part starting at character n
-    --find <words>          list where the words appear instead (20 at a time; with
-                            --offset, those from character n on)
+    --offset <n>            print the part starting at character n (without it, a page
+                            that marks its main text is printed from there)
+    --find <words>          list where the words appear instead; repeat it for several
+                            (with --offset, those from character n on)
+    --matches <n>           places listed per --find term (default ${DEFAULT_FIND_MATCHES}, at most ${MAX_FIND_MATCHES})
     --refresh               fetch again even when a reading copy is stored
   submit <session> [file]   check the verdict file (default verdicts.json in the session),
                             verify every quote against a live fetch, save what passes
@@ -47,8 +50,9 @@ const OPTIONS: Record<string, Options> = {
     fresh: { type: 'boolean', default: false },
   },
   fetch: {
-    offset: { type: 'string', default: '0' },
-    find: { type: 'string' },
+    offset: { type: 'string' },
+    find: { type: 'string', multiple: true },
+    matches: { type: 'string' },
     refresh: { type: 'boolean', default: false },
   },
   submit: { 'dry-run': { type: 'boolean', default: false } },
@@ -106,14 +110,18 @@ async function main(): Promise<number> {
       );
     }
     case 'fetch': {
-      const offset = Number(string('offset'));
-      if (!Number.isInteger(offset)) throw new Error('--offset is a whole number of characters');
+      const offset = string('offset') === undefined ? undefined : Number(string('offset'));
+      if (offset !== undefined && !Number.isInteger(offset)) {
+        throw new Error('--offset is a whole number of characters');
+      }
+      const matches = string('matches') === undefined ? undefined : Number(string('matches'));
       return fetchCommand(
         {
           sessionId: target,
           url: argument,
           offset,
-          find: string('find'),
+          find: values.find as string[] | undefined,
+          matches,
           refresh: values.refresh === true,
         },
         deps,

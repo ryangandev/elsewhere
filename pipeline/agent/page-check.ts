@@ -1,8 +1,9 @@
 // Whether a fetched page is the page that was asked for. Some URLs redirect to a login page, a
-// site's home page or a script stub, and the server still answers 200, so the text is stored like
-// any other. Such a page states nothing about the topic and must never be cited. The result is
-// computed from the stored record every time (never saved), so the fetch command's warning and the
-// submit command's rejection always agree.
+// site's home page, another site or a script stub, and the server still answers 200, so the text
+// is stored like any other. Such a page states nothing about the topic and must never be cited.
+// The result is computed from the stored record every time (never saved), so the fetch command's
+// warning and the submit command's rejection always agree. Whether the text could be extracted at
+// all, and what a redirect means for the URL to cite, are worked out here the same way.
 import type { EvidenceRecord } from './session';
 
 /**
@@ -24,6 +25,68 @@ const LOGIN_HOST = /^(login|signin|sso|auth|idp|account|accounts|consent)\./i;
 /** A site's home page: /, /index.html, or a language root such as /en or /pt-br. */
 const HOME_PATH = /^(\/index\.(html?|php|aspx?))?\/?$|^\/[a-z]{2}([-_][a-z]{2,4})?\/?$/i;
 
+/**
+ * Hosts whose whole purpose is to redirect to the document a persistent identifier names (a DOI,
+ * a handle), so a redirect from them to another site is the expected one.
+ */
+const RESOLVER_HOSTS = new Set([
+  'doi.org',
+  'dx.doi.org',
+  'hdl.handle.net',
+  'n2t.net',
+  'identifiers.org',
+  'purl.org',
+]);
+
+/**
+ * Second-level labels that country code registries use as public suffixes ("gov.uk", "co.ke",
+ * "gob.mx"), so the site is the label before them. Any other label under a country code is the
+ * site itself ("ine.es", "bcn.cl", "cbs.nl"), whatever its length.
+ */
+const SECOND_LEVEL_SUFFIXES = new Set([
+  'ac',
+  'co',
+  'com',
+  'edu',
+  'go',
+  'gob',
+  'gouv',
+  'gov',
+  'govt',
+  'gub',
+  'gv',
+  'info',
+  'int',
+  'ltd',
+  'mil',
+  'ne',
+  'net',
+  'nic',
+  'nom',
+  'or',
+  'org',
+  'plc',
+  'sch',
+]);
+
+/**
+ * The site a host belongs to, as far as a redirect is concerned: its last two labels without a
+ * leading "www.", or three under a country code whose second level is a registry suffix
+ * ("knbs.or.ke", "ons.gov.uk", "bbc.co.uk"). So "www.ons.gov.uk" and "data.ons.gov.uk" are one
+ * site, "ine.es" and "www.ine.es" one, and "pilates.example" another.
+ */
+export function siteOf(hostname: string): string {
+  const labels = hostname
+    .toLowerCase()
+    .replace(/\.$/, '')
+    .replace(/^www\./, '')
+    .split('.');
+  if (labels.length <= 2) return labels.join('.');
+  const [second, top] = labels.slice(-2);
+  const keep = top.length === 2 && SECOND_LEVEL_SUFFIXES.has(second) ? 3 : 2;
+  return labels.slice(-keep).join('.');
+}
+
 function parse(url: string): URL | undefined {
   try {
     return new URL(url);
@@ -33,9 +96,11 @@ function parse(url: string): URL | undefined {
 }
 
 /**
- * Why the page is probably not the one requested, or undefined when it looks right. A change of
- * host alone is not suspicious, since a DOI or an agency's new domain legitimately lands on
- * another site; the redirect target decides.
+ * Why the page is probably not the one requested, or undefined when it looks right. A redirect to
+ * another site is suspicious unless it came from a DOI or handle resolver: a commonwealth
+ * governance page once redirected to a pilates studio. A page that did move to another site is
+ * fetched and cited by its new URL, which then has no redirect. Another host of the same site
+ * ("data.ons.gov.uk" for "www.ons.gov.uk") is not suspicious; the redirect target decides.
  */
 export function notTheRequestedPage(
   record: Pick<EvidenceRecord, 'requestedUrl' | 'finalUrl' | 'text'>,
@@ -50,9 +115,98 @@ export function notTheRequestedPage(
     if (HOME_PATH.test(final.pathname) && !HOME_PATH.test(requested.pathname)) {
       return `it redirected to the site's home page (${record.finalUrl})`;
     }
+    const requestedSite = siteOf(requested.hostname);
+    if (
+      siteOf(final.hostname) !== requestedSite &&
+      !RESOLVER_HOSTS.has(requested.hostname.toLowerCase().replace(/^www\./, ''))
+    ) {
+      return `it redirected to another site (${record.finalUrl}); if that is a page you want, fetch it by its own URL`;
+    }
   }
   if (record.text.length < MIN_PAGE_CHARACTERS) {
     return `its text is only ${record.text.length} characters, too short to be the page (probably a script stub, an error or a login form)`;
   }
   return undefined;
+}
+
+/** Words of a path, for telling whether a redirect stayed on the same subject. */
+function pathWords(pathname: string): Set<string> {
+  let decoded = pathname;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    // Keep the raw path.
+  }
+  return new Set(
+    decoded
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((word) => word.length >= 4 && !/^(index|html?|php|aspx?|default)$/.test(word)),
+  );
+}
+
+/**
+ * What a redirect means for the URL to cite, for a page that is otherwise the one requested:
+ * none (no redirect), a file (it ended at a PDF or another document, as a download link does, so
+ * the file's URL is the one to cite), unrelated (it stayed on the site but on a path that shares
+ * no word with the requested one, such as an error or search page), or same (either URL names the
+ * page). A redirect that makes the page not the requested one is notTheRequestedPage's.
+ */
+export function redirectKind(
+  record: Pick<EvidenceRecord, 'requestedUrl' | 'finalUrl' | 'contentType' | 'text'>,
+): 'none' | 'file' | 'unrelated' | 'same' {
+  const requested = parse(record.requestedUrl);
+  const final = parse(record.finalUrl);
+  if (!requested || !final || requested.href === final.href) return 'none';
+  if (/pdf|octet-stream/i.test(record.contentType) || record.text.startsWith('[Page 1]')) {
+    return 'file';
+  }
+  const before = pathWords(requested.pathname + requested.search);
+  const after = pathWords(final.pathname + final.search);
+  if (before.size && after.size && ![...before].some((word) => after.has(word))) {
+    return 'unrelated';
+  }
+  return 'same';
+}
+
+/** The share of characters that no text has: U+FFFD, private-use characters and controls. */
+const BROKEN_CHARACTER = /[\uFFFD\uE000-\uF8FF\u0001-\u0008\u000E-\u001F]/gu;
+/** A number, a date, a percentage or a range, which says nothing about whether text is words. */
+const NUMBER_TOKEN = /^[\p{N}.,:;%+\-\u2013/()[\]]+$/u;
+/** A word: letters with an apostrophe or hyphen inside, and punctuation around it. */
+const WORD_TOKEN = /^[("'\u2018\u201C\[]*\p{L}[\p{L}\p{M}'\u2019-]*[)"'\u2019\u201D\].,;:!?%]*$/u;
+const LATIN_VOWEL = /[aeiouyàáâãäåæèéêëìíîïòóôõöøùúûüýÿœ]/i;
+
+/**
+ * Why a page's text is probably not its words, or undefined when it reads as text. Some PDFs map
+ * their fonts' glyphs to arbitrary characters, so pdf.js extracts hundreds of thousands of
+ * characters that are not words (the Facts about Germany PDF did), and a search for a phrase the
+ * page states finds nothing. The text is unreadable when more than 5% of its characters are
+ * replacement, private-use or control characters, or when fewer than half of its tokens that are
+ * not numbers are words. A Latin word of four letters or more needs a vowel, which catches glyphs
+ * mapped to shifted letters ("Kdssb"). Tables of words and numbers pass, since numbers are left
+ * out and their labels are words.
+ */
+export function unreadableText(text: string): string | undefined {
+  const sample = text.length > 400_000 ? text.slice(0, 400_000) : text;
+  const visible = sample.replace(/\s+/g, '');
+  if (visible.length < 200) return undefined;
+  const broken = visible.match(BROKEN_CHARACTER)?.length ?? 0;
+  if (broken / visible.length > 0.05) {
+    return `${Math.round((broken / visible.length) * 100)}% of its characters are replacement, private-use or control characters`;
+  }
+  const tokens = sample
+    .replace(/^\[Page \d+\]$/gm, '')
+    .split(/\s+/)
+    .filter((token) => token && !NUMBER_TOKEN.test(token));
+  if (tokens.length < 100) return undefined;
+  const words = tokens.filter((token) => {
+    if (!WORD_TOKEN.test(token)) return false;
+    const letters = token.replace(/[^\p{L}]/gu, '');
+    return !(letters.length >= 4 && /^[a-z]+$/i.test(letters) && !LATIN_VOWEL.test(letters));
+  }).length;
+  const share = words / tokens.length;
+  return share < 0.5
+    ? `only ${Math.round(share * 100)}% of its tokens are words, so the text was probably not extracted from the page's fonts`
+    : undefined;
 }

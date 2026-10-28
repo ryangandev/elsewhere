@@ -16,8 +16,11 @@ export type Plan = Map<string, PlannedStory[]>;
 export type CheckInput = {
   contentDir: string;
   candidate: CountryFile;
-  /** "country" for a whole draft, or the one story a revision replaced. */
-  scope: 'country' | { storyId: string };
+  /**
+   * "country" for a whole draft, "overview" for the country part a revision replaced (every story
+   * kept), or the one story a revision replaced.
+   */
+  scope: 'country' | 'overview' | { storyId: string };
   plan: Plan;
   /** Sources declared in this submission; each must have been retrieved in this task. */
   submittedSources: DraftSource[];
@@ -41,13 +44,13 @@ export function checkCandidate(input: CheckInput): string[] {
   const issues: string[] = [];
 
   // Every content:check rule, for the candidate in the context of the whole tree.
-  const revisedIndex =
-    scope === 'country' ? -1 : candidate.stories.findIndex((story) => story.id === scope.storyId);
-  const inScope = (path: string) =>
-    scope === 'country' ||
-    path.startsWith(`stories[${revisedIndex}]`) ||
-    path === 'sources' ||
-    path === 'stories';
+  const inScope = (path: string) => {
+    if (scope === 'country') return true;
+    if (path === 'sources') return true;
+    if (scope === 'overview') return path.startsWith('country');
+    const revisedIndex = candidate.stories.findIndex((story) => story.id === scope.storyId);
+    return path.startsWith(`stories[${revisedIndex}]`) || path === 'stories';
+  };
   for (const issue of validateContent({
     ...contentInput(contentDir, [{ file, data: candidate }]),
     land: input.land,
@@ -71,7 +74,9 @@ export function checkCandidate(input: CheckInput): string[] {
   const drafted =
     scope === 'country'
       ? candidate.stories
-      : candidate.stories.filter((story) => story.id === scope.storyId);
+      : scope === 'overview'
+        ? []
+        : candidate.stories.filter((story) => story.id === scope.storyId);
   for (const story of drafted) {
     story.next.forEach((ref, index) => {
       if (ref.countryId === countryId || others.has(ref.countryId)) return; // content:check covers these

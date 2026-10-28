@@ -146,6 +146,36 @@ export const StoryRevisionsDraft = z.strictObject({
 });
 export type StoryRevisionsDraft = z.infer<typeof StoryRevisionsDraft>;
 
+/**
+ * Input of the submit_overview tool: the country part of a country that review sent back alone
+ * (its overview, quick facts, starter questions and scene), with the sources it cites. Every
+ * story is kept as it is.
+ */
+export const OverviewDraft = z.strictObject({
+  country: DraftCountry,
+  sources: z
+    .array(DraftSource)
+    .min(1)
+    .describe('Every source the country part cites, declared once.'),
+});
+export type OverviewDraft = z.infer<typeof OverviewDraft>;
+
+/**
+ * The country part and the stories review sent back of one country, revised together, with the
+ * sources they cite, as agent drafting submits them when the overview is sent back. The country
+ * part is checked as OverviewDraft's is, and each story as StoryDraft's story is; `stories` is
+ * empty when only the overview is sent back.
+ */
+export const CountryRevisionsDraft = z.strictObject({
+  country: DraftCountry,
+  stories: z.array(DraftStory).describe('Every story sent back, revised, each keeping its ID.'),
+  sources: z
+    .array(DraftSource)
+    .min(1)
+    .describe('Every source the country part and the stories cite, declared once.'),
+});
+export type CountryRevisionsDraft = z.infer<typeof CountryRevisionsDraft>;
+
 /** Output of the planning request: the questions each country will answer. */
 export const BatchPlan = z.strictObject({
   countries: z.array(

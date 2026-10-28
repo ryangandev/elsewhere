@@ -35,7 +35,7 @@ export function htmlToText(html: string): string {
     .replace(/<(script|style|noscript|svg|template|head)\b[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<(br|hr)\b[^>]*>/gi, '\n')
     .replace(
-      /<\/?(p|div|section|article|header|footer|li|ul|ol|h[1-6]|tr|table|blockquote)\b[^>]*>/gi,
+      /<\/?(p|div|section|article|main|header|footer|li|ul|ol|h[1-6]|tr|table|blockquote)\b[^>]*>/gi,
       '\n',
     )
     .replace(/<(td|th)\b[^>]*>/gi, ' | ')
@@ -67,19 +67,30 @@ const collapse = (text: string) => text.replace(/\s+/g, ' ').trim();
 
 /**
  * The links of an HTML page in page order, as absolute http(s) URLs without fragments, each
- * once, with the anchor text of its first link that has any. Links to the page itself, mailto:
- * and javascript: links are left out. An image link is described by its title or alt text.
+ * once, with the anchor text of its first link that has any. Relative links resolve against the
+ * page's `<base href>` when it has one, as a browser resolves them (Destatis pages set one, and
+ * resolving against the page URL repeated their path). Links to the page itself, mailto: and
+ * javascript: links are left out. An image link is described by its title or alt text.
  */
 export function extractLinks(html: string, pageUrl: string): PageLink[] {
   const self = new URL(pageUrl);
   self.hash = '';
+  let base = self;
+  const baseHref = attribute(/<base\b[^>]*>/i.exec(html)?.[0] ?? '', 'href')?.trim();
+  if (baseHref) {
+    try {
+      base = new URL(baseHref, self);
+    } catch {
+      // A base that is not a URL is ignored, as a browser ignores it.
+    }
+  }
   const links = new Map<string, string>();
   for (const [, tag, inner] of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)) {
     const href = attribute(tag, 'href')?.trim();
     if (!href) continue;
     let url: URL;
     try {
-      url = new URL(href, self);
+      url = new URL(href, base);
     } catch {
       continue;
     }
@@ -114,7 +125,33 @@ export type FetchedPage = {
   truncated: boolean;
   /** The page's links; empty for plain text and PDF, whose text is all that is kept. */
   links: PageLink[];
+  /**
+   * Where an HTML page's main text starts in `text`, when the page marks it (a `<main>` element,
+   * an element with role="main", or its only `<article>`) and navigation fills the start of the
+   * text before it; absent otherwise.
+   */
+  mainOffset?: number;
 };
+
+/** A page whose main text starts sooner than this is printed from its start. */
+const MIN_MAIN_OFFSET = 1500;
+
+/**
+ * Where the main text of an HTML page starts in its text (htmlToText of the whole page), or
+ * undefined. The page's own mark decides: a `<main>` element, an element with role="main", or the
+ * page's only `<article>`. Both elements start a new line of text, so the text before the mark is
+ * whole lines, and the offset is used only when the page's text starts with exactly that text.
+ */
+export function mainTextOffset(html: string, text: string): number | undefined {
+  const main = /<main[\s>]|<[a-z][a-z0-9]*\b[^>]*\brole\s*=\s*["']?main\b/i.exec(html);
+  const articles = [...html.matchAll(/<article\b/gi)];
+  const at = main?.index ?? (articles.length === 1 ? articles[0].index : undefined);
+  if (at === undefined) return undefined;
+  const before = htmlToText(html.slice(0, at));
+  if (!before || !text.startsWith(before)) return undefined;
+  const offset = text[before.length] === '\n' ? before.length + 1 : before.length;
+  return offset >= MIN_MAIN_OFFSET && offset < text.length ? offset : undefined;
+}
 
 export type FetchPageOptions = {
   /** Also read PDFs, as their text layer with a "[Page n]" line before each page. */
@@ -317,8 +354,14 @@ function runningKeys(line: string, index: number): string[] {
  * reads on with only the "[Page n]" marker between.
  */
 export function dropRunningLines(pages: string[][]): string[][] {
+  const keep = runningLinesKept(pages);
+  return pages.map((lines, index) => lines.filter((_, at) => keep[index][at]));
+}
+
+/** For each line of each page, whether dropRunningLines keeps it. */
+function runningLinesKept(pages: string[][]): boolean[][] {
   const threshold = Math.max(3, Math.ceil(pages.length * 0.4));
-  if (pages.length < threshold) return pages;
+  if (pages.length < threshold) return pages.map((lines) => lines.map(() => true));
   const atEdge = (lines: string[], at: number) =>
     at < RUNNING_LINES || at >= lines.length - RUNNING_LINES;
   const counts = new Map<string, number>();
@@ -330,7 +373,7 @@ export function dropRunningLines(pages: string[][]): string[][] {
   });
   const seen = new Set<string>();
   return pages.map((lines, index) =>
-    lines.filter((line, at) => {
+    lines.map((line, at) => {
       if (!atEdge(lines, at)) return true;
       const key = runningKeys(line, index).find((each) => (counts.get(each) ?? 0) >= threshold);
       if (!key) return true;
@@ -342,13 +385,98 @@ export function dropRunningLines(pages: string[][]): string[][] {
 }
 
 /**
+ * A line of a PDF page: its text, the font size most of its letters are in, and the baseline of its
+ * first run (PDF units, measured up from the bottom of the page).
+ */
+export type PdfLine = { text: string; size: number; y: number };
+
+/** The lines of a page's runs, split where pdf.js marks a line end, each with its size and place. */
+export function pdfLines(items: PdfTextItem[]): PdfLine[] {
+  const lines: PdfLine[] = [];
+  let parts: PdfTextItem[] = [];
+  const flush = () => {
+    const text = parts
+      .map((item) => item.str)
+      .join('')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (text) {
+      // The size of the run with the most letters, so a superscript marker does not decide it.
+      const main = parts.reduce((best, item) =>
+        item.str.replace(/\s+/g, '').length > best.str.replace(/\s+/g, '').length ? item : best,
+      );
+      const first = parts.find((item) => item.str.trim()) ?? main;
+      lines.push({
+        text,
+        size: Math.hypot(main.transform[2], main.transform[3]),
+        y: first.transform[5],
+      });
+    }
+    parts = [];
+  };
+  for (const item of items) {
+    parts.push(item);
+    if (item.hasEOL) flush();
+  }
+  flush();
+  return lines;
+}
+
+/** How a footnote begins: a number of up to three digits or a footnote symbol. */
+const FOOTNOTE_MARKER = /^(\d{1,3}|[*\u2020\u2021\u00a7\u00b6]+)(?=[\s(\p{L}])/u;
+/** A line that is only a page number, which stays where it is. */
+const PAGE_NUMBER = /^(page\s+)?\d{1,4}$/i;
+/** A footnote is set this much smaller than the page's body text, or more. */
+const FOOTNOTE_SIZE = 0.85;
+
+/**
+ * Split a page's lines into its body and the footnotes at its foot. Footnotes are the last lines
+ * of the page, from one that starts with a footnote marker on: all of them set at most 85% of the
+ * body's size (the size most of the page's letters are in) and all below every line of body text.
+ * A page needs five lines of body text to tell. Page numbers among them stay in the body, where
+ * the running header and footer step finds them. Moving footnotes out lets a sentence that runs
+ * on to the next page read on without a footnote in the middle of it.
+ */
+export function splitFootnotes(lines: PdfLine[]): { body: PdfLine[]; footnotes: PdfLine[] } {
+  const none = { body: lines, footnotes: [] };
+  const letters = new Map<number, number>();
+  for (const line of lines) {
+    const size = Math.round(line.size * 2) / 2;
+    letters.set(size, (letters.get(size) ?? 0) + line.text.replace(/\s+/g, '').length);
+  }
+  const [bodySize] = [...letters].reduce(
+    (best, entry) => (entry[1] > best[1] ? entry : best),
+    [0, 0],
+  );
+  const isBody = (line: PdfLine) => Math.abs(line.size - bodySize) <= 0.5;
+  const bodyLines = lines.filter(isBody);
+  if (bodyLines.length < 5) return none;
+  const lowestBody = Math.min(...bodyLines.map((line) => line.y));
+  const small = (line: PdfLine) => line.size <= bodySize * FOOTNOTE_SIZE && line.y < lowestBody;
+  let start = lines.length;
+  for (let at = lines.length - 1; at >= 0; at -= 1) {
+    const line = lines[at];
+    if (!small(line) && !PAGE_NUMBER.test(line.text)) break;
+    if (small(line) && FOOTNOTE_MARKER.test(line.text)) start = at;
+  }
+  if (start === lines.length) return none;
+  const tail = lines.slice(start);
+  return {
+    body: [...lines.slice(0, start), ...tail.filter((line) => PAGE_NUMBER.test(line.text))],
+    footnotes: tail.filter((line) => !PAGE_NUMBER.test(line.text)),
+  };
+}
+
+/**
  * The text layer of a PDF, with a "[Page n]" line before each page. Text drawn twice over itself
  * is read once, running headers and footers once, and pdf.js keeps its warnings about fonts to
- * itself (verbosity 0 is errors only), so they never mix with a command's output.
+ * itself (verbosity 0 is errors only), so they never mix with a command's output. Footnotes leave
+ * the page they are on and follow the last page, each page's under a "[Footnotes of page n]" line,
+ * so a sentence that runs on to the next page is not cut by them, and no text is lost.
  */
 export async function pdfToText(data: Uint8Array): Promise<string> {
   const { getDocumentProxy } = await import('unpdf');
-  const pages: string[][] = [];
+  const pages: PdfLine[][] = [];
   try {
     // pdf.js refuses a Node Buffer and may take ownership of the bytes, so it gets its own copy.
     const document = await getDocumentProxy(new Uint8Array(data), { verbosity: 0 });
@@ -356,15 +484,7 @@ export async function pdfToText(data: Uint8Array): Promise<string> {
       for (let number = 1; number <= document.numPages; number += 1) {
         const content = await (await document.getPage(number)).getTextContent();
         const items: PdfTextItem[] = content.items.flatMap((item) => ('str' in item ? [item] : []));
-        const text = dropOverdrawnText(items)
-          .map((item) => item.str + (item.hasEOL ? '\n' : ''))
-          .join('');
-        pages.push(
-          text
-            .split('\n')
-            .map((line) => line.replace(/\s+/g, ' ').trim())
-            .filter(Boolean),
-        );
+        pages.push(pdfLines(dropOverdrawnText(items)));
       }
     } finally {
       await document.loadingTask.destroy();
@@ -377,9 +497,17 @@ export async function pdfToText(data: Uint8Array): Promise<string> {
   if (!pages.some((lines) => lines.length)) {
     throw new Error('the PDF has no text layer; it may be a scan');
   }
-  return dropRunningLines(pages)
-    .map((lines, index) => `[Page ${index + 1}]\n${lines.join('\n')}`)
-    .join('\n\n');
+  const keep = runningLinesKept(pages.map((lines) => lines.map((line) => line.text)));
+  const split = pages.map((lines, index) =>
+    splitFootnotes(lines.filter((_, at) => keep[index][at])),
+  );
+  const text = (lines: PdfLine[]) => lines.map((line) => line.text).join('\n');
+  return [
+    ...split.map(({ body }, index) => `[Page ${index + 1}]\n${text(body)}`),
+    ...split.flatMap(({ footnotes }, index) =>
+      footnotes.length ? [`[Footnotes of page ${index + 1}]\n${text(footnotes)}`] : [],
+    ),
+  ].join('\n\n');
 }
 
 /** What a failed request says in `error.cause`: its error code and message, if it has either. */
@@ -398,10 +526,28 @@ function causeDetail(cause: unknown): string | undefined {
 }
 
 /**
+ * The error codes of a TLS certificate that could not be verified: expired, not yet valid, self
+ * signed, issued for another name, or signed by an issuer this computer does not trust (or whose
+ * intermediate certificate the server does not send, as knbs.or.ke's did).
+ */
+const CERTIFICATE_ERROR =
+  /CERT|SELF_SIGNED|UNABLE_TO_(VERIFY|GET_ISSUER|DECRYPT)|ALTNAME|HOSTNAME_MISMATCH|ERR_TLS_CERT/;
+
+/** The error code of a request's cause, or of the first of several causes. */
+function causeCode(cause: unknown): string | undefined {
+  if (!cause || typeof cause !== 'object') return undefined;
+  const { code, errors } = cause as { code?: unknown; errors?: unknown };
+  if (typeof code === 'string') return code;
+  return Array.isArray(errors) ? causeCode(errors[0]) : undefined;
+}
+
+/**
  * Node's fetch reports every network failure as "fetch failed" and keeps the real reason (a
  * redirect loop, a certificate for another name, a reset connection, an unknown host) in the
  * error's cause. The reason is added to the message so a person or an agent can tell a page that
- * will never load from one that may load later.
+ * will never load from one that may load later. A certificate that could not be verified is named
+ * as such: the page is never read over a connection whose certificate failed, so it cannot be read
+ * from this computer until the site fixes it.
  */
 async function request(fetchImpl: typeof fetch, url: string, init: RequestInit) {
   try {
@@ -409,6 +555,13 @@ async function request(fetchImpl: typeof fetch, url: string, init: RequestInit) 
   } catch (error) {
     const detail = error instanceof Error ? causeDetail(error.cause) : undefined;
     if (!(error instanceof Error) || !detail) throw error;
+    const code = causeCode(error.cause) ?? '';
+    if (CERTIFICATE_ERROR.test(code)) {
+      throw new Error(
+        `certificate error: the site's TLS certificate could not be verified (${detail}), and a page is never read over an unverified connection`,
+        { cause: error },
+      );
+    }
     throw new Error(`${error.message} (${detail})`, { cause: error });
   }
 }
@@ -458,13 +611,17 @@ export async function fetchPage(url: string, options: FetchPageOptions = {}): Pr
   const body = await readBody(response, maxBytes);
   let text: string;
   let links: PageLink[] = [];
+  let mainOffset: number | undefined;
   if (pdf && isPdf(body)) {
     text = await pdfToText(body);
   } else if (isText) {
     const raw = decode(body, contentType);
     const html = /html/i.test(contentType);
     text = html ? htmlToText(raw) : raw.trim();
-    if (html) links = extractLinks(raw, response.url || url);
+    if (html) {
+      links = extractLinks(raw, response.url || url);
+      mainOffset = mainTextOffset(raw, text);
+    }
     if (!text) throw new Error('the page has no text without running its scripts');
     if (text.length <= BOT_CHALLENGE_MAX_CHARACTERS && BOT_CHALLENGE.test(text)) {
       throw new Error('the server answered with a bot challenge instead of the page');
@@ -481,6 +638,7 @@ export async function fetchPage(url: string, options: FetchPageOptions = {}): Pr
     text: truncated ? text.slice(0, maxCharacters) : text,
     truncated,
     links,
+    ...(mainOffset !== undefined && mainOffset < maxCharacters ? { mainOffset } : {}),
   };
 }
 

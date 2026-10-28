@@ -4,7 +4,8 @@
 // appears in a web search result of the same conversation, as the pipeline requires.
 // The claims-CHL fixture checks the drafted Chile overview and its "length" story against their
 // sources in one conversation: pages fetched with web_fetch (or fetch_page when web_fetch fails),
-// then verdicts through submit_verdicts.
+// then verdicts through submit_verdicts. The CHL_overview fixture redrafts the Chile country part
+// that review sent back alone, citing a new page for one item.
 //
 //   node --import tsx tests/pipeline/fixtures/build-replay.ts
 //
@@ -347,6 +348,20 @@ function revisedAndes() {
   };
 }
 
+/** The Chile country part redrafted: a new summary, and a new page for "Fixture point two". */
+export function revisedOverview() {
+  const { country } = chileDraft();
+  country.overview.summary = placeholder('the revised overview');
+  country.overview.whyItMatters[1].sourceIds = ['fixture-history-report'];
+  return {
+    country,
+    sources: [
+      ...SOURCES.filter((entry) => entry.id !== 'fixture-history'),
+      source('fixture-history-report', 'chile/history-report', 'Fixture report for the revision'),
+    ],
+  };
+}
+
 const read = (id: string) => ({ id, status: 'read', note: null });
 
 type FixtureVerdict = {
@@ -576,6 +591,22 @@ export function replayFixtures(): Record<string, unknown[]> {
         cacheRead: 14000,
         output: 1500,
       }),
+    ],
+    // Last, so the IDs of the fixtures above stay as they were.
+    CHL_overview: [
+      message(
+        [
+          ...webSearch('fixture chile overview revision', [
+            { path: 'chile/overview', title: 'Fixture overview page' },
+            { path: 'chile/geography', title: 'Fixture geography page' },
+            { path: 'chile/economy', title: 'Fixture economy page' },
+            { path: 'chile/history-report', title: 'Fixture report for the revision' },
+          ]),
+          toolUse('submit_overview', revisedOverview()),
+        ],
+        'tool_use',
+        { input: 40000, output: 2000, searches: 1 },
+      ),
     ],
   };
 }

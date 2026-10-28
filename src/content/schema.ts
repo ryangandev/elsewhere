@@ -39,11 +39,17 @@ export const Source = z.strictObject({
 });
 export type Source = z.infer<typeof Source>;
 
-/** A reviewer's request to redraft a draft; the next regeneration consumes it. */
+/**
+ * A reviewer's request to redraft a draft; the next regeneration consumes it. On a country,
+ * `scope: "overview"` sends back only the country part of the file (kicker, overview, quick facts,
+ * starter questions, scene and their sources) and keeps every story; without it the whole
+ * country is redrafted. A story's request has no scope.
+ */
 export const RevisionRequest = z.strictObject({
   notes: Text,
   requestedBy: Text,
   requestedAt: IsoDate,
+  scope: z.literal('overview').optional(),
 });
 export type RevisionRequest = z.infer<typeof RevisionRequest>;
 
@@ -177,7 +183,10 @@ export const Story = z.strictObject({
   /** Next questions: at most three, at least one in the same country and one elsewhere. */
   next: z.array(StoryRef).max(3),
   sources: z.array(Source).min(1),
-  provenance: Provenance,
+  provenance: Provenance.refine((value) => !value.revision?.scope, {
+    message: 'Only a country sends back its overview alone; a story revision has no scope',
+    path: ['revision', 'scope'],
+  }),
 });
 export type Story = z.infer<typeof Story>;
 

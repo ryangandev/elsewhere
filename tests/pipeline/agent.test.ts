@@ -14,7 +14,13 @@ import {
   type AgentDeps,
 } from '../../pipeline/agent/commands';
 import { AGENT_EVIDENCE_RULE } from '../../pipeline/agent/brief';
-import { MIN_PAGE_CHARACTERS, notTheRequestedPage } from '../../pipeline/agent/page-check';
+import {
+  MIN_PAGE_CHARACTERS,
+  notTheRequestedPage,
+  redirectKind,
+  siteOf,
+  unreadableText,
+} from '../../pipeline/agent/page-check';
 import {
   briefFile,
   draftFile,
@@ -23,14 +29,26 @@ import {
   sessionDir,
   writeSession,
 } from '../../pipeline/agent/session';
+import { recordChecks, readClaims, defaultClaimsDir } from '../../pipeline/claims/store';
+import { claimsJobs, jobUnits } from '../../pipeline/claims/plan';
+import { allScopes, scopeUnits } from '../../pipeline/claims/units';
 import { extractLinks, fetchPage } from '../../pipeline/claims/local-fetch';
 import { parseArgsOnce } from '../../pipeline/cli-args';
 import { DEFAULT_MODEL } from '../../pipeline/config';
 import { countryFilePath, readCountryFile, writeCountryFile } from '../../pipeline/content-tree';
-import { assembleCountry } from '../../pipeline/generate/assemble';
+import {
+  assembleCountry,
+  toDraftCountry,
+  toDraftSources,
+  toDraftStory,
+} from '../../pipeline/generate/assemble';
 import { CountryDraft } from '../../pipeline/generate/draft-schema';
 import { allPlans } from '../../pipeline/generate/plan';
-import { loadAgentPrompts, loadAgentRevisionPrompts } from '../../pipeline/prompts';
+import {
+  CURRENT_AGENT_PROMPT_VERSION,
+  loadAgentPrompts,
+  loadAgentRevisionPrompts,
+} from '../../pipeline/prompts';
 import { requestRevision } from '../../pipeline/review/actions';
 import { chileDraft } from './fixtures/build-replay';
 import { RUN_DATE, minimalPdf, tempContentTree, tempDir } from './helpers';
@@ -121,14 +139,21 @@ function setup(
     );
   const read = (
     url: string,
-    extra: { offset?: number; find?: string; links?: boolean; refresh?: boolean } = {},
+    extra: {
+      offset?: number;
+      find?: string | string[];
+      matches?: number;
+      links?: boolean;
+      refresh?: boolean;
+    } = {},
   ) =>
     fetchCommand(
       {
         countryId: 'CHL',
         url,
-        offset: extra.offset ?? 0,
-        find: extra.find,
+        offset: extra.offset,
+        find: typeof extra.find === 'string' ? [extra.find] : extra.find,
+        matches: extra.matches,
         links: extra.links,
         refresh: !!extra.refresh,
       },
@@ -159,7 +184,7 @@ describe('agent drafting session', () => {
     expect(session).toMatchObject({
       countryId: 'CHL',
       model: DEFAULT_MODEL,
-      promptVersion: 'agent-v2',
+      promptVersion: CURRENT_AGENT_PROMPT_VERSION,
       date: RUN_DATE,
       regenerate: false,
       submissions: [],
@@ -185,10 +210,12 @@ describe('agent drafting session', () => {
   });
 
   it('keeps the prompt version of a session it continues', () => {
-    const { dir, begin } = setup({ plan: undefined });
+    const { dir, begin, output } = setup({ plan: undefined });
     begin();
     writeSession(dir, { ...readSession(dir, 'CHL'), promptVersion: 'agent-v1' });
+    output();
     expect(begin()).toBe(0);
+    expect(output()).toContain('Continued the unfinished session, which had not fetched');
     expect(readSession(dir, 'CHL').promptVersion).toBe('agent-v1');
     expect(readFileSync(briefFile(dir), 'utf8')).toContain('Britannica (the main edition');
   });
@@ -290,7 +317,7 @@ describe('agent fetch command', () => {
     expect(requested.filter((url) => url === 'https://example.org/long')).toHaveLength(1);
   });
 
-  it('says how many times words appear and lists the rest from an offset', async () => {
+  it('says how many times words appear and lists a few at a time from an offset', async () => {
     const MANY = 'https://example.org/many';
     const sentence = 'Copper is mined here.\n';
     const { begin, read, output } = setup({
@@ -301,22 +328,158 @@ describe('agent fetch command', () => {
     expect(await read(MANY, { find: 'copper' })).toBe(0);
     const first = output();
     expect(first).toContain(
-      '"copper" appears 25 times in the text; matches 1 to 20. Each excerpt shows line breaks and runs of spaces as one space.',
+      '"copper" appears 25 times in the text; matches 1 to 5. Each excerpt shows line breaks and runs of spaces as one space.',
     );
-    expect(first).toContain('- offset 418: ...');
-    expect(first).not.toContain('- offset 440:');
+    expect(first).toContain('- offset 88: ...');
+    expect(first).not.toContain('- offset 110:');
     expect(first).toContain(
-      `Next matches: npm run content:agent -- fetch CHL "${MANY}" --find "copper" --offset 419`,
+      `20 more: npm run content:agent -- fetch CHL "${MANY}" --find "copper" --offset 89`,
     );
-    expect(await read(MANY, { find: 'copper', offset: 419 })).toBe(0);
+    expect(first).not.toContain('##');
+    // More places per term on request, kept in the command for the next ones.
+    expect(await read(MANY, { find: 'copper', matches: 20 })).toBe(0);
+    const twenty = output();
+    expect(twenty).toContain('matches 1 to 20.');
+    expect(twenty).toContain(
+      `5 more: npm run content:agent -- fetch CHL "${MANY}" --find "copper" --matches 20 --offset 419`,
+    );
+    expect(await read(MANY, { find: 'copper', matches: 20, offset: 419 })).toBe(0);
     const rest = output();
     expect(rest).toContain('matches 21 to 25, from character 419 on.');
-    expect(rest).toContain('- offset 440: ...');
-    expect(rest).not.toContain('Next matches');
+    expect(rest).toContain('- offset 528: ...');
+    expect(rest).not.toContain('more:');
     expect(await read(MANY, { find: 'copper', offset: 540 })).toBe(0);
     expect(output()).toContain(
       '"copper" appears 25 times in the text, but not from character 540 on.',
     );
+    expect(await read(MANY, { find: 'copper', matches: 0 })).toBe(1);
+    expect(output()).toContain('--matches is a whole number from 1 to 50.');
+  });
+
+  it('searches several terms in one call, each under its own heading', async () => {
+    const MANY = 'https://example.org/many';
+    const { begin, read, output } = setup({
+      pages: {
+        ...pages,
+        [MANY]: { type: 'text/plain', body: 'Copper is mined here.\n'.repeat(8) + 'Lithium too.' },
+      },
+    });
+    begin();
+    output();
+    expect(await read(MANY, { find: ['copper', 'lithium', 'zinc'] })).toBe(0);
+    const printed = output();
+    expect(printed).toMatch(/^## copper\n"copper" appears 8 times in the text; matches 1 to 5\./m);
+    expect(printed).toContain(
+      `3 more: npm run content:agent -- fetch CHL "${MANY}" --find "copper" --offset 89`,
+    );
+    expect(printed).toMatch(/^## lithium\n"lithium" appears once in the text\./m);
+    expect(printed).toMatch(/^## zinc\n"zinc" does not appear in the text\. Try another word/m);
+    expect(printed.match(/Read around a match with/g)).toHaveLength(1);
+  });
+
+  it('warns when the text of a page could not be extracted, in the fetch output and on a miss', async () => {
+    // Font-encoded text as some PDFs give it: letters, but no words.
+    const glyphs = 'Kdssb Xqvzt Bcdfg Hjklm Npqrs Tvwxz Qwrtp Zxcvb '.repeat(40);
+    const { begin, read, output } = setup({
+      pages: { ...pages, 'https://example.org/encoded': { type: 'text/plain', body: glyphs } },
+    });
+    begin();
+    output();
+    expect(await read('https://example.org/encoded')).toBe(0);
+    expect(output()).toContain(
+      'WARNING: the text could not be extracted from this page: only 0% of its tokens are words',
+    );
+    expect(await read('https://example.org/encoded', { find: 'population' })).toBe(0);
+    expect(output()).toContain(
+      '"population" does not appear in the text, but the text could not be extracted from this page (only 0% of its tokens are words',
+    );
+    // An ordinary page has no such warning.
+    expect(await read('https://example.org/article')).toBe(0);
+    expect(output()).not.toContain('could not be extracted');
+  });
+
+  it('starts the first print at the main text after long navigation', async () => {
+    const menu = Array.from(
+      { length: 60 },
+      (_, index) => `<li><a href="/s${index}">Section ${index} of the site menu</a></li>`,
+    ).join('');
+    const body = `<!doctype html><html><body><nav><ul>${menu}</ul></nav><main><h1>Copper exports</h1><p>Chile exports copper.${BACKGROUND}</p></main></body></html>`;
+    const URL_ = 'https://example.org/navigation';
+    const { begin, read, output } = setup({
+      pages: { ...pages, [URL_]: { type: 'text/html', body } },
+    });
+    begin();
+    output();
+    expect(await read(URL_)).toBe(0);
+    const first = output();
+    const offset = first.match(/The page's main text starts at character ([\d,]+);/)![1];
+    expect(first).toContain(
+      `mostly navigation. Print them with npm run content:agent -- fetch CHL "${URL_}" --offset 0`,
+    );
+    expect(first).toContain(`Characters ${offset} to `);
+    expect(first).toMatch(/-----\nCopper exports\nChile exports copper\./);
+    expect(first).not.toContain('Section 3 of the site menu');
+    // --offset still counts from the start of the stored text.
+    expect(await read(URL_, { offset: 0 })).toBe(0);
+    const start = output();
+    expect(start).toContain('Section 3 of the site menu');
+    expect(start).not.toContain('main text starts');
+  });
+
+  it('says once, when a page is fetched, what a redirect means for the URL to cite', async () => {
+    const DOWNLOAD = 'https://stats.example.org/download?id=7';
+    const MOVED = 'https://agency.example.gov/statistics/population-2026';
+    const { begin, read, output } = setup({
+      pages: {
+        ...pages,
+        [DOWNLOAD]: {
+          type: 'application/pdf',
+          body: minimalPdf([
+            Array(10).fill('Population 19.6 million at the census of every region'),
+          ]),
+          finalUrl: 'https://stats.example.org/files/yearbook.pdf',
+        },
+        [MOVED]: {
+          type: 'text/html',
+          body: fullPage('Search', 'No results.'),
+          finalUrl: 'https://agency.example.gov/search/results?q=x',
+        },
+      },
+    });
+    begin();
+    output();
+    expect(await read(DOWNLOAD)).toBe(0);
+    expect(output()).toContain(
+      "Redirected to https://stats.example.org/files/yearbook.pdf, the file the link downloads. Cite the file's URL, https://stats.example.org/files/yearbook.pdf",
+    );
+    expect(await read(DOWNLOAD, { offset: 0 })).toBe(0);
+    expect(output()).not.toContain('Redirected');
+
+    expect(await read(MOVED)).toBe(0);
+    expect(output()).toContain(
+      'WARNING: redirected to https://agency.example.gov/search/results?q=x, whose address shares no word with the one asked for',
+    );
+
+    expect(await read('https://example.org/article')).toBe(0);
+    expect(output()).toContain(
+      'Redirected to https://www.example.org/article/; either URL may be cited.',
+    );
+    expect(await read('https://example.org/article', { find: 'copper' })).toBe(0);
+    expect(output()).not.toContain('Redirected');
+  });
+
+  it('says that a page asked for over http is cited by its https URL', async () => {
+    const { begin, read, output } = setup({
+      pages: { ...pages, 'http://example.org/plain': { type: 'text/plain', body: 'Plain.' } },
+    });
+    begin();
+    output();
+    expect(await read('http://example.org/plain')).toBe(0);
+    expect(output()).toContain(
+      'Sources are cited by https URL only, and http and https count as the same page. Before you cite https://example.org/plain, fetch it with --refresh to check that it loads over https.',
+    );
+    expect(await read('https://example.org/notes.txt')).toBe(0);
+    expect(output()).not.toContain('https URL only');
   });
 
   it('says why a request failed at the network level, and records the attempt', async () => {
@@ -338,7 +501,7 @@ describe('agent fetch command', () => {
       ['https://loop.example/a', 'fetch failed (redirect count exceeded)'],
       [
         'https://wrong.example/',
-        "fetch failed (ERR_TLS_CERT_ALTNAME_INVALID: Hostname/IP does not match certificate's altnames: Host: wrong.example)",
+        "certificate error: the site's TLS certificate could not be verified (ERR_TLS_CERT_ALTNAME_INVALID: Hostname/IP does not match certificate's altnames: Host: wrong.example), and a page is never read over an unverified connection",
       ],
       ['https://reset.example/', 'fetch failed (read ECONNRESET)'],
       ['https://refused.example/', 'fetch failed (ECONNREFUSED)'],
@@ -354,6 +517,7 @@ describe('agent fetch command', () => {
       url: 'https://loop.example/a',
       attemptedAt: '2026-10-26T12:00:00.000Z',
       reason: 'fetch failed (redirect count exceeded)',
+      attempts: 1,
     });
     // A failed attempt is a note for the drafter, never evidence.
     expect(loadEvidence(dir).records).toEqual([]);
@@ -378,6 +542,28 @@ describe('agent fetch command', () => {
     expect(readSession(dir, 'CHL').failedFetches).toMatchObject([
       { url: 'https://example.org/blocked', reason: 'the server answered 403' },
     ]);
+  });
+
+  it('keeps one entry per URL for failed fetches, with the number of attempts', async () => {
+    const { dir, begin, read, output, deps } = setup({ pages });
+    begin();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      expect(await read('https://example.org/blocked')).toBe(1);
+    }
+    // http and https name the same page.
+    expect(await read('http://example.org/blocked')).toBe(1);
+    expect(await read('https://example.org/missing')).toBe(1);
+    output();
+    expect(readSession(dir, 'CHL').failedFetches).toMatchObject([
+      { url: 'http://example.org/blocked', attempts: 4 },
+      { url: 'https://example.org/missing', attempts: 1 },
+    ]);
+    status({ countryId: 'CHL' }, deps);
+    const printed = output();
+    expect(printed).toContain('Failed fetches: 2');
+    expect(printed).toContain(
+      'http://example.org/blocked (4 attempts, the latest 2026-10-26T12:00:00.000Z): the server answered 404',
+    );
   });
 
   it('keeps failed fetches when a session continues, and reads sessions without them', async () => {
@@ -559,7 +745,7 @@ describe('agent submit command', () => {
       expect(file.country.provenance).toEqual({
         generatedBy: DEFAULT_MODEL,
         generatedAt: RUN_DATE,
-        promptVersion: 'agent-v2',
+        promptVersion: CURRENT_AGENT_PROMPT_VERSION,
         status: 'draft',
       });
       expect(file.stories.map((story) => story.id)).toEqual([
@@ -734,6 +920,16 @@ describe('pages that are not the requested page', () => {
       reason: 'redirected to a login, sign-in or consent page',
     },
     {
+      // A dead page whose domain was taken over: Kenya's entry went to a pilates studio.
+      url: 'https://www.commonwealthgovernance.org/countries/africa/kenya/',
+      page: {
+        type: 'text/html',
+        body: fullPage('Reformer classes', 'Book a class.'),
+        finalUrl: 'https://www.pilates-studio.example/classes/reformer',
+      },
+      reason: 'redirected to another site',
+    },
+    {
       url: 'https://daily.example.com/world/story',
       page: {
         type: 'text/html',
@@ -746,11 +942,17 @@ describe('pages that are not the requested page', () => {
 
   /** Pages that move or are short, but are the page that was asked for. */
   const ordinary: Record<string, Page> = {
-    // A DOI lands on the publisher's article, on another host.
-    'https://doi.example/10.1/abc': {
+    // A DOI lands on the publisher's article, on another site.
+    'https://doi.org/10.1/abc': {
       type: 'text/html',
       body: fullPage('Article', 'Findings.'),
       finalUrl: 'https://publisher.example.net/articles/10.1-abc',
+    },
+    // Another host of the same site.
+    'https://www.ons.gov.uk/economy/output': {
+      type: 'text/html',
+      body: fullPage('Output', 'Tables.'),
+      finalUrl: 'https://data.ons.gov.uk/economy/output',
     },
     // A site that moved to www and added a language path.
     'https://agency.example.gov/statistics': {
@@ -791,6 +993,82 @@ describe('pages that are not the requested page', () => {
     for (const [url, page] of Object.entries(ordinary)) {
       expect(check(url, page.finalUrl ?? url, MIN_PAGE_CHARACTERS)).toBeUndefined();
     }
+  });
+
+  it('tells sites apart by their registrable name', () => {
+    // One site: a leading www, or another host under a registry's second level.
+    for (const [a, b] of [
+      ['ine.es', 'www.ine.es'],
+      ['www.bcn.cl', 'bcn.cl'],
+      ['www.cbs.nl', 'longreads.cbs.nl'],
+      ['www.ons.gov.uk', 'data.ons.gov.uk'],
+      ['www.knbs.or.ke', 'knbs.or.ke'],
+      ['www.nation.co.ke', 'epaper.nation.co.ke'],
+      ['www.inegi.org.mx', 'inegi.org.mx'],
+      ['www.inegi.gob.mx', 'inegi.gob.mx'],
+      ['www.gov.uk', 'gov.uk'],
+    ]) {
+      expect(siteOf(a), `${a} and ${b}`).toBe(siteOf(b));
+    }
+    expect(siteOf('www.ine.es')).toBe('ine.es');
+    expect(siteOf('data.ons.gov.uk')).toBe('ons.gov.uk');
+    expect(siteOf('epaper.nation.co.ke')).toBe('nation.co.ke');
+    expect(siteOf('www.inegi.gob.mx')).toBe('inegi.gob.mx');
+    expect(siteOf('www.gov.uk')).toBe('gov.uk');
+    // Different sites, under a registry's second level or not.
+    for (const [a, b] of [
+      ['www.ons.gov.uk', 'www.gchq.gov.uk'],
+      ['www.ons.gov.uk', 'www.gov.uk'],
+      ['www.gob.mx', 'datos.gob.mx'],
+      ['knbs.or.ke', 'kippra.or.ke'],
+      ['ine.es', 'bde.es'],
+      ['www.commonwealthgovernance.org', 'www.pilates-studio.example'],
+    ]) {
+      expect(siteOf(a), `${a} and ${b}`).not.toBe(siteOf(b));
+    }
+    // A redirect between hosts of one site is the page asked for.
+    const check = (requestedUrl: string, finalUrl: string) =>
+      notTheRequestedPage({ requestedUrl, finalUrl, text: 'x'.repeat(5000) });
+    expect(
+      check('https://ine.es/dyngs/INEbase/x.htm', 'https://www.ine.es/dyngs/INEbase/x.htm'),
+    ).toBeUndefined();
+    expect(
+      check('https://www.bcn.cl/leychile/navegar?id=1', 'https://bcn.cl/leychile/navegar?id=1'),
+    ).toBeUndefined();
+    expect(
+      check('https://www.cbs.nl/en-gb/longread/x', 'https://longreads.cbs.nl/x'),
+    ).toBeUndefined();
+  });
+
+  it('tells what a redirect means for the URL to cite', () => {
+    const kind = (requestedUrl: string, finalUrl: string, contentType = 'text/html') =>
+      redirectKind({ requestedUrl, finalUrl, contentType, text: 'Text.' });
+    expect(kind('https://a.example/p', 'https://a.example/p')).toBe('none');
+    expect(
+      kind('https://a.example/download?id=1', 'https://a.example/f/report.pdf', 'application/pdf'),
+    ).toBe('file');
+    expect(kind('https://a.example/stats/population', 'https://a.example/error/404')).toBe(
+      'unrelated',
+    );
+    expect(
+      kind('https://a.example/stats/population', 'https://www.a.example/en/stats/population/'),
+    ).toBe('same');
+  });
+
+  it('tells text that could not be extracted from text that reads', () => {
+    const prose =
+      'Chile stretches about 4,300 km from north to south, and most of its people live in the central valley around Santiago. ';
+    expect(unreadableText(prose.repeat(20))).toBeUndefined();
+    // A statistics table: numbers and short labels.
+    const table = 'Region 2019 2020 2021\nAtacama 286,168 288,944 291,000 (est.)\n'.repeat(40);
+    expect(unreadableText(table)).toBeUndefined();
+    expect(unreadableText('Short.')).toBeUndefined();
+    expect(unreadableText('\uE001\uE002\uE003 word '.repeat(80))).toMatch(
+      /^\d+% of its characters are replacement, private-use or control characters$/,
+    );
+    expect(unreadableText('Kdssb Xqvzt Bcdfg %#&@ '.repeat(60))).toMatch(
+      /^only \d+% of its tokens are words/,
+    );
   });
 
   it('warns in the fetch output, still stores the page, and marks it in status', async () => {
@@ -848,16 +1126,36 @@ describe('pages that are not the requested page', () => {
   );
 });
 
-describe('agent-v2 prompts', () => {
+describe('agent prompts', () => {
   const research = (system: string) =>
     system.slice(system.indexOf('# Research and sources'), system.indexOf('# The map scene'));
 
-  it('is the current line, with agent-v1 left as it was', () => {
+  it('is on agent-v3, which changed only the research section and the commands', () => {
+    const v2 = loadAgentPrompts('agent-v2');
+    const v3 = loadAgentPrompts();
+    expect(v3.version).toBe('agent-v3');
+    expect(v3.system.replace(research(v3.system), '')).toBe(
+      v2.system.replace(research(v2.system), ''),
+    );
+    expect(v3['link-targets']).toBe(v2['link-targets']);
+    expect(v3.repair).toBe(v2.repair);
+    expect(research(v3.system)).toContain('Cite every source by its https URL');
+    expect(research(v3.system)).toContain('If it ended at a file such as a PDF');
+    expect(v3['draft-country']).toContain('repeat `--find` to search several terms');
+    // agent-v2 stays as it was, for the sessions that recorded it; it never had revise-overview.
+    expect(research(v2.system)).not.toContain('https URL');
+    expect(() => loadAgentRevisionPrompts('agent-v2', { overview: true })).toThrow(
+      'The agent-v2 agent prompts have no revise-overview template.',
+    );
+    expect(loadAgentRevisionPrompts('agent-v2')['revise-story']).toContain('# Task: revise');
+  });
+
+  it('kept agent-v2 apart from agent-v1 only in research and commands', () => {
     const v1 = loadAgentPrompts('agent-v1');
     expect(v1.system).toContain('the CIA World Factbook, Britannica (the main edition');
     expect(v1.system).not.toContain('curl');
 
-    const v2 = loadAgentPrompts();
+    const v2 = loadAgentPrompts('agent-v2');
     expect(v2.version).toBe('agent-v2');
     // Everything outside the research section and the command list is unchanged.
     expect(v2.system.replace(research(v2.system), '')).toBe(
@@ -1019,7 +1317,7 @@ describe('agent revision session', () => {
     const { contentDir, dir, reviseStart, output } = revisionSetup();
     expect(reviseStart()).toBe(1);
     expect(output()).toContain(
-      'No story in Chile is sent back for revision. Send one back first with: npm run content:review -- revise CHL <story>',
+      'Nothing in Chile is sent back for revision. Send the overview back with npm run content:review -- revise CHL --overview --notes "...", or a story with npm run content:review -- revise CHL <story>',
     );
     expect(existsSync(dir)).toBe(false);
 
@@ -1043,10 +1341,10 @@ describe('agent revision session', () => {
     sendBack();
     expect(reviseStart()).toBe(0);
     expect(output()).toContain(
-      `Agent revision session for Chile (CHL) in ${dir}, revising "andes".`,
+      `Agent revision session for Chile (CHL) in ${dir}, revising "andes".\nRead the whole brief`,
     );
     expect(readSession(dir, 'CHL')).toMatchObject({
-      promptVersion: 'agent-v2',
+      promptVersion: CURRENT_AGENT_PROMPT_VERSION,
       model: DEFAULT_MODEL,
       revisions: [
         {
@@ -1061,13 +1359,19 @@ describe('agent revision session', () => {
     expect(brief).toContain(
       `### "andes": Fixture question about andes?\n\n#### Editor's notes\n\n${NOTES}\n\n#### The story as drafted\n\n`,
     );
-    // The story as drafted, as the API revision task shows it: without the revision request.
+    // The story as drafted in the submission's shape, so it can be copied as the starting draft.
     const old = readCountryFile(contentDir, 'chile')!.stories[3];
-    const { revision, ...provenance } = old.provenance;
-    expect(revision?.notes).toBe(NOTES);
+    const asDrafted = { story: toDraftStory(old), sources: toDraftSources(old.sources) };
+    expect(brief).toContain(`\`\`\`json\n${JSON.stringify(asDrafted, null, 2)}\n\`\`\``);
+    // draft.json starts as the parts sent back, and the brief says so.
+    expect(JSON.parse(readFileSync(draftFile(dir), 'utf8'))).toEqual({
+      stories: [asDrafted.story],
+      sources: asDrafted.sources,
+    });
     expect(brief).toContain(
-      `\`\`\`json\n${JSON.stringify({ ...old, provenance }, null, 2)}\n\`\`\``,
+      `When the session starts, ${draftFile(dir)} holds the stories as drafted and the sources they cite, in the submission's shape`,
     );
+    expect(brief).not.toContain('Sources the last claim check could not read');
     expect(brief).toContain(
       'Other stories in Chile (country ID CHL): "length" (Fixture question about length?)',
     );
@@ -1153,7 +1457,7 @@ describe('agent revision session', () => {
       expect(submit({ countryId: 'CHL' }, deps)).toBe(0);
       const printed = output();
       expect(printed).toContain(
-        `Submission 1 passed. Wrote "andes" into ${file} (draft, agent-v2, ${DEFAULT_MODEL}); the revision requests are cleared`,
+        `Submission 1 passed. Wrote "andes" into ${file} (draft, ${CURRENT_AGENT_PROMPT_VERSION}, ${DEFAULT_MODEL}); the revision requests are cleared`,
       );
       expect(printed).toContain('1 revised story, 1 sources, 0 pending references.');
 
@@ -1172,19 +1476,23 @@ describe('agent revision session', () => {
       expect(andes.provenance).toEqual({
         generatedBy: DEFAULT_MODEL,
         generatedAt: RUN_DATE,
-        promptVersion: 'agent-v2',
+        promptVersion: CURRENT_AGENT_PROMPT_VERSION,
         status: 'draft',
       });
       expect(andes.sources.map((source) => source.url)).toEqual([geography().url]);
       expect(readSession(dir, 'CHL').written?.file).toBe(file);
 
+      expect(printed).toContain(
+        `Next, for the editor: npm run content:verify, npm run content:claims-agent -- start CHL in a Claude Code claim-checker subagent (or the API check, npm run content:claims -- CHL), npm run content:paraphrase -- CHL for the revised stories' search phrasings, then npm run content:review -- show CHL.`,
+      );
+
       status({ countryId: 'CHL' }, deps);
       expect(output()).toContain(
-        `Revising 1 stories sent back:\n  andes (Tester, ${RUN_DATE}): ${NOTES}`,
+        `Revising 1 story sent back:\n  andes (Tester, ${RUN_DATE}): ${NOTES}`,
       );
       expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
       expect(reviseStart()).toBe(1);
-      expect(output()).toContain('No story in Chile is sent back for revision.');
+      expect(output()).toContain('Nothing in Chile is sent back for revision.');
     },
     SUBMIT_TIMEOUT_MS,
   );
@@ -1192,9 +1500,15 @@ describe('agent revision session', () => {
   it(
     'refuses a submission when a request changed since start, and keeps drafting apart',
     async () => {
-      const { deps, read, sendBack, reviseStart, writeDraft, output, begin } = revisionSetup();
+      const { deps, dir, read, sendBack, reviseStart, writeDraft, output, begin } = revisionSetup();
       sendBack();
       reviseStart();
+      // Nothing was fetched or submitted yet, so starting again loses nothing and says so.
+      output();
+      expect(reviseStart()).toBe(0);
+      expect(output()).toContain(
+        'Continued the unfinished session, which had not fetched or submitted anything yet.',
+      );
       expect(begin('CHL', { regenerate: true })).toBe(1);
       expect(output()).toContain('An unfinished revision session for Chile');
 
@@ -1208,8 +1522,442 @@ describe('agent revision session', () => {
       );
       // Starting again continues the session with the new notes and keeps its evidence.
       expect(reviseStart()).toBe(0);
-      expect(output()).toContain('Kept 1 fetched pages and 0 submissions');
+      const continued = output();
+      expect(continued).toContain('Kept 1 fetched page and 0 submissions');
+      // The subagent's draft is its work: a new start never overwrites it.
+      expect(continued).toContain(`${draftFile(dir)} already exists and is kept as it is.`);
+      expect(JSON.parse(readFileSync(draftFile(dir), 'utf8')).stories[0].summary).toBe(
+        REVISED_SUMMARY,
+      );
       expect(submit({ countryId: 'CHL' }, deps)).toBe(0);
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
+
+  it('turns the content file back into the submission shape it was drafted from', () => {
+    const { contentDir } = revisionSetup();
+    const file = readCountryFile(contentDir, 'chile')!;
+    const drafted = CountryDraft.parse(chileDraft());
+    expect(toDraftCountry(file.country)).toEqual(drafted.country);
+    expect(file.stories.map(toDraftStory)).toEqual(drafted.stories);
+    expect(toDraftSources(file.country.sources)).toEqual(
+      drafted.sources.filter((source) =>
+        file.country.sources.some((entry) => entry.id === source.id),
+      ),
+    );
+  });
+
+  it('marks in the brief each old source the last claim check could not read', () => {
+    const { contentDir, dir, sendBack, reviseStart } = revisionSetup();
+    const file = readCountryFile(contentDir, 'chile')!;
+    const checks = Object.fromEntries(
+      allScopes(file)
+        .flatMap((scope) => scopeUnits(file, scope))
+        .map((unit) => [
+          unit.key,
+          {
+            label: unit.label,
+            text: unit.text,
+            verdict: 'source_unreachable' as const,
+            unsupported: [unit.text],
+            evidence: [],
+            note: null,
+            sources: unit.sources.map((source) => ({
+              id: source.id,
+              url: source.url,
+              status: 'unreachable' as const,
+              note: 'the server answered 403',
+            })),
+            checkedAt: RUN_DATE,
+            model: DEFAULT_MODEL,
+            effort: 'default',
+            promptVersion: 'claims-agent-v2',
+          },
+        ]),
+    );
+    recordChecks(defaultClaimsDir(contentDir), file, checks);
+    sendBack();
+    expect(reviseStart()).toBe(0);
+    const brief = readFileSync(briefFile(dir), 'utf8');
+    expect(brief).toContain(
+      `#### Sources the last claim check could not read\n\n- "fixture-geography" (${geography().url}): the server answered 403\n\nReplace each of these`,
+    );
+  });
+
+  /** The overview sent back, and the session tools for it. */
+  function overviewSetup() {
+    const context = revisionSetup();
+    const sendOverviewBack = (notes = 'Name every neighbour.') =>
+      requestRevision({
+        contentDir: context.contentDir,
+        country: 'CHL',
+        overview: true,
+        notes,
+        by: 'Tester',
+        date: RUN_DATE,
+      });
+    /** Fetch every page the starting draft cites. */
+    const readCited = async () => {
+      const draft = JSON.parse(readFileSync(draftFile(context.dir), 'utf8'));
+      for (const source of draft.sources) await context.read(source.url);
+    };
+    // The draft as JSON: country and stories in the submission's shape.
+    type Draft = {
+      country?: ReturnType<typeof chileDraft>['country'];
+      stories: FixtureStory[];
+      sources: unknown[];
+    };
+    const editDraft = (change: (draft: Draft) => void) => {
+      const draft = JSON.parse(readFileSync(draftFile(context.dir), 'utf8'));
+      change(draft);
+      context.writeDraft(draft);
+    };
+    return { ...context, sendOverviewBack, readCited, editDraft };
+  }
+
+  it(
+    'redrafts the overview alone, keeps every story byte for byte and asks for the agent claim check',
+    async () => {
+      const {
+        contentDir,
+        dir,
+        deps,
+        output,
+        file,
+        sendOverviewBack,
+        reviseStart,
+        readCited,
+        editDraft,
+      } = overviewSetup();
+      const original = readCountryFile(contentDir, 'chile')!;
+      // Every unit has a result before the revision.
+      const claimsDir = defaultClaimsDir(contentDir);
+      recordChecks(
+        claimsDir,
+        original,
+        Object.fromEntries(
+          allScopes(original)
+            .flatMap((scope) => scopeUnits(original, scope))
+            .map((unit) => [
+              unit.key,
+              {
+                label: unit.label,
+                text: unit.text,
+                verdict: 'supported' as const,
+                unsupported: [],
+                evidence: [],
+                note: null,
+                sources: unit.sources.map((source) => ({
+                  id: source.id,
+                  url: source.url,
+                  status: 'read' as const,
+                  note: null,
+                })),
+                checkedAt: RUN_DATE,
+                model: DEFAULT_MODEL,
+                effort: 'default',
+                promptVersion: 'claims-agent-v2',
+              },
+            ]),
+        ),
+      );
+      sendOverviewBack();
+      const before = readFileSync(file, 'utf8');
+      output();
+      expect(reviseStart()).toBe(0);
+      expect(output()).toContain(
+        `Agent revision session for Chile (CHL) in ${dir}, revising the overview.`,
+      );
+      expect(readSession(dir, 'CHL')).toMatchObject({
+        revisions: [],
+        overviewRevision: {
+          notes: 'Name every neighbour.',
+          requestedBy: 'Tester',
+          requestedAt: RUN_DATE,
+          scope: 'overview',
+        },
+      });
+      const brief = readFileSync(briefFile(dir), 'utf8');
+      expect(brief).toContain('# Task: revise the overview of Chile');
+      expect(brief).toContain("### Editor's notes\n\nName every neighbour.");
+      expect(brief).toContain(
+        JSON.stringify(
+          {
+            country: toDraftCountry(original.country),
+            sources: toDraftSources(original.country.sources),
+          },
+          null,
+          2,
+        ),
+      );
+      expect(brief).toContain(
+        'None: only the overview is sent back. Submit an empty list of stories.',
+      );
+      expect(brief).toContain('- andes: Fixture question about andes?');
+      expect(JSON.parse(readFileSync(draftFile(dir), 'utf8'))).toEqual({
+        country: toDraftCountry(original.country),
+        stories: [],
+        sources: toDraftSources(original.country.sources),
+      });
+
+      await readCited();
+      editDraft((draft) => {
+        draft.country!.overview.summary = 'Revised fixture overview that names every neighbour.';
+      });
+      output();
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(0);
+      const printed = output();
+      expect(printed).toContain(
+        `Submission 1 passed. Wrote the overview into ${file} (draft, ${CURRENT_AGENT_PROMPT_VERSION}, ${DEFAULT_MODEL}); the revision requests are cleared and the rest of the file is unchanged.`,
+      );
+      expect(printed).toContain('The revised overview, 0 revised stories, 4 sources');
+      expect(printed).toContain(
+        'Next, for the editor: npm run content:verify, npm run content:claims-agent -- start CHL in a Claude Code claim-checker subagent (or the API check, npm run content:claims -- CHL), then npm run content:review -- show CHL.',
+      );
+      expect(printed).not.toContain('paraphrase');
+
+      const after = readFileSync(file, 'utf8');
+      const revised = readCountryFile(contentDir, 'chile')!;
+      expect(revised.country.overview.summary).toBe(
+        'Revised fixture overview that names every neighbour.',
+      );
+      expect(revised.country.provenance).toEqual({
+        generatedBy: DEFAULT_MODEL,
+        generatedAt: RUN_DATE,
+        promptVersion: CURRENT_AGENT_PROMPT_VERSION,
+        status: 'draft',
+      });
+      // The stories are kept byte for byte.
+      const storiesBlock = (text: string) => text.slice(text.indexOf('"stories"'));
+      expect(storiesBlock(after)).toBe(storiesBlock(before));
+      // Only the overview's changed unit is due for the claim check; the rest keep their results.
+      const due = claimsJobs(revised, {}, claimsDir).flatMap(jobUnits);
+      expect(due.map((unit) => unit.label)).toEqual(['Overview summary and geography']);
+      expect(Object.keys(readClaims(claimsDir, revised.country).checks).length).toBeGreaterThan(0);
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses parts submitted as drafted, since they address none of the notes',
+    async () => {
+      const { deps, output, sendBack, sendOverviewBack, reviseStart, readCited, editDraft } =
+        overviewSetup();
+      sendOverviewBack();
+      sendBack();
+      expect(reviseStart()).toBe(0);
+      await readCited();
+      output();
+      // The starting draft holds both parts as drafted.
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      let printed = output();
+      expect(printed).toContain(
+        "country: the country part is the same as drafted, so the editor's notes on the overview are not addressed; revise it as the notes ask",
+      );
+      expect(printed).toContain(
+        `stories[0]: "andes" is the same as drafted, so the editor's notes on it are not addressed; revise it as the notes ask`,
+      );
+      // Reordering the sources changes nothing that the notes are about.
+      editDraft((draft) => {
+        draft.country!.overview.summary = 'Revised fixture overview that names every neighbour.';
+        draft.sources.reverse();
+      });
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      printed = output();
+      expect(printed).not.toContain('the country part is the same as drafted');
+      expect(printed).toContain('"andes" is the same as drafted');
+      editDraft((draft) => {
+        draft.stories[0].summary = REVISED_SUMMARY;
+      });
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(0);
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
+
+  it('points start without --revisions to a revision when only parts are sent back', () => {
+    const { contentDir, deps, output, sendBack, sendOverviewBack } = overviewSetup();
+    const draftingStart = () =>
+      start(
+        {
+          countryId: 'CHL',
+          contentDir,
+          model: DEFAULT_MODEL,
+          date: RUN_DATE,
+          regenerate: false,
+          fresh: false,
+        },
+        deps,
+      );
+    const file = countryFilePath(contentDir, 'chile');
+    sendOverviewBack();
+    expect(draftingStart()).toBe(1);
+    expect(output()).toBe(
+      `${file} is a draft. Review sent back the overview, not the whole country; redraft it in place with: npm run content:agent -- start CHL --revisions`,
+    );
+    sendBack();
+    expect(draftingStart()).toBe(1);
+    expect(output()).toBe(
+      `${file} is a draft. Review sent back the overview and the story "andes", not the whole country; redraft them in place with: npm run content:agent -- start CHL --revisions`,
+    );
+  });
+
+  it('refuses to continue a revision session started on prompts older than agent-v3', () => {
+    const { contentDir, dir, deps, output, sendBack, reviseStart } = revisionSetup();
+    sendBack();
+    expect(reviseStart()).toBe(0);
+    // An unfinished session as agent-v2 started it.
+    writeSession(dir, { ...readSession(dir, 'CHL'), promptVersion: 'agent-v2' });
+    output();
+    expect(reviseStart()).toBe(1);
+    expect(output()).toContain(
+      `The unfinished revision session for Chile in ${dir} started on the agent-v2 prompts, and its brief can no longer be rebuilt as that version wrote it: it would show the parts and describe the fetch command as agent-v3 does. Discard it and start again with: npm run content:agent -- start CHL --revisions --fresh`,
+    );
+    expect(
+      start(
+        {
+          countryId: 'CHL',
+          contentDir,
+          model: DEFAULT_MODEL,
+          date: RUN_DATE,
+          regenerate: false,
+          fresh: true,
+          revisions: true,
+        },
+        deps,
+      ),
+    ).toBe(0);
+    expect(readSession(dir, 'CHL').promptVersion).toBe(CURRENT_AGENT_PROMPT_VERSION);
+  });
+
+  it(
+    'revises the overview and a story together, written together or not at all',
+    async () => {
+      const {
+        contentDir,
+        dir,
+        deps,
+        output,
+        file,
+        sendBack,
+        sendOverviewBack,
+        reviseStart,
+        readCited,
+        editDraft,
+      } = overviewSetup();
+      sendOverviewBack();
+      sendBack();
+      output();
+      expect(reviseStart()).toBe(0);
+      expect(output()).toContain('revising the overview and "andes".');
+      const brief = readFileSync(briefFile(dir), 'utf8');
+      expect(brief).toContain('# Task: revise the overview and the story "andes" of Chile');
+      expect(brief).toContain(`### "andes": Fixture question about andes?`);
+      const draft = JSON.parse(readFileSync(draftFile(dir), 'utf8'));
+      expect(draft.stories.map((story: { id: string }) => story.id)).toEqual(['andes']);
+      expect(draft.country.name).toBe('Chile');
+
+      await readCited();
+      // A story left out refuses the whole submission: nothing is written.
+      editDraft((next) => {
+        next.country!.kicker = 'A revised kicker.';
+        next.stories = [];
+      });
+      const before = readFileSync(file, 'utf8');
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      expect(output()).toContain('stories: revise every story sent back; "andes" is missing');
+      expect(readFileSync(file, 'utf8')).toBe(before);
+
+      // Leaving out the country part is refused too.
+      editDraft((next) => {
+        delete next.country;
+        next.stories = draft.stories;
+      });
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      expect(output()).toMatch(/^1\. country: /m);
+      expect(readFileSync(file, 'utf8')).toBe(before);
+
+      editDraft((next) => {
+        next.country = { ...draft.country, kicker: 'A revised kicker.' };
+        next.stories = [{ ...draft.stories[0], summary: REVISED_SUMMARY }];
+      });
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(0);
+      expect(output()).toContain('Wrote the overview and "andes" into');
+      const revised = readCountryFile(contentDir, 'chile')!;
+      expect(revised.country.kicker).toBe('A revised kicker.');
+      expect(revised.country.provenance.revision).toBeUndefined();
+      expect(revised.stories[3].summary).toBe(REVISED_SUMMARY);
+      expect(revised.stories[3].provenance.revision).toBeUndefined();
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses an overview revision when the request changed or the whole country was sent back',
+    async () => {
+      const { contentDir, deps, output, sendOverviewBack, reviseStart, readCited } =
+        overviewSetup();
+      sendOverviewBack();
+      reviseStart();
+      await readCited();
+      sendOverviewBack('Shorter, please.');
+      output();
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      expect(output()).toContain(
+        'The overview of CHL no longer has the revision request this session started from. Run npm run content:agent -- start CHL --revisions',
+      );
+      expect(reviseStart()).toBe(0);
+      requestRevision({
+        contentDir,
+        country: 'CHL',
+        notes: 'Start over.',
+        by: 'Tester',
+        date: RUN_DATE,
+      });
+      output();
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      expect(output()).toContain(
+        'The whole of CHL is sent back now, so it is drafted again with npm run content:agent -- start CHL --fresh.',
+      );
+      expect(reviseStart()).toBe(1);
+      expect(output()).toContain('The whole of Chile was sent back.');
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
+
+  it(
+    'names where a clashing source ID is declared, and keeps the file URL for a redirect on the same site',
+    async () => {
+      const { dir, deps, output, sendBack, reviseStart, writeDraft, contentDir } = revisionSetup();
+      const moved = 'https://example.org/elsewhere-fixture/chile/geography-2026';
+      sendBack();
+      reviseStart();
+      // A different page under the ID the overview and other stories declare.
+      const otherPage = 'https://other.example/geography';
+      const { stub } = stubFetch({
+        [otherPage]: { type: 'text/html', body: fullPage('Geography', 'Mountains.') },
+        [moved]: {
+          type: 'text/html',
+          body: fullPage('Geography', 'Mountains.'),
+          finalUrl: geography().url,
+        },
+      });
+      const withPages = { ...deps, fetch: stub };
+      await fetchCommand({ countryId: 'CHL', url: otherPage, refresh: false }, withPages);
+      output();
+      writeDraft({ ...revisedAndes(), sources: [{ ...geography(), url: otherPage }] });
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      expect(output()).toContain(
+        `sources: "fixture-geography" is declared by the overview with ${geography().url}, which this revision does not change, and this submission declares it with ${otherPage}.`,
+      );
+
+      // A URL that redirected to the file's URL on the same site names the same page.
+      await fetchCommand({ countryId: 'CHL', url: moved, refresh: false }, withPages);
+      output();
+      writeDraft({ ...revisedAndes(), sources: [{ ...geography(), url: moved }] });
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(0);
+      const andes = readCountryFile(contentDir, 'chile')!.stories[3];
+      expect(andes.sources.map((source) => source.url)).toEqual([geography().url]);
+      expect(readSession(dir, 'CHL').written).toBeDefined();
     },
     SUBMIT_TIMEOUT_MS,
   );

@@ -241,7 +241,7 @@ describe('verdict validation', () => {
     ];
     const result = checkVerdicts(quoted, { units, sources, fetched, texts: withPage, stamp });
     expect(result.issues).toEqual([
-      `verdicts.length-section-2: the quote "${words(QUOTE_MAX_WORDS + 1)} - ..." has 30 words; a quote must be under 30 words, so quote only the words that state the claim, or give each part as its own quote`,
+      `verdicts.length-section-2: the quote "${words(QUOTE_MAX_WORDS + 1)} - ..." has 30 words; a quote must be under 30 words, counting the words of every part (a "..." does not lower the count), so quote only the words that state the claim, or give each part as its own quote`,
     ]);
     expect(Object.keys(result.checks)).toEqual([units[0].key]);
   });

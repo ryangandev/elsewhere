@@ -4,6 +4,7 @@
 //   show <country> [story] [--check-urls]        readable summary with claim checks and warnings
 //   approve <country> [story] [--all] [--by me]  mark the overview, a story, or everything reviewed
 //   revise <country> [story] --notes "..."       send a draft back for regeneration
+//   revise <country> --overview --notes "..."    send back only the country part
 import { parseArgsOnce } from '../cli-args';
 import { DEFAULT_CONTENT_DIR, today } from '../config';
 import { parsedCountryFiles, countryFilePath } from '../content-tree';
@@ -31,20 +32,25 @@ const USAGE = `Usage: npm run content:review -- <command> [options]
                                        yourself; the reason is recorded on each flagged result
        --by <name>                     reviewer (default: git user.name)
   revise <country> [story]             send a draft story, or the whole draft country, back
+       --overview                      with no story: send back only the country part (kicker,
+                                       overview, quick facts, starter questions, scene) and keep
+                                       every story as it is
        --notes "<what to change>"      reviewer notes the regeneration must address
        --by <name>                     reviewer (default: git user.name)
   --content-dir <dir>                  content tree (default ${DEFAULT_CONTENT_DIR})
   --claims-dir <dir>                   claim check results (default: claims/ in the content directory)
 
 <country> is a country ID (CHL) or slug (chile). After revise, redraft everything sent back
-with npm run content:generate -- --revisions, or a country's stories in a Claude Code subagent
-with npm run content:agent -- start <country> --revisions (a whole country: start <country>).`;
+with npm run content:generate -- --revisions, or a country's overview and stories in a Claude
+Code subagent with npm run content:agent -- start <country> --revisions (a whole country:
+start <country>).`;
 
 async function main(): Promise<number> {
   const { values, positionals } = parseArgsOnce({
     allowPositionals: true,
     options: {
       all: { type: 'boolean', default: false },
+      overview: { type: 'boolean', default: false },
       'check-urls': { type: 'boolean', default: false },
       by: { type: 'string' },
       notes: { type: 'string' },
@@ -75,7 +81,13 @@ async function main(): Promise<number> {
       return 0;
     }
     for (const row of rows) {
-      const revisions = row.revisions ? `, ${row.revisions} sent back` : '';
+      const sentBack = [
+        ...(row.countryRevision ? [row.countryRevision] : []),
+        ...(row.storyRevisions
+          ? [`${row.storyRevisions} ${row.storyRevisions === 1 ? 'story' : 'stories'}`]
+          : []),
+      ];
+      const revisions = sentBack.length ? `, sent back: ${sentBack.join(', ')}` : '';
       console.log(
         `${row.countryId}  ${row.name.padEnd(24)} overview ${row.countryStatus.padEnd(8)} stories: ${row.draftStories} draft, ${row.reviewedStories} reviewed${revisions}  (${row.generatedBy})`,
       );
@@ -135,13 +147,13 @@ async function main(): Promise<number> {
       contentDir,
       country,
       storyId,
+      overview: values.overview,
       notes: values.notes ?? '',
       by: reviewerName(values.by),
       date: today(),
     });
-    const [countryId] = result.target.split('/');
     console.log(
-      `Sent ${result.target} back in ${result.file}. Redraft it with npm run content:generate -- --revisions, or in a Claude Code subagent with npm run content:agent -- start ${countryId}${storyId ? ' --revisions' : ''}.`,
+      `Sent ${result.target} back in ${result.file}. Redraft it with npm run content:generate -- --revisions, or in a Claude Code subagent with ${result.agentCommand}.`,
     );
     return 0;
   }
