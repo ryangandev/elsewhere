@@ -439,6 +439,28 @@ export function validateContent(input: ContentInput): ContentIssue[] {
   for (const key of duplicates(suggestions.map((ref) => `${ref.countryId}/${ref.storyId}`))) {
     report(input.home.file, 'suggestedQuestions', `"${key}" is suggested twice`);
   }
+  // Production shows only reviewed stories in reviewed countries (src/content/store.ts), so a
+  // suggestion drops off the home screen while its story or country is a draft, reopened after
+  // review for example. The home screen must still publish three.
+  const publishes = (countryId: string, storyId: string) =>
+    files.some(
+      ({ data }) => data.country.id === countryId && data.country.provenance.status === 'reviewed',
+    ) && storiesByCountry.get(countryId)?.get(storyId)?.provenance.status === 'reviewed';
+  const drafts = suggestions.filter(
+    (ref) => storyExists(ref.countryId, ref.storyId) && !publishes(ref.countryId, ref.storyId),
+  );
+  const published = new Set(
+    suggestions
+      .filter((ref) => publishes(ref.countryId, ref.storyId))
+      .map((ref) => `${ref.countryId}/${ref.storyId}`),
+  );
+  if (drafts.length && published.size < 3) {
+    report(
+      input.home.file,
+      'suggestedQuestions',
+      `Production shows only ${published.size} of these questions, fewer than 3, while ${drafts.map((ref) => `"${ref.countryId}/${ref.storyId}"`).join(', ')} ${drafts.length === 1 ? 'is a draft' : 'are drafts'}; approve ${drafts.length === 1 ? 'it' : 'them'} again or suggest reviewed questions instead`,
+    );
+  }
 
   return issues;
 }

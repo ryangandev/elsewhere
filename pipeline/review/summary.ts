@@ -75,6 +75,10 @@ const claimLines = (unit: ClaimUnit, context: ReviewContext) =>
 
 function scene(spec: SceneSpec, files: Map<string, CountryFile>): string[] {
   const lines = [`  Focus: ${countryName(spec.focusCountryId, files)}`];
+  if (spec.camera) {
+    const { lat, lng, altitude } = spec.camera;
+    lines.push(`  Camera (set by hand): ${lat}, ${lng}, altitude ${altitude}`);
+  }
   if (spec.highlights.length) {
     lines.push(
       `  Highlights: ${spec.highlights.map((highlight) => `${countryName(highlight.countryId, files)} (${highlight.role})`).join(', ')}`,
@@ -297,6 +301,13 @@ export function sentBackText(row: DraftListing): string {
   return parts.join(', ');
 }
 
+/**
+ * Told after reopening or approving: the prototype URL redirects are built from what production
+ * publishes (src/domain/legacy-redirects.ts), so they change when a review does.
+ */
+export const REDIRECTS_NOTE =
+  'Production publishes only reviewed content, and the prototype URL redirects follow it: rebuild them with npm run redirects:build and commit vercel.json (npm test fails while they are out of date).';
+
 /** What `reopen` prints: what it reopened, what that means for production, and the next commands. */
 export function reopenReport(result: ReopenResult): string {
   const id = result.countryId;
@@ -309,16 +320,21 @@ export function reopenReport(result: ReopenResult): string {
       ? [`Left as they are, already drafts: ${result.skipped.join(', ')}`]
       : []),
     `Each is a draft again, with your notes as its revision request and the review it undid on record there.`,
-    `Production builds leave drafts out until they are approved again${result.overview ? `, and while the overview is a draft they leave out the whole of ${id}` : ''}.`,
-    'Next:',
-    `  1. Redraft in a Claude Code content-drafter subagent with ${result.agentCommand}, or through the API with npm run content:generate -- --revisions.`,
-    `  2. Run npm run content:verify, then check the claims with npm run content:claims-agent -- start ${id} in a claim-checker subagent (or npm run content:claims -- ${id}).`,
-    ...(result.storyIds.length
+    `Production builds leave drafts out until they are approved again${result.overview ? `, and while the overview is a draft they leave out the whole of ${id}` : ''}. npm run content:check reports a home screen left with fewer than three published questions.`,
+    REDIRECTS_NOTE,
+  ];
+  const steps = [
+    ...(result.wholeCountry
       ? [
-          `  3. Write the redrafted stories' search phrasings with npm run content:paraphrase -- ${id}.`,
+          `Review sent back the whole of ${id} earlier, and a whole-country redraft never replaces reopened content. Narrow that request to the overview with npm run content:review -- revise ${id} --overview --notes "...", so everything is redrafted in place.`,
         ]
       : []),
-    `  ${result.storyIds.length ? 4 : 3}. Read it with npm run content:review -- show ${id}, then approve.`,
+    `Redraft in a Claude Code content-drafter subagent with ${result.agentCommand}, or through the API with npm run content:generate -- --revisions.`,
+    `Run npm run content:verify, then check the claims with npm run content:claims-agent -- start ${id} in a claim-checker subagent (or npm run content:claims -- ${id}).`,
+    ...(result.storyIds.length
+      ? [`Write the redrafted stories' search phrasings with npm run content:paraphrase -- ${id}.`]
+      : []),
+    `Read it with npm run content:review -- show ${id}, then approve.`,
   ];
-  return lines.join('\n');
+  return [...lines, 'Next:', ...steps.map((step, index) => `  ${index + 1}. ${step}`)].join('\n');
 }

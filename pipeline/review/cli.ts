@@ -20,7 +20,7 @@ import {
   reviewerName,
   ReviewError,
 } from './actions';
-import { countrySummary, listing, reopenReport, sentBackText } from './summary';
+import { countrySummary, listing, REDIRECTS_NOTE, reopenReport, sentBackText } from './summary';
 
 const USAGE = `Usage: npm run content:review -- <command> [options]
 
@@ -144,6 +144,7 @@ async function main(): Promise<number> {
     console.log(
       `Approved ${result.approved.join(', ') || 'nothing'} in ${result.file}.${accepted}`,
     );
+    if (result.approved.length) console.log(REDIRECTS_NOTE);
     return 0;
   }
 

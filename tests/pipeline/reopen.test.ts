@@ -3,18 +3,30 @@
 // of a reopened hand-written story. The agent revision of one is tested in agent.test.ts. Every
 // test works on a copy of content/en, whose ten countries were converted by hand and reviewed.
 import { describe, expect, it } from 'vitest';
-import { CountryFile, type Story } from '../../src/content/schema';
+import { CountryFile, type SceneSpec, type Story } from '../../src/content/schema';
 import { createContentStore } from '../../src/content/store';
 import { readContentTree } from '../../src/content/files';
 import { defaultClaimsDir, readClaims } from '../../pipeline/claims/store';
 import { parsedCountryFiles, readCountryFile, writeCountryFile } from '../../pipeline/content-tree';
-import { assembleCountry, toDraftSources, toDraftStory } from '../../pipeline/generate/assemble';
+import {
+  assembleCountry,
+  keepCamera,
+  toDraftSources,
+  toDraftStory,
+} from '../../pipeline/generate/assemble';
+import { checkCandidate } from '../../pipeline/generate/check';
 import { CountryDraft } from '../../pipeline/generate/draft-schema';
 import { normalizeUrl } from '../../pipeline/generate/evidence';
 import { replaceConflict } from '../../pipeline/generate/replace';
 import { overviewSession, storySession } from '../../pipeline/generate/tasks';
 import { approve, reopen, requestRevision, ReviewError } from '../../pipeline/review/actions';
-import { countrySummary, listing, reopenReport, sentBackText } from '../../pipeline/review/summary';
+import {
+  countrySummary,
+  listing,
+  REDIRECTS_NOTE,
+  reopenReport,
+  sentBackText,
+} from '../../pipeline/review/summary';
 import { chileDraft } from './fixtures/build-replay';
 import { RUN_DATE, runContext, tempContentTree } from './helpers';
 
@@ -66,6 +78,7 @@ describe('reopening reviewed content', () => {
       storyIds: ['overseas'],
       reopened: [{ label: 'FRA/overseas', ...REVIEW }],
       skipped: [],
+      wholeCountry: false,
       agentCommand: 'npm run content:agent -- start FRA --revisions',
     });
 
@@ -114,6 +127,10 @@ describe('reopening reviewed content', () => {
     );
     expect(report).toContain('npm run content:paraphrase -- FRA');
     expect(report).toContain('4. Read it with npm run content:review -- show FRA, then approve.');
+    expect(report).toContain(
+      'npm run content:check reports a home screen left with fewer than three published questions.',
+    );
+    expect(report).toContain(REDIRECTS_NOTE);
   });
 
   it('reopens a reviewed overview alone and keeps every story', () => {
@@ -221,14 +238,14 @@ describe('reopening reviewed content', () => {
     );
     expect(read()).toEqual(before);
 
-    // A part reopened once is a draft sent back.
+    // A part reopened once is a draft sent back, which takes new notes through revise.
     reopen({ ...review, country: 'FRA', storyId: 'paris' });
     expect(() => reopen({ ...review, country: 'FRA', storyId: 'paris' })).toThrow(
-      'FRA/paris is not reviewed: it is a draft already sent back, so there is nothing to reopen.',
+      'FRA/paris is not reviewed: it is already reopened, a draft sent back, so there is nothing to reopen. To change what it asks for, send it back again with npm run content:review -- revise FRA paris --notes "...", which keeps the review it undid on record.',
     );
     reopen({ ...review, country: 'FRA', overview: true });
     expect(() => reopen({ ...review, country: 'FRA', overview: true })).toThrow(
-      'The overview of FRA is not reviewed: it is a draft already sent back',
+      'The overview of FRA is not reviewed: it is already reopened, a draft sent back, so there is nothing to reopen. To change what it asks for, send it back again with npm run content:review -- revise FRA --overview --notes "..."',
     );
 
     // A draft nobody reviewed goes back with revise instead.
@@ -249,6 +266,52 @@ describe('reopening reviewed content', () => {
       'Nothing in CHL is reviewed, so there is nothing to reopen.',
     );
     expect(() => reopen({ ...review, country: 'CHL', all: true })).toThrow(ReviewError);
+
+    // A draft sent back that was never reviewed takes new notes through revise too.
+    requestRevision({ ...review, country: 'CHL', storyId: 'andes' });
+    expect(() => reopen({ ...review, country: 'CHL', storyId: 'andes' })).toThrow(
+      'CHL/andes is not reviewed: it is a draft already sent back, so there is nothing to reopen. To change what it asks for, send it back again with npm run content:review -- revise CHL andes --notes "..."',
+    );
+  });
+
+  it('after a whole-country send-back, narrows that request before anything is redrafted', () => {
+    const { contentDir, review, read } = franceTree();
+    // The overview is a draft sent back whole while a story is still reviewed: approve does not
+    // stop a story being approved while its country waits for a whole redraft.
+    const sentBack = read();
+    writeCountryFile(contentDir, {
+      ...sentBack,
+      country: {
+        ...sentBack.country,
+        provenance: {
+          generatedBy: 'human',
+          generatedAt: '2026-09-26',
+          status: 'draft',
+          revision: { notes: 'Redraft it all.', requestedBy: 'Tester', requestedAt: RUN_DATE },
+        },
+      },
+    });
+    const result = reopen({ ...review, country: 'FRA', storyId: 'overseas' });
+    expect(result).toMatchObject({
+      wholeCountry: true,
+      agentCommand: 'npm run content:agent -- start FRA --revisions',
+    });
+    const report = reopenReport(result);
+    expect(report).toContain(
+      '  1. Review sent back the whole of FRA earlier, and a whole-country redraft never replaces reopened content. Narrow that request to the overview with npm run content:review -- revise FRA --overview --notes "...", so everything is redrafted in place.\n  2. Redraft in a Claude Code content-drafter subagent with npm run content:agent -- start FRA --revisions,',
+    );
+    expect(report).toContain('5. Read it with npm run content:review -- show FRA, then approve.');
+    expect(report).not.toContain('start FRA,');
+
+    // Narrowed, the overview and the story are redrafted in place.
+    const narrowed = requestRevision({
+      ...review,
+      country: 'FRA',
+      overview: true,
+      notes: 'Redraft the overview.',
+    });
+    expect(narrowed.agentCommand).toBe('npm run content:agent -- start FRA --revisions');
+    expect(read().country.provenance.revision?.scope).toBe('overview');
   });
 
   it('points revise at reopen for reviewed content', () => {
@@ -348,5 +411,128 @@ describe('the API revision of a reopened hand-written story', () => {
     expect(task).toContain(NOTES);
     expect(task).toContain('"kicker": "A national idea with an international life."');
     expect(task).not.toMatch(/reviewedBy|accessedAt|"revision"|undefined/);
+  });
+});
+
+describe('what a revision of hand-written content keeps', () => {
+  /** Submit France's reopened story "overseas" through the API revision path, changed by `edit`. */
+  function reviseOverseas(edit: (draft: ReturnType<typeof toDraftStory>) => void) {
+    const { contentDir, review, read } = franceTree();
+    reopen({ ...review, country: 'FRA', storyId: 'overseas' });
+    const existing = read();
+    const overseas = existing.stories.find((story) => story.id === 'overseas')!;
+    const draft = toDraftStory(overseas);
+    draft.summary = `${draft.summary} Revised.`;
+    edit(draft);
+    const submission = storySession(runContext(contentDir), existing, 'overseas').submit(
+      { story: draft, sources: toDraftSources(overseas.sources) },
+      {
+        model: 'claude-opus-5-5',
+        evidence: new Set(overseas.sources.map((source) => normalizeUrl(source.url))),
+      },
+    );
+    const revised = submission.ok
+      ? submission.file.stories.find((story) => story.id === 'overseas')
+      : undefined;
+    return { submission, overseas, revised };
+  }
+
+  it(
+    'keeps a story camera only while the scene shows the same places and routes',
+    () => {
+      const kept = reviseOverseas(() => {});
+      expect(kept.revised?.scene).toEqual(kept.overseas.scene);
+
+      // Without its route, the hand-set camera no longer frames what the scene shows.
+      const changed = reviseOverseas((draft) => {
+        draft.scene.routes = [];
+        draft.scene.placeIds = ['french-guiana'];
+      });
+      expect(changed.submission.ok).toBe(true);
+      expect(changed.revised?.scene.camera).toBeUndefined();
+      expect(changed.revised?.scene.placeIds).toEqual(['french-guiana']);
+    },
+    REDRAFT_TIMEOUT_MS,
+  );
+
+  it('keeps a country camera whatever the revised scene shows', () => {
+    const scene = (placeIds: string[]): SceneSpec => ({
+      focusCountryId: 'FRA',
+      highlights: [],
+      placeIds,
+      routes: [],
+    });
+    const camera = { lat: 46.6, lng: 2.5, altitude: 0.7 };
+    const replaced = { ...scene(['paris']), camera };
+    expect(keepCamera('country', { scene: scene([]) }, replaced).scene.camera).toEqual(camera);
+    expect(keepCamera('story', { scene: scene([]) }, replaced).scene.camera).toBeUndefined();
+    expect(keepCamera('story', { scene: scene(['paris']) }, replaced).scene).toEqual(replaced);
+  });
+
+  it('shows the hand-set camera in review', () => {
+    const { contentDir } = franceTree();
+    const file = readCountryFile(contentDir, 'france')!;
+    const text = countrySummary(file, summaryContext(contentDir, file));
+    expect(text).toContain('Camera (set by hand): 46.6, 2.5, altitude 0.7');
+    expect(text).toContain('Camera (set by hand): 24, -26, altitude 1.9');
+  });
+
+  it(
+    'refuses a story that changes its slug, its URL',
+    () => {
+      const { submission } = reviseOverseas((draft) => {
+        draft.slug = 'overseas-france';
+      });
+      expect(submission.ok).toBe(false);
+      expect(!submission.ok && submission.issues).toEqual([
+        'story.slug: keep the slug "overseas"; it is the story\'s URL',
+      ]);
+    },
+    REDRAFT_TIMEOUT_MS,
+  );
+});
+
+describe('a whole-country draft', () => {
+  it('keeps every story ID the home screen, a trail or a prototype URL names', () => {
+    const contentDir = tempContentTree();
+    const malaysia = readCountryFile(contentDir, 'malaysia')!;
+    const candidate = {
+      ...malaysia,
+      stories: malaysia.stories.map((story) => ({ ...story, id: `${story.id}-redrafted` })),
+    };
+    const issues = checkCandidate({
+      contentDir,
+      candidate,
+      scope: 'country',
+      plan: new Map(),
+      submittedSources: [],
+      evidence: new Set(),
+      storyCount: { min: 3, max: 6 },
+    });
+    // Other countries' links to these stories are refused too, as before.
+    expect(issues).toContain(
+      'stories: "SGP/shipping" (Why is Singapore a shipping crossroads?) links to story "two-shores" here. Keep a story with that ID.',
+    );
+    expect(issues.filter((issue) => issue.startsWith('stories: the '))).toEqual([
+      'stories: the home screen suggests story "electronics" here. Keep a story with that ID.',
+      'stories: the trail "water-connects" (The water between us) stops at story "two-shores" here. Keep a story with that ID.',
+      'stories: the trail "made-together" (Made in many places) stops at story "electronics" here. Keep a story with that ID.',
+      ...['two-shores', 'electronics', 'federation'].map(
+        (storyId) =>
+          `stories: the prototype published story "${storyId}" here, and its old URL redirects to it. Keep a story with that ID.`,
+      ),
+    ]);
+    // A draft that keeps every story ID passes these checks.
+    expect(
+      checkCandidate({
+        contentDir,
+        candidate: malaysia,
+        scope: 'country',
+        plan: new Map(),
+        submittedSources: [],
+        evidence: new Set(),
+        storyCount: { min: 3, max: 6 },
+      }),
+    ).toEqual([]);
   });
 });

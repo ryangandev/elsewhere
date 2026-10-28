@@ -441,6 +441,11 @@ export type ReopenResult = {
   reopened: ReopenedPart[];
   /** Drafts that --all left as they were. */
   skipped: string[];
+  /**
+   * Whether review had sent back the whole country before. A whole-country redraft never replaces
+   * reopened parts, so that request has to be narrowed to the overview before anything is redrafted.
+   */
+  wholeCountry: boolean;
   /** The agent drafting command that redrafts everything now sent back in the country. */
   agentCommand: string;
 };
@@ -477,12 +482,16 @@ export function reopen(options: ReopenOptions): ReopenResult {
     );
   }
 
-  const notReviewed = (label: string, provenance: Provenance, revise: string) =>
-    new ReviewError(
-      provenance.revision
-        ? `${label} is not reviewed: it is a draft already sent back, so there is nothing to reopen.`
-        : `${label} is not reviewed: it is a draft, so there is nothing to reopen. Send it back with npm run content:review -- revise ${revise} --notes "..."`,
+  const notReviewed = (label: string, provenance: Provenance, revise: string) => {
+    const command = `npm run content:review -- revise ${revise} --notes "..."`;
+    return new ReviewError(
+      isReopened(provenance)
+        ? `${label} is not reviewed: it is already reopened, a draft sent back, so there is nothing to reopen. To change what it asks for, send it back again with ${command}, which keeps the review it undid on record.`
+        : provenance.revision
+          ? `${label} is not reviewed: it is a draft already sent back, so there is nothing to reopen. To change what it asks for, send it back again with ${command}`
+          : `${label} is not reviewed: it is a draft, so there is nothing to reopen. Send it back with ${command}`,
     );
+  };
   if (options.overview && current.country.provenance.status !== 'reviewed') {
     throw notReviewed(`The overview of ${id}`, current.country.provenance, `${id} --overview`);
   }
@@ -552,6 +561,7 @@ export function reopen(options: ReopenOptions): ReopenResult {
     storyIds,
     reopened,
     skipped,
-    agentCommand: agentRedraftCommand(next),
+    wholeCountry: !!wholeCountryRevision(next),
+    agentCommand: `npm run content:agent -- start ${id} --revisions`,
   };
 }

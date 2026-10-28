@@ -2,7 +2,6 @@
 // first turn for drafting a whole country, revising one story or revising the country part. The prompt texts and the
 // submission check are also used by agent drafting (pipeline/agent), which hands the same
 // instructions to a Claude Code subagent and checks its submission the same way.
-import { readFileSync } from 'node:fs';
 import type {
   BetaTextBlockParam,
   BetaTool,
@@ -11,7 +10,7 @@ import type {
 import { z } from 'zod';
 import type { LandIndex } from '../../src/content/geometry';
 import type { Country, CountryFile, Source, Story } from '../../src/content/schema';
-import { REFERENCE_COUNTRY_FILE, type Effort, type GenerationLimits } from '../config';
+import type { Effort, GenerationLimits } from '../config';
 import { parsedCountryFiles, requireMapCountry } from '../content-tree';
 import { render, type PromptSet } from '../prompts';
 import {
@@ -123,14 +122,10 @@ export function withoutParaphrases<T>(value: T): T {
  * shared gazetteer. `schemaName` says where the submission's shape is given.
  */
 export function sharedSystemText(
-  prompts: Pick<PromptSet, 'system'>,
+  prompts: Pick<PromptSet, 'system' | 'reference'>,
   schemaName = 'the tool schema',
 ): string {
-  const reference = `${JSON.stringify(
-    withoutParaphrases(JSON.parse(readFileSync(REFERENCE_COUNTRY_FILE, 'utf8'))),
-    null,
-    2,
-  )}\n`;
+  const { reference } = prompts;
   return [
     render(prompts.system, {}),
     '# Reference example',
@@ -499,6 +494,12 @@ export function checkRevisions(
       );
     } else if (seen.has(story.id)) {
       idIssues.push(`${path}.id: "${story.id}" appears more than once; submit each story once`);
+    } else {
+      // The slug is the story's URL, which links, redirects and readers already use.
+      const { slug } = existing.stories.find((entry) => entry.id === story.id)!;
+      if (story.slug !== slug) {
+        idIssues.push(`${path}.slug: keep the slug "${slug}"; it is the story's URL`);
+      }
     }
     seen.add(story.id);
   }
@@ -535,6 +536,7 @@ export function checkRevisions(
     file = replaceCountryPart(
       file,
       keepCamera(
+        'country',
         assembleCountryPart(submission.country.country, sources, assembleContext),
         existing.country.scene,
       ),
@@ -545,7 +547,7 @@ export function checkRevisions(
     const replaced = existing.stories.find((entry) => entry.id === story.id)!;
     file = replaceStory(
       file,
-      keepCamera(assembleStory(story, sources, assembleContext), replaced.scene),
+      keepCamera('story', assembleStory(story, sources, assembleContext), replaced.scene),
     );
   }
   const scopes = [

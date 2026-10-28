@@ -34,8 +34,19 @@ export type PromptName = (typeof NAMES)[number];
  */
 const OPTIONAL_NAMES = ['revise-overview'] as const;
 
+/**
+ * The reference example every drafting prompt shows (`reference.json` in each drafting version's
+ * directory): a reviewed country file without paraphrases, as the content files format it. It is
+ * frozen into each version rather than read from content/en, so reopening or redrafting the
+ * country it was taken from never changes a version's text (or the cached prompt prefix), and an
+ * unreviewed draft never becomes the quality bar. A new reference means a new prompt version.
+ * Every version holds the Singapore file as v3 and agent-v3 rendered it when it was frozen.
+ */
+type ReferenceExample = { reference: string };
+
 export type PromptSet = { version: string } & Record<PromptName, string> &
-  Partial<Record<(typeof OPTIONAL_NAMES)[number], string>>;
+  Partial<Record<(typeof OPTIONAL_NAMES)[number], string>> &
+  ReferenceExample;
 
 function loadPromptFiles<Name extends string>(
   version: string,
@@ -47,11 +58,19 @@ function loadPromptFiles<Name extends string>(
   return { version, ...texts };
 }
 
+const loadReference = (version: string): ReferenceExample => ({
+  reference: readFileSync(join(PROMPTS_DIR, version, 'reference.json'), 'utf8'),
+});
+
 export function loadPrompts(version: string = CURRENT_PROMPT_VERSION): PromptSet {
   const optional = OPTIONAL_NAMES.filter((name) =>
     existsSync(join(PROMPTS_DIR, version, `${name}.md`)),
   );
-  return { ...loadPromptFiles(version, optional), ...loadPromptFiles(version, NAMES) };
+  return {
+    ...loadPromptFiles(version, optional),
+    ...loadPromptFiles(version, NAMES),
+    ...loadReference(version),
+  };
 }
 
 /**
@@ -71,10 +90,11 @@ export function loadPrompts(version: string = CURRENT_PROMPT_VERSION): PromptSet
 export const CURRENT_AGENT_PROMPT_VERSION = 'agent-v3';
 
 const AGENT_NAMES = ['system', 'link-targets', 'draft-country', 'repair'] as const;
-export type AgentPromptSet = { version: string } & Record<(typeof AGENT_NAMES)[number], string>;
+export type AgentPromptSet = { version: string } & Record<(typeof AGENT_NAMES)[number], string> &
+  ReferenceExample;
 
 export function loadAgentPrompts(version: string = CURRENT_AGENT_PROMPT_VERSION): AgentPromptSet {
-  return loadPromptFiles(version, AGENT_NAMES);
+  return { ...loadPromptFiles(version, AGENT_NAMES), ...loadReference(version) };
 }
 
 /**
@@ -104,6 +124,7 @@ export function loadAgentRevisionPrompts(
   return {
     ...(has('revise-overview') ? loadPromptFiles(version, ['revise-overview'] as const) : {}),
     ...loadPromptFiles(version, [...AGENT_NAMES, 'revise-story'] as const),
+    ...loadReference(version),
   };
 }
 

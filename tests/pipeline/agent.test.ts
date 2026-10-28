@@ -2035,6 +2035,10 @@ describe('agent revision of reopened hand-written content', () => {
       expect(brief).toContain(
         `### "overseas": Why is France on more than one continent?\n\n#### Editor's notes\n\n${NOTES}\n\n#### The story as drafted\n\n\`\`\`json\n${JSON.stringify(asDrafted, null, 2)}\n\`\`\``,
       );
+      // The camera set by hand, which the submission shape leaves out, and when it is kept.
+      expect(brief).toContain(
+        "#### Camera\n\nThis scene has a camera set by hand (latitude 24, longitude -26, altitude 1.9). The submission has no camera; the pipeline keeps this one only if your revision keeps the scene's highlights, places and routes exactly as they are",
+      );
       expect(brief).toContain('Other stories in France (country ID FRA): "paris"');
       expect(JSON.parse(readFileSync(draftFile(dir), 'utf8'))).toEqual({
         stories: [asDrafted.story],
@@ -2065,7 +2069,7 @@ describe('agent revision of reopened hand-written content', () => {
       expect(revised.sections.map((section) => section.text)).toEqual(
         overseas.sections.map((section) => section.text),
       );
-      // The hand-set camera stays: the model never sets one.
+      // The hand-set camera stays, since the scene shows the same places and routes.
       expect(revised.scene).toEqual(overseas.scene);
       expect(revised.next).toEqual(overseas.next);
       expect(revised.sources.map((source) => source.id)).toEqual(['eu-france', NEW_SOURCE.id]);
