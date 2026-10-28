@@ -9,6 +9,7 @@ import {
   fetchPage,
   htmlToText,
   mainTextOffset,
+  NetworkCutError,
   pdfToText,
   splitFootnotes,
   type PdfLine,
@@ -22,6 +23,32 @@ afterEach(() => {
 });
 
 describe('HTML text', () => {
+  it('leaves no markup in the text, even from an attribute value that holds ">"', () => {
+    // pib.gov.in keeps an escaped copy of the release, with its ">" left as they are, in the value
+    // of a hidden input. Ending the tag at the first ">" left the rest of the value in the text,
+    // and the character references in it became a raw HTML copy of the release's table.
+    const copy =
+      '&lt;table style=&quot;width:100%&quot;>&lt;tr>&lt;td>Steel&lt;/td>&lt;td>1,234&lt;/td>&lt;/tr>&lt;/table>';
+    const html = `<html><body><p>The release says steel output rose.</p>
+      <table><tr><th>Year</th><td>2024</td></tr></table>
+      <input type="hidden" name="copy" id="copy" value="${copy}" />
+      <div title='a > b' data-x="<p>not text</p>">After the input.</div>
+      <!-- a comment with <b>tags</b> --><!DOCTYPE html><?xml version="1.0"?></body></html>`;
+    const text = htmlToText(html);
+    expect(text).not.toMatch(/<[a-z/!?]/i);
+    expect(text).not.toContain('not text');
+    expect(text).toBe('The release says steel output rose.\n| Year | 2024\nAfter the input.');
+    // A "<" that is not a tag stays.
+    expect(htmlToText('<p>3 < 5 and 7 > 2</p>')).toBe('3 < 5 and 7 > 2');
+  });
+
+  it('keeps a link whose attribute holds ">", with its text', () => {
+    const html = '<a title="a > b" href="/x">Linked page</a>';
+    expect(extractLinks(html, 'https://site.example/p')).toEqual([
+      { url: 'https://site.example/x', text: 'Linked page' },
+    ]);
+  });
+
   it('decodes every named character reference once, as a browser does', () => {
     expect(htmlToText('<p>Code Napol&eacute;on, 20&deg;C, &copy; 2024 &ndash; caf&#233;</p>')).toBe(
       'Code Napoléon, 20°C, © 2024 – café',
@@ -335,6 +362,125 @@ describe('server errors', () => {
       /^the server answered 500$/,
     );
     expect(once.calls).toHaveLength(1);
+  });
+});
+
+describe('a body cut off while it downloads', () => {
+  /**
+   * A response whose body delivers a first chunk and then fails the way undici does when the
+   * connection ends in the middle: a TypeError "terminated" caused by a closed socket.
+   */
+  function cutResponse(error: Error = new TypeError('terminated', { cause: socketClosed() })) {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('<p>Half of the'));
+        controller.error(error);
+      },
+    });
+    return new Response(body, { status: 200, headers: { 'content-type': 'text/html' } });
+  }
+  const socketClosed = () =>
+    Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' });
+
+  /** A fetch stub that answers with each given response in turn (the last one repeats). */
+  function sequence(...answers: (() => Response)[]) {
+    let calls = 0;
+    const stub = (async () => answers[Math.min(calls++, answers.length - 1)]()) as typeof fetch;
+    return { stub, calls: () => calls };
+  }
+  const wholePage = () =>
+    new Response('<p>The page text.</p>', { headers: { 'content-type': 'text/html' } });
+
+  it('is tried again after the waits given, and the whole page is read', async () => {
+    const { stub, calls } = sequence(cutResponse, cutResponse, wholePage);
+    const waits: number[] = [];
+    const page = await fetchPage('https://example.org/long.pdf', {
+      fetch: stub,
+      bodyCutRetriesMs: [10, 20, 30],
+      sleep: async (ms) => {
+        waits.push(ms);
+      },
+    });
+    expect(page.text).toBe('The page text.');
+    expect(calls()).toBe(3);
+    expect(waits).toEqual([10, 20]);
+  });
+
+  it('is reported as a network cut, not a page problem, when every attempt is cut', async () => {
+    const { stub, calls } = sequence(cutResponse);
+    const error = await fetchPage('https://example.org/long.pdf', {
+      fetch: stub,
+      bodyCutRetriesMs: [1, 1],
+      sleep: async () => undefined,
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(NetworkCutError);
+    expect((error as Error).message).toBe(
+      'the connection was cut while the page downloaded (terminated: UND_ERR_SOCKET: other side closed) on all 3 attempts; this is a network failure, not a problem with the page, so try again later',
+    );
+    expect(calls()).toBe(3);
+  });
+
+  it('recognises a reset connection and a premature close, but not a timeout', async () => {
+    for (const error of [
+      Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
+      Object.assign(new Error('Premature close'), { code: 'ERR_STREAM_PREMATURE_CLOSE' }),
+    ]) {
+      const { stub, calls } = sequence(() => cutResponse(error), wholePage);
+      const page = await fetchPage('https://example.org/x', {
+        fetch: stub,
+        bodyCutRetriesMs: [1],
+        sleep: async () => undefined,
+      });
+      expect(page.text).toBe('The page text.');
+      expect(calls()).toBe(2);
+    }
+    const timeout = sequence(() => cutResponse(new DOMException('timed out', 'TimeoutError')));
+    await expect(
+      fetchPage('https://example.org/x', {
+        fetch: timeout.stub,
+        bodyCutRetriesMs: [1, 1],
+        sleep: async () => undefined,
+      }),
+    ).rejects.not.toBeInstanceOf(NetworkCutError);
+    expect(timeout.calls()).toBe(1);
+  });
+
+  it('never retries a refusal or a bot challenge, however many retries are allowed', async () => {
+    const sleep = vi.fn(async () => undefined);
+    for (const status of [401, 403, 429]) {
+      const refused = sequence(() => new Response('no', { status }));
+      await expect(
+        fetchPage('https://example.org/x', {
+          fetch: refused.stub,
+          bodyCutRetriesMs: [1, 1, 1],
+          sleep,
+        }),
+      ).rejects.toThrow(`the server answered ${status}`);
+      expect(refused.calls()).toBe(1);
+    }
+    const challenge = sequence(
+      () =>
+        new Response('<html><body><h1>Just a moment...</h1></body></html>', {
+          headers: { 'content-type': 'text/html' },
+        }),
+    );
+    await expect(
+      fetchPage('https://example.org/x', {
+        fetch: challenge.stub,
+        bodyCutRetriesMs: [1, 1, 1],
+        sleep,
+      }),
+    ).rejects.toThrow('bot challenge');
+    expect(challenge.calls()).toBe(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('is one attempt when no retries are asked for', async () => {
+    const { stub, calls } = sequence(cutResponse, wholePage);
+    await expect(fetchPage('https://example.org/x', { fetch: stub })).rejects.toThrow(
+      /^the connection was cut while the page downloaded \(terminated: UND_ERR_SOCKET: other side closed\); this is a network failure/,
+    );
+    expect(calls()).toBe(1);
   });
 });
 

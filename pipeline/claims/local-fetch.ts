@@ -25,21 +25,43 @@ const MAX_BYTES = 20_000_000;
 const TIMEOUT_MS = 20_000;
 
 /**
+ * The attributes of an HTML tag, up to its closing ">". A quoted value may hold a ">" (HTML allows
+ * it), so quoted values are matched whole. pib.gov.in keeps a copy of the release's HTML, escaped
+ * except for its ">" characters, in the value of a hidden input; ending the tag at the first ">"
+ * left the rest of that value in the text, where the character references became markup.
+ */
+const ATTRIBUTES = String.raw`(?:"[^"]*"|'[^']*'|[^"'>])*`;
+
+/** A tag whose name matches `name` (a regular expression source), with any attributes. */
+const tagPattern = (name: string) => new RegExp(`<${name}${ATTRIBUTES}>`, 'gi');
+
+/**
  * The visible text of an HTML document, one block per line. Character references are decoded
  * once, as a browser does, with every named reference HTML defines ("&eacute;" is "é"); text a
- * page escaped twice ("&amp;eacute;") shows as "&eacute;", as it does in a browser.
+ * page escaped twice ("&amp;eacute;") shows as "&eacute;", as it does in a browser. No tag is left
+ * in the text: tags end where a browser ends them, and comments, declarations and processing
+ * instructions are dropped.
  */
 export function htmlToText(html: string): string {
   const text = html
     .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/<(script|style|noscript|svg|template|head)\b[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<(br|hr)\b[^>]*>/gi, '\n')
     .replace(
-      /<\/?(p|div|section|article|main|header|footer|li|ul|ol|h[1-6]|tr|table|blockquote)\b[^>]*>/gi,
+      new RegExp(
+        String.raw`<(script|style|noscript|svg|template|head)\b${ATTRIBUTES}>[\s\S]*?</\1\s*>`,
+        'gi',
+      ),
+      ' ',
+    )
+    .replace(tagPattern(String.raw`(?:br|hr)\b`), '\n')
+    .replace(
+      tagPattern(
+        String.raw`/?(?:p|div|section|article|main|header|footer|li|ul|ol|h[1-6]|tr|table|blockquote)\b`,
+      ),
       '\n',
     )
-    .replace(/<(td|th)\b[^>]*>/gi, ' | ')
-    .replace(/<[^>]+>/g, ' ');
+    .replace(tagPattern(String.raw`(?:td|th)\b`), ' | ')
+    .replace(tagPattern(String.raw`/?[a-zA-Z][^\s>/]*`), ' ')
+    .replace(/<[!?][^>]*>/g, ' ');
   return decodeHTML(text)
     .split('\n')
     .map((line) => line.replace(/\s+/g, ' ').trim())
@@ -76,7 +98,7 @@ export function extractLinks(html: string, pageUrl: string): PageLink[] {
   const self = new URL(pageUrl);
   self.hash = '';
   let base = self;
-  const baseHref = attribute(/<base\b[^>]*>/i.exec(html)?.[0] ?? '', 'href')?.trim();
+  const baseHref = attribute(tagPattern(String.raw`base\b`).exec(html)?.[0] ?? '', 'href')?.trim();
   if (baseHref) {
     try {
       base = new URL(baseHref, self);
@@ -85,8 +107,9 @@ export function extractLinks(html: string, pageUrl: string): PageLink[] {
     }
   }
   const links = new Map<string, string>();
-  for (const [, tag, inner] of html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)) {
-    const href = attribute(tag, 'href')?.trim();
+  const anchors = new RegExp(String.raw`<a\b(${ATTRIBUTES})>([\s\S]*?)</a\s*>`, 'gi');
+  for (const [, anchor, inner] of html.matchAll(anchors)) {
+    const href = attribute(anchor, 'href')?.trim();
     if (!href) continue;
     let url: URL;
     try {
@@ -98,9 +121,9 @@ export function extractLinks(html: string, pageUrl: string): PageLink[] {
     if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.href === self.href) continue;
     const text = collapse(
       htmlToText(inner) ||
-        attribute(tag, 'aria-label') ||
-        attribute(tag, 'title') ||
-        attribute(/<img\b[^>]*>/i.exec(inner)?.[0] ?? '', 'alt') ||
+        attribute(anchor, 'aria-label') ||
+        attribute(anchor, 'title') ||
+        attribute(tagPattern(String.raw`img\b`).exec(inner)?.[0] ?? '', 'alt') ||
         '',
     );
     const shown = text.length > MAX_LINK_TEXT ? `${text.slice(0, MAX_LINK_TEXT)}...` : text;
@@ -162,9 +185,16 @@ export type FetchPageOptions = {
   /**
    * How long to wait before each new attempt after a server error (5xx), which is often a
    * moment's overload; none by default. A Retry-After header of up to a minute replaces the wait.
-   * Nothing else is retried: a 4xx, a timeout or a network failure is an answer of its own.
+   * Nothing else is retried: a 4xx (a refusal, a rate limit or a bot challenge is never worked
+   * around), a timeout or a network failure before the body is an answer of its own.
    */
   serverErrorRetriesMs?: number[];
+  /**
+   * How long to wait before each new attempt after the connection was cut while the body
+   * downloaded (undici's "terminated", ECONNRESET, a premature close), which long PDFs often hit
+   * once and not again; none by default. A page that still fails ends in a NetworkCutError.
+   */
+  bodyCutRetriesMs?: number[];
   /** Waits between attempts; tests pass one that returns at once. */
   sleep?: (ms: number) => Promise<void>;
   /** The fetch implementation; tests pass a stub. */
@@ -196,6 +226,46 @@ const BOT_CHALLENGE_MAX_CHARACTERS = 3000;
 
 const megabytes = (bytes: number) => `${(bytes / 1_000_000).toFixed(1)} MB`;
 
+/**
+ * The connection was cut while the body downloaded, on every attempt. It says nothing about the
+ * page: the same URL may download whole a minute later, so it is reported as a network failure and
+ * never as a reason to treat the page as unreadable.
+ */
+export class NetworkCutError extends Error {
+  constructor(
+    readonly detail: string,
+    attempts: number,
+    options?: ErrorOptions,
+  ) {
+    super(
+      `the connection was cut while the page downloaded (${detail})${attempts > 1 ? ` on all ${attempts} attempts` : ''}; this is a network failure, not a problem with the page, so try again later`,
+      options,
+    );
+    this.name = 'NetworkCutError';
+  }
+}
+
+/** The error codes of a connection that ended or was reset in the middle of a body. */
+const BODY_CUT_CODES = new Set([
+  'ECONNRESET',
+  'ECONNABORTED',
+  'EPIPE',
+  'UND_ERR_SOCKET',
+  'ERR_STREAM_PREMATURE_CLOSE',
+]);
+
+/** Whether an error read from a response body means the connection was cut, not that time ran out. */
+function isBodyCut(error: unknown): error is Error {
+  if (!(error instanceof Error) || error.name === 'TimeoutError' || error.name === 'AbortError') {
+    return false;
+  }
+  const code = causeCode(error.cause) ?? (error as { code?: unknown }).code;
+  return (
+    (typeof code === 'string' && BODY_CUT_CODES.has(code)) ||
+    /^terminated$|premature close|socket hang up|other side closed|ECONNRESET/i.test(error.message)
+  );
+}
+
 /** The body, refusing one larger than maxBytes before or while it downloads. */
 async function readBody(response: Response, maxBytes: number): Promise<Uint8Array> {
   const declared = Number(response.headers.get('content-length') ?? 0);
@@ -206,13 +276,23 @@ async function readBody(response: Response, maxBytes: number): Promise<Uint8Arra
   const chunks: Uint8Array[] = [];
   let size = 0;
   const reader = response.body.getReader();
-  for (let read = await reader.read(); !read.done; read = await reader.read()) {
-    size += read.value.byteLength;
-    if (size > maxBytes) {
-      await reader.cancel();
-      throw tooLarge(size);
+  try {
+    for (let read = await reader.read(); !read.done; read = await reader.read()) {
+      size += read.value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel();
+        throw tooLarge(size);
+      }
+      chunks.push(read.value);
     }
-    chunks.push(read.value);
+  } catch (error) {
+    if (isBodyCut(error)) {
+      const detail = causeDetail(error.cause);
+      throw new NetworkCutError(detail ? `${error.message}: ${detail}` : error.message, 1, {
+        cause: error,
+      });
+    }
+    throw error;
   }
   return Buffer.concat(chunks);
 }
@@ -574,6 +654,7 @@ export async function fetchPage(url: string, options: FetchPageOptions = {}): Pr
     maxBytes = MAX_BYTES,
     timeoutMs = TIMEOUT_MS,
     serverErrorRetriesMs = [],
+    bodyCutRetriesMs = [],
   } = options;
   const attempt = () =>
     request(options.fetch ?? fetch, url, {
@@ -586,29 +667,49 @@ export async function fetchPage(url: string, options: FetchPageOptions = {}): Pr
       },
       signal: AbortSignal.timeout(timeoutMs),
     });
-  let response = await attempt();
-  for (const wait of serverErrorRetriesMs) {
-    if (response.status < 500) break;
-    await response.body?.cancel();
-    await (options.sleep ?? sleep)(retryAfter(response) ?? wait);
-    response = await attempt();
+  /** One download: the request (retried after a server error), the checks of its answer, the body. */
+  const download = async () => {
+    let response = await attempt();
+    for (const wait of serverErrorRetriesMs) {
+      if (response.status < 500) break;
+      await response.body?.cancel();
+      await (options.sleep ?? sleep)(retryAfter(response) ?? wait);
+      response = await attempt();
+    }
+    if (!response.ok) {
+      const retried = response.status >= 500 && serverErrorRetriesMs.length > 0;
+      throw new Error(
+        `the server answered ${response.status}${retried ? ` on all ${serverErrorRetriesMs.length + 1} attempts` : ''}`,
+      );
+    }
+    const contentType = response.headers.get('content-type') ?? '';
+    const isText = /text\/(html|plain)|application\/xhtml/i.test(contentType);
+    // Servers often label a PDF as a download, so a PDF is recognised by its first bytes.
+    const mayBePdf =
+      pdf && /application\/(pdf|octet-stream)|binary\/octet-stream/i.test(contentType);
+    if (!isText && !mayBePdf) {
+      throw new Error(
+        `the page is ${contentType || 'of an unknown type'}; only HTML${pdf ? ', plain text and PDF' : ' and plain text'} are read`,
+      );
+    }
+    return { response, contentType, isText, body: await readBody(response, maxBytes) };
+  };
+  // A body cut off in the middle starts over from the request, after a wait. Only the cut is
+  // retried: a refusal (401, 403, 429) or a bot challenge is an answer and is never tried again.
+  let downloaded: Awaited<ReturnType<typeof download>> | undefined;
+  for (let cuts = 0; !downloaded; cuts += 1) {
+    try {
+      downloaded = await download();
+    } catch (error) {
+      if (!(error instanceof NetworkCutError)) throw error;
+      const wait = bodyCutRetriesMs[cuts];
+      if (wait === undefined) {
+        throw new NetworkCutError(error.detail, cuts + 1, { cause: error.cause });
+      }
+      await (options.sleep ?? sleep)(wait);
+    }
   }
-  if (!response.ok) {
-    const retried = response.status >= 500 && serverErrorRetriesMs.length > 0;
-    throw new Error(
-      `the server answered ${response.status}${retried ? ` on all ${serverErrorRetriesMs.length + 1} attempts` : ''}`,
-    );
-  }
-  const contentType = response.headers.get('content-type') ?? '';
-  const isText = /text\/(html|plain)|application\/xhtml/i.test(contentType);
-  // Servers often label a PDF as a download, so a PDF is recognised by its first bytes.
-  const mayBePdf = pdf && /application\/(pdf|octet-stream)|binary\/octet-stream/i.test(contentType);
-  if (!isText && !mayBePdf) {
-    throw new Error(
-      `the page is ${contentType || 'of an unknown type'}; only HTML${pdf ? ', plain text and PDF' : ' and plain text'} are read`,
-    );
-  }
-  const body = await readBody(response, maxBytes);
+  const { response, contentType, isText, body } = downloaded;
   let text: string;
   let links: PageLink[] = [];
   let mainOffset: number | undefined;

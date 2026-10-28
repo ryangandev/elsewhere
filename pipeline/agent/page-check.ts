@@ -103,7 +103,7 @@ function parse(url: string): URL | undefined {
  * ("data.ons.gov.uk" for "www.ons.gov.uk") is not suspicious; the redirect target decides.
  */
 export function notTheRequestedPage(
-  record: Pick<EvidenceRecord, 'requestedUrl' | 'finalUrl' | 'text'>,
+  record: Pick<EvidenceRecord, 'requestedUrl' | 'finalUrl' | 'text'> & { contentType?: string },
 ): string | undefined {
   const requested = parse(record.requestedUrl);
   const final = parse(record.finalUrl);
@@ -126,7 +126,64 @@ export function notTheRequestedPage(
   if (record.text.length < MIN_PAGE_CHARACTERS) {
     return `its text is only ${record.text.length} characters, too short to be the page (probably a script stub, an error or a login form)`;
   }
+  const menu = menuOnlyText(record);
+  if (menu) return menu;
   return undefined;
+}
+
+/** A line of this many words or more is a sentence or a paragraph; menus, footers and links are shorter. */
+export const PARAGRAPH_WORDS = 10;
+/**
+ * A page needs this many characters of paragraphs (about a short paragraph of three lines), and
+ * a page whose paragraph-length lines hold less than 5% of its text is only menus, however many.
+ * One footer sentence is under the first, and a mega-menu's few real lines are under the second.
+ */
+const MIN_PARAGRAPH_CHARACTERS = 200;
+const MIN_PARAGRAPH_SHARE = 0.05;
+/** Menus and footers are many lines; fewer lines than this is not a page of navigation. */
+const MIN_MENU_LINES = 8;
+/** Text where more than this share of the words hold a digit is data (a table), not a menu. */
+const MAX_DATA_SHARE = 0.25;
+
+/**
+ * Why an HTML page is probably only its menus and footer, or undefined. Some sites build their
+ * answer text with scripts (mnd.gov.sg did), and the fetch gets the navigation, the footer and
+ * little else, long enough to pass the length check. A page's text is one block per line, and a
+ * page with content has paragraph-length lines: lines of at least ten words (a line of links cut
+ * at its "|" separators counts by its longest part) that hold at least 200 characters and at least
+ * 5% of the text together, which a footer's one-line notice does not. A page of fewer than eight
+ * lines is not tested. A table of figures has short lines too, so text where a quarter of the
+ * words hold a digit is left alone, and so are PDFs and plain text, whose lines are cut by the
+ * page's width.
+ */
+export function menuOnlyText(record: { text: string; contentType?: string }): string | undefined {
+  if (record.contentType !== undefined && !/html/i.test(record.contentType)) return undefined;
+  if (record.text.startsWith('[Page 1]')) return undefined;
+  const lines = record.text.split('\n').filter((line) => line.trim());
+  if (lines.length < MIN_MENU_LINES) return undefined;
+  const words = lines.flatMap((line) => line.split(/\s+/).filter(Boolean));
+  if (words.filter((word) => /\p{N}/u.test(word)).length > words.length * MAX_DATA_SHARE) {
+    return undefined;
+  }
+  // A line of links is cut at its separators ("Contact us | Terms of use | Privacy"), and a
+  // paragraph is the longest run of words between them.
+  const wordsOf = (line: string) =>
+    Math.max(
+      ...line
+        .split(/\s[|\u2022\u00b7]\s/)
+        .map((part) => part.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length),
+    );
+  const longest = Math.max(0, ...lines.map(wordsOf));
+  const paragraphs = lines
+    .filter((line) => wordsOf(line) >= PARAGRAPH_WORDS)
+    .reduce((total, line) => total + line.length, 0);
+  if (
+    paragraphs >= MIN_PARAGRAPH_CHARACTERS &&
+    paragraphs >= record.text.length * MIN_PARAGRAPH_SHARE
+  ) {
+    return undefined;
+  }
+  return `almost all of its text is short navigation lines (${lines.length} lines, the longest has ${longest} words), so it is probably only the site's menus and footer, with the answer text built by scripts that are not run here`;
 }
 
 /** Words of a path, for telling whether a redirect stayed on the same subject. */
@@ -171,8 +228,12 @@ export function redirectKind(
 
 /** The share of characters that no text has: U+FFFD, private-use characters and controls. */
 const BROKEN_CHARACTER = /[\uFFFD\uE000-\uF8FF\u0001-\u0008\u000E-\u001F]/gu;
-/** A number, a date, a percentage or a range, which says nothing about whether text is words. */
-const NUMBER_TOKEN = /^[\p{N}.,:;%+\-\u2013/()[\]]+$/u;
+/**
+ * A token that says nothing about whether text is words: one with a digit in it (a number, a date,
+ * a percentage, a range, "Rs.1,234", "2023-24", "Q3") or a lone separator, such as the "|" between
+ * the cells of a table.
+ */
+const NEUTRAL_TOKEN = /\p{N}|^[|\u2013\u2014\u2022\u00b7/\\:;,.\-]$/u;
 /** A word: letters with an apostrophe or hyphen inside, and punctuation around it. */
 const WORD_TOKEN = /^[("'\u2018\u201C\[]*\p{L}[\p{L}\p{M}'\u2019-]*[)"'\u2019\u201D\].,;:!?%]*$/u;
 const LATIN_VOWEL = /[aeiouyàáâãäåæèéêëìíîïòóôõöøùúûüýÿœ]/i;
@@ -184,8 +245,9 @@ const LATIN_VOWEL = /[aeiouyàáâãäåæèéêëìíîïòóôõöøùúûüý
  * page states finds nothing. The text is unreadable when more than 5% of its characters are
  * replacement, private-use or control characters, or when fewer than half of its tokens that are
  * not numbers are words. A Latin word of four letters or more needs a vowel, which catches glyphs
- * mapped to shifted letters ("Kdssb"). Tables of words and numbers pass, since numbers are left
- * out and their labels are words.
+ * mapped to shifted letters ("Kdssb"). Numbers are left out, and so are the "|" between table
+ * cells, so a table of numbers and short labels passes: numbers are not unreadable, and the check
+ * is for font-encoded garbage.
  */
 export function unreadableText(text: string): string | undefined {
   const sample = text.length > 400_000 ? text.slice(0, 400_000) : text;
@@ -198,7 +260,7 @@ export function unreadableText(text: string): string | undefined {
   const tokens = sample
     .replace(/^\[Page \d+\]$/gm, '')
     .split(/\s+/)
-    .filter((token) => token && !NUMBER_TOKEN.test(token));
+    .filter((token) => token && !NEUTRAL_TOKEN.test(token));
   if (tokens.length < 100) return undefined;
   const words = tokens.filter((token) => {
     if (!WORD_TOKEN.test(token)) return false;

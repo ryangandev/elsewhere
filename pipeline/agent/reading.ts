@@ -3,7 +3,7 @@
 // words appear. Agent drafting (content:agent fetch) and the agent claim check
 // (content:claims-agent fetch) share it, and the claim check's live verification fetches with the
 // same limits.
-import { fetchPage, type FetchedPage } from '../claims/local-fetch';
+import { fetchPage, NetworkCutError, type FetchedPage } from '../claims/local-fetch';
 import { unreadableText } from './page-check';
 import type { EvidenceRecord } from './session';
 
@@ -22,6 +22,12 @@ const FETCH_TIMEOUT_MS = 60_000;
  * a page that answers at once never waits.
  */
 export const SERVER_ERROR_RETRIES_MS = [5_000, 20_000, 60_000];
+/**
+ * Waits before downloading a page again after the connection was cut in the middle of its body.
+ * A 328k-character PDF was cut twice in a row and then downloaded whole, so there are three more
+ * attempts, a few seconds apart; a page that downloads whole never waits.
+ */
+export const BODY_CUT_RETRIES_MS = [2_000, 8_000, 20_000];
 /** Places listed per search term unless --matches asks for more; repetitive pages have hundreds. */
 export const DEFAULT_FIND_MATCHES = 5;
 /** The most places --matches may list per term in one call. */
@@ -32,7 +38,7 @@ const number = (value: number) => value.toLocaleString('en-US');
 export type ReadingFetchOptions = {
   /** The fetch implementation; tests pass a stub. */
   fetch?: typeof fetch;
-  /** Waits between attempts after a server error; tests pass one that returns at once. */
+  /** Waits between attempts after a server error or a cut body; tests pass one that returns at once. */
   sleep?: (ms: number) => Promise<void>;
 };
 
@@ -47,6 +53,7 @@ export const fetchForReading = (
     maxBytes: MAX_FETCH_BYTES,
     timeoutMs: FETCH_TIMEOUT_MS,
     serverErrorRetriesMs: SERVER_ERROR_RETRIES_MS,
+    bodyCutRetriesMs: BODY_CUT_RETRIES_MS,
     sleep: options.sleep,
     fetch: options.fetch,
   });
@@ -58,6 +65,9 @@ export function fetchFailure(error: unknown): string {
   }
   return error instanceof Error ? error.message : String(error);
 }
+
+/** Whether a fetch failed because the connection was cut, on every attempt, not because of the page. */
+export const isNetworkCut = (error: unknown) => error instanceof NetworkCutError;
 
 export function describeRecord(record: EvidenceRecord): string {
   return [
