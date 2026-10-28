@@ -128,15 +128,21 @@ export type StartOptions = {
   draftsOnly: boolean;
   /** Most cited sources in one session; a country citing more is split into several sessions. */
   maxSources: number;
-  /** Set every existing session of the country aside (into finished/) first. */
+  /** Set the existing sessions of the country that overlap the requested scope aside (into finished/) first, even when nothing is due. */
   fresh: boolean;
 };
 
 /**
- * Create one session per part of the due units and write each brief. Every part is planned at
- * once from one reading of the claims file, so parts never overlap however their subagents
- * finish; a unit an unfinished session still holds is never handed to another one.
+ * The `start` command that plans a session's scope again, from its label ("CHL", "CHL/length",
+ * "CHL/overview", with ", part 1 of 2" after a split): a session of one story or of the overview
+ * is not restarted with a whole-country `--fresh`, which would set the rest of the country aside.
  */
+function restartCommand(session: ClaimsAgentSession): string {
+  const scope = session.label.split(',')[0].split('/')[1];
+  const target = scope === undefined ? '' : scope === 'overview' ? ' --overview' : ` ${scope}`;
+  return command(`start ${session.countryId}${target} --fresh`);
+}
+
 /**
  * Why a session may not be continued, or undefined: it started on prompts older than
  * MIN_CLAIMS_AGENT_PROMPT_VERSION, whose brief describes the fetch command as it no longer works.
@@ -148,9 +154,14 @@ function outdatedSession(session: ClaimsAgentSession): string | undefined {
   ) {
     return undefined;
   }
-  return `Session ${session.sessionId} started on the ${session.promptVersion} prompts, whose brief describes the fetch command as it no longer works. Set it aside and plan again with: ${command(`start ${session.countryId} --fresh`)}`;
+  return `Session ${session.sessionId} started on the ${session.promptVersion} prompts, whose brief describes the fetch command as it no longer works. Set it aside and plan again with: ${restartCommand(session)}`;
 }
 
+/**
+ * Create one session per part of the due units and write each brief. Every part is planned at
+ * once from one reading of the claims file, so parts never overlap however their subagents
+ * finish; a unit an unfinished session still holds is never handed to another one.
+ */
 export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
   const { root, now } = context(deps);
   const file = loadCountry(options.contentDir, options.country);
@@ -183,32 +194,57 @@ export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
     },
     claimsDir,
   );
+  // --fresh sets aside what overlaps the requested scope, even when nothing is due, and leaves a
+  // session of another part of the country alone. A session whose units are gone from the country
+  // file (a story removed, sections dropped) can no longer be continued, so any --fresh sets it
+  // aside too, and the whole country sets every session aside.
+  const toMove = new Set<string>();
+  if (options.fresh) {
+    const unitIds = (list: ClaimScope[]) =>
+      new Set(list.flatMap((scope) => scopeUnits(file, scope)).map((unit) => unit.id));
+    const inScope = unitIds(scopes ?? allScopes(file));
+    const current = unitIds(allScopes(file));
+    for (const { id, session } of existing) {
+      const orphaned = session.units.some((unit) => !current.has(unit.id));
+      if (!scopes || orphaned || session.units.some((unit) => inScope.has(unit.id))) {
+        toMove.add(id);
+      }
+    }
+  }
+  const moveAside = () => {
+    for (const { id, session } of existing) {
+      if (toMove.has(id)) archived.push(archiveSession(root, session));
+    }
+  };
   if (!jobs.length) {
+    moveAside();
+    for (const target of archived) deps.out(`Moved the earlier session to ${target}.`);
     deps.out(
       'Nothing to check: every unit has a result for its current text. Pass --recheck to check again.',
     );
     return 0;
   }
-  if (options.fresh) {
-    for (const { session } of existing) archived.push(archiveSession(root, session));
-  } else {
-    const wanted = new Set(jobs.flatMap(jobUnits).map((unit) => unit.key));
-    const holding = existing.filter(({ session }) =>
-      dueUnits(session).some((unit) => wanted.has(unit.key)),
+  // The sessions that stay are checked against the units about to be handed out. The match is by
+  // unit key (text and sources), which the move above, matching by ID, does not see.
+  const wanted = new Set(jobs.flatMap(jobUnits).map((unit) => unit.key));
+  const holding = existing.filter(
+    ({ id, session }) => !toMove.has(id) && dueUnits(session).some((unit) => wanted.has(unit.key)),
+  );
+  if (holding.length) {
+    const outdated = holding.filter(({ session }) => outdatedSession(session));
+    deps.out(
+      [
+        `Unfinished sessions already hold some of these units: ${holding.map(({ id }) => id).join(', ')}.`,
+        options.fresh
+          ? 'They are outside the requested scope, so --fresh left them. Continue them, or run start for the whole country with --fresh to set every session aside.'
+          : outdated.length
+            ? `${outdated.map(({ id }) => id).join(', ')} started on older prompts, whose brief describes the fetch command as it no longer works, so pass --fresh to set the sessions of this country that overlap this scope aside and plan again.`
+            : 'Continue them (a new subagent can pick up a session where the last one stopped), or pass --fresh to set the sessions of this country that overlap this scope aside (into finished/) and plan again.',
+      ].join('\n'),
     );
-    if (holding.length) {
-      const outdated = holding.filter(({ session }) => outdatedSession(session));
-      deps.out(
-        [
-          `Unfinished sessions already hold some of these units: ${holding.map(({ id }) => id).join(', ')}.`,
-          outdated.length
-            ? `${outdated.map(({ id }) => id).join(', ')} started on older prompts, whose brief describes the fetch command as it no longer works, so pass --fresh to set every session of this country aside and plan again.`
-            : 'Continue them (a new subagent can pick up a session where the last one stopped), or pass --fresh to set every session of this country aside (into finished/) and plan again.',
-        ].join('\n'),
-      );
-      return 1;
-    }
+    return 1;
   }
+  moveAside();
 
   const prompts = loadClaimsAgentPrompts();
   const created: { id: string; units: number; sources: number }[] = [];
@@ -562,7 +598,7 @@ export async function submit(options: SubmitOptions, deps: ClaimsAgentDeps): Pro
   const current = currentUnits(session, country);
   if ('changed' in current) {
     deps.out(
-      `The text or sources of ${current.changed.join(', ')} changed since this session started, so its verdicts would not apply. Plan again with: ${command(`start ${session.countryId} --fresh`)}`,
+      `The text or sources of ${current.changed.join(', ')} changed since this session started, so its verdicts would not apply. Plan again with: ${restartCommand(session)}`,
     );
     return 1;
   }

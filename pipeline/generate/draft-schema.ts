@@ -55,7 +55,9 @@ const sceneFields = {
 };
 
 export const DraftStory = z.strictObject({
-  id: StoryId.describe('Permanent ID. Use the planned ID when one is given.'),
+  id: StoryId.describe(
+    'Permanent ID. Use the planned ID when one is given. "overview" is reserved and cannot be used.',
+  ),
   slug: Slug.describe('Readable URL segment, usually the same as the ID.'),
   question: Text.describe('The question as a curious adult would ask it.'),
   category: Text.describe('One word or two, e.g. "Economy", "Geography", "History".'),
@@ -183,7 +185,9 @@ export const BatchPlan = z.strictObject({
       countryId: MapCountryId,
       stories: z.array(
         z.strictObject({
-          id: StoryId.describe('Permanent lowercase slug, short and topical, e.g. "canal".'),
+          id: StoryId.describe(
+            'Permanent lowercase slug, short and topical, e.g. "canal". "overview" is reserved and cannot be used.',
+          ),
           question: Text,
           angle: z
             .enum(['common', 'unexpected'])
