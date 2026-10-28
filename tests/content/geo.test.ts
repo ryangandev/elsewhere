@@ -216,6 +216,13 @@ describe('routes', () => {
       through: ['black-sea', 'kerch-strait', 'sea-of-azov'],
       acrossLand: ['black-sea', 'sea-of-azov'],
     },
+    {
+      // And the English Channel and the North Sea, across the Strait of Dover: a straight line
+      // between their label points crosses Kent and East Anglia.
+      passage: 'strait-of-dover',
+      through: ['english-channel', 'strait-of-dover', 'north-sea'],
+      acrossLand: ['english-channel', 'north-sea'],
+    },
   ];
 
   it.each(passages)('pass through $passage', ({ passage, through, acrossLand }) => {
@@ -241,6 +248,23 @@ describe('routes', () => {
         [],
       );
     }
+  });
+
+  it('reach Rotterdam from the Atlantic through the Strait of Dover', () => {
+    const routes = [
+      ['north-atlantic-ocean', 'english-channel', 'strait-of-dover', 'north-sea', 'rotterdam'],
+      ['english-channel', 'strait-of-dover', 'rotterdam'],
+      ['rotterdam', 'north-sea', 'strait-of-dover', 'english-channel', 'north-atlantic-ocean'],
+    ];
+    for (const via of routes) {
+      expect(findRouteLandCrossings({ kind: 'sea', via }, landIndex()), via.join(' > ')).toEqual(
+        [],
+      );
+    }
+    // Without the strait, the line from the Channel cuts across Cap Gris-Nez and Walcheren.
+    expect(
+      findRouteLandCrossings({ kind: 'sea', via: ['english-channel', 'rotterdam'] }, landIndex()),
+    ).not.toEqual([]);
   });
 
   // Waters and ports the pilot countries need that Natural Earth lacks or leaves out by default:
@@ -309,6 +333,14 @@ describe('routes', () => {
       'vaal-river',
       'orange-river',
       'lake-victoria',
+      'lake-albert',
+      'lake-kyoga',
+      'lake-tana',
+      'blue-nile-river',
+      'meuse-river',
+      'scheldt-river',
+      'thames-river',
+      'strait-of-dover',
       'durban',
       'cape-town',
       'strait-of-gibraltar',
@@ -329,7 +361,9 @@ describe('routes', () => {
       ],
     ];
     for (const id of ids) expect(getPlace(id), id).toBeDefined();
-    expect(getPlace('lake-victoria')).toMatchObject({ kind: 'water', surface: 'land' });
+    for (const lake of ['lake-victoria', 'lake-albert', 'lake-kyoga', 'lake-tana']) {
+      expect(getPlace(lake), lake).toMatchObject({ kind: 'water', surface: 'land', source: 'lakes' });
+    }
     expect(getPlace('gauteng')).toMatchObject({ kind: 'region', source: 'admin1' });
     // Zanzibar the city and Zanzibar the island are different places.
     expect(getPlace('zanzibar')).toMatchObject({ kind: 'place', countryId: 'TZA' });
@@ -360,6 +394,9 @@ describe('routes', () => {
     expect(listPlaces().filter((place) => /^(rhine|rhein) river$/i.test(place.name))).toHaveLength(1);
     expect(getPlace('rhein-river')).toBeUndefined();
     expect(getPlace('nyanza')).toBeUndefined();
+    for (const id of ['albert', 'kyoga', 'tana', 'maas-river', 'schelde-river']) {
+      expect(getPlace(id), id).toBeUndefined();
+    }
   });
 
   it('know the Saint Lawrence River by one ID', () => {

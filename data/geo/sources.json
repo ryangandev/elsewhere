@@ -44,6 +44,6 @@
     },
     "overrides": "data/geo/gazetteer-overrides.json",
     "seaPointGeometry": "public/maps/countries-detail.geojson",
-    "features": 1278
+    "features": 1286
   }
 }

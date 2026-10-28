@@ -98,6 +98,24 @@
       "reason": "Africa's largest lake, shared by Uganda, Kenya and Tanzania. Natural Earth keeps lake polygons in its lakes dataset, which the gazetteer reads only for the lakes listed here."
     },
     {
+      "dataset": "lakes",
+      "neId": 1159113145,
+      "name": "Lake Albert",
+      "reason": "Lake on the border of Uganda and the Democratic Republic of the Congo, which the Victoria Nile enters and the Albert Nile leaves; Natural Earth lakes dataset."
+    },
+    {
+      "dataset": "lakes",
+      "neId": 1159114279,
+      "name": "Lake Kyoga",
+      "reason": "Lake in central Uganda that the Victoria Nile flows through between Lake Victoria and Lake Albert; Natural Earth lakes dataset (scalerank 5)."
+    },
+    {
+      "dataset": "lakes",
+      "neId": 1159113265,
+      "name": "Lake Tana",
+      "reason": "Ethiopia's largest lake, where the Blue Nile begins; Natural Earth lakes dataset."
+    },
+    {
       "dataset": "admin1",
       "neId": 1159309731,
       "name": "Northern Cape",
@@ -190,10 +208,40 @@
       "reason": "Natural Earth's English name for the lake is Nyanza (a Bantu word for lake); its own name is Lake Victoria, the name used in English."
     },
     {
+      "dataset": "lakes",
+      "from": "Albert",
+      "to": "Lake Albert",
+      "reason": "Natural Earth's English name field gives the lake's bare name, Albert; its own name, and the name used in English, is Lake Albert."
+    },
+    {
+      "dataset": "lakes",
+      "from": "Kyoga",
+      "to": "Lake Kyoga",
+      "reason": "Natural Earth's English name field gives the lake's bare name, Kyoga; its own name, and the name used in English, is Lake Kyoga."
+    },
+    {
+      "dataset": "lakes",
+      "from": "Tana",
+      "to": "Lake Tana",
+      "reason": "Natural Earth's English name field gives the lake's bare name, Tana; its own name, and the name used in English, is Lake Tana."
+    },
+    {
       "dataset": "rivers",
       "from": "Rhein River",
       "to": "Rhine River",
       "reason": "English name of the river. Natural Earth draws the Rhine as three river features: two under the German name Rhein (one also named Rhin) and one named Rhine. Renaming Rhein joins them into one river."
+    },
+    {
+      "dataset": "rivers",
+      "from": "Maas River",
+      "to": "Meuse River",
+      "reason": "English name of the river. Natural Earth's river centerlines name it by its Dutch name, Maas, with Meuse as the alternate name; English uses Meuse for the whole river, from France through Belgium to the Netherlands."
+    },
+    {
+      "dataset": "rivers",
+      "from": "Schelde River",
+      "to": "Scheldt River",
+      "reason": "English name of the river. Natural Earth's river centerlines name it by its Dutch name, Schelde."
     },
     {
       "dataset": "admin1",
@@ -260,6 +308,22 @@
     {
       "name": "Orange River",
       "reason": "Natural Earth's river centerlines (scalerank 4 and 6), below the default cutoff of 2; South Africa's longest river, flowing west to the Atlantic."
+    },
+    {
+      "name": "Blue Nile River",
+      "reason": "Natural Earth's river and lake centerlines (scalerank 3), below the default cutoff of 2; the Blue Nile flows from Lake Tana in Ethiopia to join the White Nile at Khartoum."
+    },
+    {
+      "name": "Meuse River",
+      "reason": "Natural Earth's river centerlines (scalerank 8), below the default cutoff of 2; the river runs from north-eastern France through Belgium to the Rhine delta in the Netherlands."
+    },
+    {
+      "name": "Scheldt River",
+      "reason": "Natural Earth's river centerlines (scalerank 8), below the default cutoff of 2; the river runs from northern France through Belgium to Antwerp."
+    },
+    {
+      "name": "Thames River",
+      "reason": "Natural Earth's river centerlines (scalerank 6), below the default cutoff of 2; the river runs from the Cotswolds through London to its estuary on the North Sea."
     }
   ],
   "canals": [
@@ -369,6 +433,21 @@
         "radiusKm": 50
       },
       "reason": "Natural Earth's marine polygons have no Kerch Strait: the Black Sea and Sea of Azov polygons meet across it. Labelled at the middle of their shared boundary, with a passage from the Black Sea to the Sea of Azov through their water within 50 km of it."
+    },
+    {
+      "id": "strait-of-dover",
+      "name": "Strait of Dover",
+      "kind": "water",
+      "surface": "sea",
+      "anchor": {
+        "type": "junction",
+        "placeIds": [
+          "english-channel",
+          "north-sea"
+        ],
+        "radiusKm": 50
+      },
+      "reason": "Natural Earth's marine polygons have no Strait of Dover: the English Channel and North Sea polygons meet across it. Labelled at the middle of their shared boundary, with a passage from the English Channel to the North Sea through their water within 50 km of it."
     }
   ]
 }
