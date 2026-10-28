@@ -64,15 +64,23 @@ function capAltitude(radius: number, aspect: number) {
   return Math.cos(radius) + Math.sin(radius) / (SCENE_FILL * halfExtent(aspect)) - 1;
 }
 
-// The scene's places and route waypoints, split into the points framed in full and the points
-// a scene names only as a direction. Waypoints are enough: a great-circle step between two points
-// of a cap smaller than a hemisphere stays inside it.
+// The scene's places and the points its routes are drawn through, split into the points framed in
+// full and the points a scene names only as a direction. Those points are enough: a great-circle
+// step between two points of a cap smaller than a hemisphere stays inside it.
 function scenePoints(scene: MapScene) {
-  const points = [...scene.places, ...scene.routes.flatMap((route) => route.waypoints)];
-  return {
-    full: points.filter((point) => !point.direction).map(toVector),
-    directions: points.filter((point) => point.direction).map(toVector),
-  };
+  const full: Vector[] = [];
+  const directions: Vector[] = [];
+  const add = (point: { lat: number; lng: number }, direction: boolean) =>
+    (direction ? directions : full).push(toVector(point));
+  for (const place of scene.places) add(place, !!place.direction);
+  for (const route of scene.routes) {
+    const named = new Set(route.directions);
+    for (const index of route.stops) {
+      const [lat, lng] = route.points[index];
+      add({ lat, lng }, named.has(index));
+    }
+  }
+  return { full, directions };
 }
 
 // The camera reaches at most this far past the rest of the scene toward a direction point:
@@ -157,26 +165,29 @@ export function sceneView(
 }
 
 // A focused place moves closer than its story view, including already-close island views.
-export function placeView(overview: CameraView, place: { lat: number; lng: number }): CameraView {
+export function placeView(storyView: CameraView, place: { lat: number; lng: number }): CameraView {
   return {
     lat: place.lat,
     lng: place.lng,
-    altitude: Math.max(0.12, Math.min(overview.altitude * 0.75, 0.7)),
+    altitude: Math.max(0.12, Math.min(storyView.altitude * 0.75, 0.7)),
   };
 }
 
 // Where the camera should be for a scene: the focused place when present, else the overview.
+// The close-up to a place follows the story's own view, its explicit camera or else its focus
+// country's, and not the framed overview, which a scene reaching beyond its country widens.
 export function sceneTarget(
   scene: MapScene,
   countries: ReadonlyMap<string, CountryAnchor>,
   home: CameraView = HOME_VIEW,
   aspect = 1,
 ): CameraView {
-  const overview = sceneView(scene, countries, home, aspect);
   const place = scene.focusPlaceId
     ? scene.places.find((item) => item.id === scene.focusPlaceId)
     : undefined;
-  return place ? placeView(overview, place) : overview;
+  if (!place) return sceneView(scene, countries, home, aspect);
+  const country = scene.focusCountryId ? countries.get(scene.focusCountryId) : undefined;
+  return placeView(scene.camera ?? (country ? countryView(country) : home), place);
 }
 
 export function zoomView(view: CameraView, direction: 'in' | 'out'): CameraView {

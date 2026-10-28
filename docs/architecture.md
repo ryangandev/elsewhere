@@ -160,10 +160,13 @@ Home        suggestedQuestions[{countryId, storyId}] (3 to 4, distinct, shown in
 
 Content stores a `SceneSpec`, which only names places.
 `resolveScene(spec)` turns it into the globe's `MapScene`: coordinates from the gazetteer, notes from `places.json`, and route polylines along great circles; sea and river routes follow the path of each passage or river they name.
-It also gives each route its waypoints, the points the polyline is drawn through, and marks the places and stops a scene names only as a direction (an ocean, sea or gulf's label point with no path, or a country other than the focus country) so the globe frames them only that way.
+It also gives each route its stops, as indices into the route's points: the points the polyline is drawn through before the great-circle steps between them.
+Places and route stops a scene names only as a direction (an ocean, sea or gulf's label point with no path, or a country other than the focus country) are marked, so the globe frames them only that way.
 A country place marks the part of the country the scene looks at.
 Its gazetteer point is Natural Earth's label point, which for a country in several parts can sit far from the story: Malaysia's is on Borneo, while the Singapore stories are about the peninsula.
 `countryPlacePoint` in `src/content/geo.ts` takes the label point unless one of the country's interior label candidates (the same points the globe names it at, from `label-candidates.ts` over `public/maps/countries.geojson`) is less than half as far from the scene's center, which is the scene's camera or else the focus country's label point.
+It is not the center the globe frames the scene around.
+That center is computed in the browser from the places themselves, this one included, so using it here would be circular and would make content depend on the globe's framing.
 The point is still derived from map data, never written by hand.
 Place notes are locale text, so they live in content rather than in the generated gazetteer.
 
@@ -171,7 +174,7 @@ Rules:
 
 - Story and country IDs are permanent and never derived from titles or order.
   Every cross-reference uses IDs, never array positions.
-  Country IDs are the ISO 3166 alpha-3 codes of the map identities in `data/geo/countries.json`; story IDs are unique within a country.
+  Country IDs are the ISO 3166 alpha-3 codes of the map identities in `data/geo/countries.json`; story IDs are unique within a country, and `overview` is reserved (the agent claim check names the session for a country's overview `<country>-overview`).
 - Slugs are readable URL segments and may change; IDs may not.
   A country's slug must match its map identity, and its file is named after the slug so content paths match URLs.
   A revision keeps each story's slug, since readers, links and the prototype redirects already use its URL; only a whole-country draft sets new ones, and never for a question the prototype published.
@@ -655,7 +658,11 @@ npm run content:claims-agent -- status <session or country>
   Planning every part from one reading of the claims file is what keeps parts apart: if each subagent planned its own part, a result saved in between would shift the packing.
   It refuses while an unfinished session of the country holds a unit it would hand out; such a session can be continued by another subagent, or set aside with `--fresh`.
   A session that `start` replaces is never deleted: it moves to `pipeline/.cache/claims-agent/finished/<session>-<time of its last submission, or of its start>` (with `-2`, `-3` after a name already taken), the way `content:agent` archives a finished drafting session, so its reading copies, fetch records and submissions stay for audit.
-  That covers a finished session of the same name, an unfinished one that holds no unit this `start` would hand out (its text changed since), and, with `--fresh`, every session of the country, unfinished ones too.
+  That covers a finished session of the same name, an unfinished one that holds no unit this `start` would hand out (its text changed since), and, with `--fresh`, every session of the country that overlaps the requested scope (the whole country, `[story]` or `--overview`), unfinished ones too.
+  `--fresh` does this before looking at what is due, so it sets those sessions aside even when nothing is due, and a session of another part of the country stays: `start CHL --overview --fresh` leaves an unfinished `CHL-length` alone.
+  A whole-country `--fresh` sets every session of the country aside, and any `--fresh` also sets aside a session whose units no longer exist in the country file (a story removed, sections dropped), which could not be continued anyway.
+  A session that stays is still checked for holding a unit by key, so `start` refuses while one does.
+  The "plan again" hints of `fetch` and `submit` name the session's own scope (`start CHL length --fresh`, `start CHL --overview --fresh`).
   The archive is not a session: `status` and the overlap check never see it, and nothing reads from it.
   A session that started on prompts older than claims-agent-v3 (`MIN_CLAIMS_AGENT_PROMPT_VERSION`) cannot be continued, because its brief describes the fetch command as it no longer works: `fetch` and `submit` refuse it, and `start` asks for `--fresh` (which sets it aside).
   Each session has `session.json` (the units by ID and key, the sources, model, effort, prompt version, fetches and submissions) and `brief.md`.
@@ -732,7 +739,7 @@ How a scene is applied:
 - Scenes are diffed (`scene-diff.ts`); a structurally equal scene does nothing, and each changed layer updates on its own.
 - The camera moves only when the scene's target view changes.
   The target is the focused place, else the explicit `camera`, else a view framed from the focus country and everything the scene shows (`camera.ts`), else home.
-  The points are the scene's places and its routes' waypoints: their stops and the path points of the straits, canals and rivers they follow.
+  The points are the scene's places and its routes' stops: their named stops and the path points of the straits, canals and rivers they follow.
   A direction point, an open sea's or another country's label point, is only a spot in a large area that the scene names as a direction ("ships arrive from the Atlantic", "trade with China"), so it counts only up to 500 km past the cap of everything else, pulled toward it along a great circle.
   Straits, channels, canals, rivers, lakes, regions and cities count in full, as does the focus country.
   That view is the focus country's own, from its label point and area, while every point sits within 60% of the view's half-extent from its middle, so a country overview holds still.
@@ -742,6 +749,8 @@ How a scene is applied:
   Working on unit vectors keeps it right across the antimeridian.
   When a resize changes the globe area's narrower side by a tenth or more, the scene is framed again, unless the reader has moved the camera since; reset then returns to the new view.
   The globe area already sits beside the reading panel, so the fill only has to keep the outermost places and their labels clear of the view's edges and the map note at the bottom.
+  A focused place is reached from the story's own view, its explicit `camera`, else its focus country's view, else home (a scene with no focus country, or one missing from the map data), at three quarters of that altitude and between 0.12 and 0.7.
+  The framed view does not enter into it, so a close-up is as close as it was before scenes were framed.
   Reset returns to the scene's view without the focused place.
 - Country names are created once and updated in place.
   Place labels and routes are keyed by id, so navigation only creates, moves, or removes the ones that changed.

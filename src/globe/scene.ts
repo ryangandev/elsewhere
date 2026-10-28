@@ -17,14 +17,16 @@ export type ScenePlace = {
   note?: string;
 };
 
-// Route points are [lat, lng], as drawn. Waypoints are the route's stops and the path points of
-// the passages and rivers it follows, before the great-circle steps between them; the camera
-// frames these.
+// Route points are [lat, lng], as drawn. `stops` are indices into `points` of the points the route
+// is drawn through before the great-circle steps between them: its stops, and the path points of
+// the passages and rivers it follows. The camera frames these. `directions` are the stops among
+// them that are only a direction, as for a place.
 export type SceneRoute = {
   id: string;
   kind: 'sea' | 'land' | 'river' | 'flow';
   points: [number, number][];
-  waypoints: { lat: number; lng: number; direction?: true }[];
+  stops: number[];
+  directions?: number[];
 };
 
 export type MapScene = {

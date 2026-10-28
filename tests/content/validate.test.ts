@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { StoryRef, TrailStop } from '../../src/content/schema';
+import { Story, StoryId, StoryRef, TrailStop } from '../../src/content/schema';
 import { validateContent, type ContentIssue } from '../../src/content/validate';
 import {
   HAND_CONVERTED_CONTENT_DIR,
@@ -338,5 +338,31 @@ describe('paraphrases', () => {
     expect(
       withParaphrases({ phrasings: [...good, `Why ${'really '.repeat(20)}rich?`] }),
     ).not.toEqual([]);
+  });
+});
+
+describe('story IDs', () => {
+  it('reserve "overview", which names the claims agent session of a country overview', () => {
+    const result = StoryId.safeParse('overview');
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0].message).toBe(
+      'The story ID "overview" is reserved for the country overview',
+    );
+    expect(StoryRef.safeParse({ countryId: 'SGP', storyId: 'overview' }).success).toBe(false);
+  });
+
+  it('still allow other slugs, including ones that contain "overview"', () => {
+    for (const id of ['shipping', 'overview-of-trade', 'trade-overview']) {
+      expect(StoryId.safeParse(id).success, id).toBe(true);
+    }
+  });
+
+  it('refuse a story with the ID "overview"', () => {
+    const [{ data }] = fixtureInput().countryFiles;
+    const [story] = (data as { stories: Record<string, unknown>[] }).stories;
+    expect(Story.safeParse(story).success).toBe(true);
+    const result = Story.safeParse({ ...story, id: 'overview' });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([['id']]);
   });
 });

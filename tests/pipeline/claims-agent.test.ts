@@ -458,8 +458,8 @@ describe('agent claim check sessions', () => {
       expect(readSession(dir, 'CHL-length').fetches).toEqual([]);
     });
 
-    it('--fresh with nothing to check leaves every session where it is', async () => {
-      const { deps, root, startOptions, claimsDir, text } = await lengthSession();
+    /** A result for every unit of the country, so nothing is due. */
+    const saveEverything = (claimsDir: string) => {
       const file = chileFile();
       for (const scope of allScopes(file)) {
         for (const unit of scopeUnits(file, scope)) {
@@ -480,10 +480,101 @@ describe('agent claim check sessions', () => {
           });
         }
       }
+    };
+
+    it('--fresh sets an unfinished session aside even when nothing is due', async () => {
+      const { deps, root, startOptions, claimsDir, text } = await lengthSession();
+      saveEverything(claimsDir);
       expect(start(startOptions({ fresh: true }), deps())).toBe(0);
+      expect(text()).toContain('Nothing to check');
+      expect(listSessions(root)).toEqual([]);
+      expect(readdirSync(join(root, 'finished'))).toEqual([STAMP]);
+    });
+
+    it('without --fresh, nothing to check leaves every session where it is', async () => {
+      const { deps, root, startOptions, claimsDir, text } = await lengthSession();
+      saveEverything(claimsDir);
+      expect(start(startOptions(), deps())).toBe(0);
       expect(text()).toContain('Nothing to check');
       expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL-length']);
       expect(existsSync(join(root, 'finished'))).toBe(false);
+    });
+
+    describe('--fresh scope', () => {
+      /** CHL-length (unfinished) and CHL-overview side by side, then --fresh with these options. */
+      const freshAmong = (options: Partial<StartOptions>) => {
+        const env = setup();
+        expect(start(env.startOptions({ storyId: 'length' }), env.deps())).toBe(0);
+        expect(start(env.startOptions({ overviewOnly: true }), env.deps())).toBe(0);
+        expect(listSessions(env.root).map(({ id }) => id)).toEqual(['CHL-length', 'CHL-overview']);
+        env.text();
+        const code = start(env.startOptions({ ...options, fresh: true }), env.deps());
+        return { ...env, code };
+      };
+
+      it('--overview sets aside the overview session and leaves an unfinished story session alone', () => {
+        const { code, root, text } = freshAmong({ overviewOnly: true });
+        expect(code).toBe(0);
+        expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL-length', 'CHL-overview']);
+        expect(readdirSync(join(root, 'finished')).length).toBe(1);
+        expect(readdirSync(join(root, 'finished'))[0]).toMatch(/^CHL-overview-/);
+        expect(text()).not.toContain('CHL-length-');
+      });
+
+      it('the whole country sets aside a session whose units no longer exist, and so does a scoped --fresh', () => {
+        for (const options of [{}, { overviewOnly: true }] as Partial<StartOptions>[]) {
+          const env = setup();
+          expect(start(env.startOptions({ storyId: 'length' }), env.deps())).toBe(0);
+          // The story was removed from the country, so the session's units are gone.
+          const file = chileFile();
+          file.stories = file.stories.filter((story) => story.id !== 'length');
+          writeCountryFile(env.contentDir, file);
+          env.text();
+          expect(start(env.startOptions({ ...options, fresh: true }), env.deps())).toBe(0);
+          expect(listSessions(env.root).map(({ id }) => id)).not.toContain('CHL-length');
+          expect(readdirSync(join(env.root, 'finished'))[0]).toMatch(/^CHL-length-/);
+        }
+      });
+
+      it('still refuses when a session left outside the scope holds a unit by key', () => {
+        const { root, deps, startOptions, text } = setup();
+        const file = chileFile();
+        expect(start(startOptions({ storyId: 'length' }), deps())).toBe(0);
+        const dir = sessionDir(root, 'CHL-length');
+        const held = readSession(dir, 'CHL-length');
+        const [overview] = scopeUnits(file, { kind: 'overview' });
+        // A unit of the story whose text hashes like an overview unit: outside the scope by ID,
+        // but handed out again by --overview.
+        writeSession(dir, {
+          ...held,
+          units: [{ ...held.units[0], key: overview.key }],
+        });
+        text();
+        expect(start(startOptions({ overviewOnly: true, fresh: true }), deps())).toBe(1);
+        expect(text()).toContain(
+          'Unfinished sessions already hold some of these units: CHL-length',
+        );
+        expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL-length']);
+        expect(existsSync(join(root, 'finished'))).toBe(false);
+      });
+
+      it('[story] sets aside that story session and leaves the overview session alone', () => {
+        const { code, root } = freshAmong({ storyId: 'length' });
+        expect(code).toBe(0);
+        expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL-length', 'CHL-overview']);
+        expect(readdirSync(join(root, 'finished')).length).toBe(1);
+        expect(readdirSync(join(root, 'finished'))[0]).toMatch(/^CHL-length-/);
+      });
+
+      it('the whole country sets aside every session that overlaps it', () => {
+        const { code, root } = freshAmong({});
+        expect(code).toBe(0);
+        expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL']);
+        expect(readdirSync(join(root, 'finished')).sort()).toEqual(
+          expect.arrayContaining([expect.stringMatching(/^CHL-length-/)]),
+        );
+        expect(readdirSync(join(root, 'finished')).length).toBe(2);
+      });
     });
   });
 
@@ -1099,7 +1190,7 @@ describe('agent claim check submissions', () => {
     // A session as claims-agent-v2 wrote it, whose brief describes --find as listing 20 places.
     writeSession(dir, { ...readSession(dir, 'CHL-length'), promptVersion: 'claims-agent-v2' });
     const refusal =
-      'Session CHL-length started on the claims-agent-v2 prompts, whose brief describes the fetch command as it no longer works. Set it aside and plan again with: npm run content:claims-agent -- start CHL --fresh';
+      'Session CHL-length started on the claims-agent-v2 prompts, whose brief describes the fetch command as it no longer works. Set it aside and plan again with: npm run content:claims-agent -- start CHL length --fresh';
     expect(
       await fetchCommand(
         { sessionId: 'CHL-length', url: GEOGRAPHY, refresh: false },
@@ -1118,6 +1209,25 @@ describe('agent claim check submissions', () => {
     expect(readSession(sessionDir(root, 'CHL-length'), 'CHL-length').promptVersion).toBe(
       'claims-agent-v3',
     );
+  });
+
+  it('points an old overview or whole-country session at a restart of its own scope', async () => {
+    const hint = (label: string) => async () => {
+      const { dir, deps, text } = await lengthSession();
+      writeSession(dir, {
+        ...readSession(dir, 'CHL-length'),
+        label,
+        promptVersion: 'claims-agent-v2',
+      });
+      await fetchCommand(
+        { sessionId: 'CHL-length', url: GEOGRAPHY, refresh: false },
+        deps(stubFetch(livePages()).stub),
+      );
+      return text();
+    };
+    expect(await hint('CHL/overview')()).toMatch(/start CHL --overview --fresh$/);
+    expect(await hint('CHL, part 2 of 3')()).toMatch(/start CHL --fresh$/);
+    expect(await hint('CHL/length, part 1 of 2')()).toMatch(/start CHL length --fresh$/);
   });
 
   it('refuses a submission once the checked text has changed', async () => {
