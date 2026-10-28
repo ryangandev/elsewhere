@@ -46,7 +46,8 @@ describe('country places', () => {
     const [anchor, ...others] = countryLabelPoints(malaysia);
     expect(anchor).toEqual([malaysia.lat, malaysia.lng]);
     expect(others.length).toBeGreaterThan(0);
-    for (const [lat, lng] of others) expect(geoContains(shape('MYS').geometry, [lng, lat])).toBe(true);
+    for (const [lat, lng] of others)
+      expect(geoContains(shape('MYS').geometry, [lng, lat])).toBe(true);
   });
 
   it('moves to the part of the country nearest the scene', () => {
@@ -191,7 +192,12 @@ describe('routes', () => {
     },
     {
       passage: 'saint-lawrence-river',
-      through: ['north-atlantic-ocean', 'gulf-of-saint-lawrence', 'saint-lawrence-river', 'montreal'],
+      through: [
+        'north-atlantic-ocean',
+        'gulf-of-saint-lawrence',
+        'saint-lawrence-river',
+        'montreal',
+      ],
       acrossLand: ['gulf-of-saint-lawrence', 'montreal'],
     },
     {
@@ -365,7 +371,11 @@ describe('routes', () => {
     ];
     for (const id of ids) expect(getPlace(id), id).toBeDefined();
     for (const lake of ['lake-victoria', 'lake-albert', 'lake-kyoga', 'lake-tana']) {
-      expect(getPlace(lake), lake).toMatchObject({ kind: 'water', surface: 'land', source: 'lakes' });
+      expect(getPlace(lake), lake).toMatchObject({
+        kind: 'water',
+        surface: 'land',
+        source: 'lakes',
+      });
     }
     expect(getPlace('gauteng')).toMatchObject({ kind: 'region', source: 'admin1' });
     // Zanzibar the city and Zanzibar the island are different places.
@@ -394,7 +404,9 @@ describe('routes', () => {
   });
 
   it('know the Rhine by one ID although Natural Earth names it in several ways', () => {
-    expect(listPlaces().filter((place) => /^(rhine|rhein) river$/i.test(place.name))).toHaveLength(1);
+    expect(listPlaces().filter((place) => /^(rhine|rhein) river$/i.test(place.name))).toHaveLength(
+      1,
+    );
     expect(getPlace('rhein-river')).toBeUndefined();
     expect(getPlace('nyanza')).toBeUndefined();
     for (const id of ['albert', 'kyoga', 'tana', 'maas-river', 'schelde-river']) {
@@ -428,7 +440,11 @@ describe('routes', () => {
       .reduce((sum, point, index) => sum + distanceKm(rhine[index], point), 0);
     expect(length).toBeGreaterThan(1000);
     expect(closestKm(rhine, placeCoordinates('vaduz'))).toBeLessThan(10);
-    expect(Math.min(...[rhine[0], rhine.at(-1)!].map((end) => distanceKm(end, placeCoordinates('rotterdam'))))).toBeLessThan(50);
+    expect(
+      Math.min(
+        ...[rhine[0], rhine.at(-1)!].map((end) => distanceKm(end, placeCoordinates('rotterdam'))),
+      ),
+    ).toBeLessThan(50);
   });
 
   it('take a river course through the lakes it crosses, but not across the lake it leaves', () => {
@@ -445,7 +461,12 @@ describe('routes', () => {
       2,
     );
     // Either end may come first.
-    expect([path[0], path.at(-1)]).toEqual(expect.arrayContaining([[0, 31], [3, 31]]));
+    expect([path[0], path.at(-1)]).toEqual(
+      expect.arrayContaining([
+        [0, 31],
+        [3, 31],
+      ]),
+    );
     expect(path).toContainEqual([1.5, 31]);
     expect(path).not.toContainEqual([0, 30.5]);
 
@@ -458,8 +479,20 @@ describe('routes', () => {
   it('keep separate delta branches apart', () => {
     // Pieces of one river meet within 2 km; branches of a delta are farther apart over land.
     const branches = [
-      { line: [[0, 0], [0, 1]] as [number, number][], lake: false },
-      { line: [[0.05, 0], [0.05, 1.5]] as [number, number][], lake: false },
+      {
+        line: [
+          [0, 0],
+          [0, 1],
+        ] as [number, number][],
+        lake: false,
+      },
+      {
+        line: [
+          [0.05, 0],
+          [0.05, 1.5],
+        ] as [number, number][],
+        lake: false,
+      },
     ];
     const { path, leftOutKm } = mainStem(branches, 2);
     expect(path).toHaveLength(2);
@@ -485,12 +518,16 @@ describe('routes', () => {
         : best,
     );
     const from = rhine.indexOf(nearestAlps);
-    const mouth = distanceKm(rhine[0], placeCoordinates('north-sea')) <
+    const mouth =
+      distanceKm(rhine[0], placeCoordinates('north-sea')) <
       distanceKm(rhine.at(-1)!, placeCoordinates('north-sea'))
-      ? 0
-      : rhine.length - 1;
-    const course = from <= mouth ? rhine.slice(from, mouth + 1) : rhine.slice(mouth, from + 1).reverse();
-    const indexes = course.map((point) => points.findIndex(([lat, lng]) => lat === point[0] && lng === point[1]));
+        ? 0
+        : rhine.length - 1;
+    const course =
+      from <= mouth ? rhine.slice(from, mouth + 1) : rhine.slice(mouth, from + 1).reverse();
+    const indexes = course.map((point) =>
+      points.findIndex(([lat, lng]) => lat === point[0] && lng === point[1]),
+    );
     expect(indexes).not.toContain(-1);
     expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
     expect(closestKm(points, placeCoordinates('rhine-river'))).toBeLessThan(3.1);
@@ -503,7 +540,9 @@ describe('routes', () => {
     const upstream = routePoints({ kind: 'river', via: ['rotterdam', 'rhine-river'] });
     expect(upstream[0]).toEqual(placeCoordinates('rotterdam'));
     expect(distanceKm(upstream[0], upstream[1])).toBeLessThan(50);
-    const source = [rhine[0], rhine.at(-1)!].find((end) => distanceKm(end, placeCoordinates('rotterdam')) > 500)!;
+    const source = [rhine[0], rhine.at(-1)!].find(
+      (end) => distanceKm(end, placeCoordinates('rotterdam')) > 500,
+    )!;
     expect(upstream.at(-1)).toEqual(source);
 
     // The Nile from Lake Victoria to Cairo, through Lake Kyoga, the Sudd and Khartoum.
@@ -527,7 +566,9 @@ describe('routes', () => {
     // The Blue Nile from Lake Tana, where it begins, to Khartoum, where it ends.
     const blueNile = getPlace('blue-nile-river')!.path!;
     const route = routePoints({ kind: 'river', via: ['lake-tana', 'blue-nile-river', 'khartoum'] });
-    const tanaEnd = [blueNile[0], blueNile.at(-1)!].find((end) => distanceKm(end, placeCoordinates('lake-tana')) < 50);
+    const tanaEnd = [blueNile[0], blueNile.at(-1)!].find(
+      (end) => distanceKm(end, placeCoordinates('lake-tana')) < 50,
+    );
     expect(route[1]).toEqual(tanaEnd);
     expect(route.at(-1)).toEqual(placeCoordinates('khartoum'));
   });
@@ -548,14 +589,18 @@ describe('routes', () => {
 
     // Sea and river routes through the same places keep following the paths.
     const sea = routePoints({ kind: 'sea', via: gulfStream });
-    for (const [lat, lng] of getPlace('florida-strait')!.path!) expect(sea).toContainEqual([lat, lng]);
+    for (const [lat, lng] of getPlace('florida-strait')!.path!)
+      expect(sea).toContainEqual([lat, lng]);
     const river = routePoints({ kind: 'river', via: ['lena-river', 'sea-of-okhotsk'] });
-    for (const [lat, lng] of getPlace('lena-river')!.path!) expect(river).toContainEqual([lat, lng]);
+    for (const [lat, lng] of getPlace('lena-river')!.path!)
+      expect(river).toContainEqual([lat, lng]);
   });
 
   it('tell drafters which water bodies are rivers, passages and lakes', () => {
     const listing = sharedListing();
-    expect(listing).toContain('rhine-river | Rhine River | river (a sea or river route follows its course');
+    expect(listing).toContain(
+      'rhine-river | Rhine River | river (a sea or river route follows its course',
+    );
     expect(listing).toContain('blue-nile-river | Blue Nile River | river (');
     expect(listing).toContain('suez-canal | Suez Canal | passage (');
     expect(listing).toContain('strait-of-dover | Strait of Dover | passage (');

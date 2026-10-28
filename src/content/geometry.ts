@@ -154,7 +154,8 @@ export function expandRouteStops(stops: RouteStop[]): RouteWaypoint[] {
     const start = isPort(before) ? nearest(path, before.point) : 0;
     const end = isPort(after) ? nearest(path, after.point) : path.length - 1;
     path = end >= start ? path.slice(start, end + 1) : path.slice(end, start + 1).reverse();
-    for (const point of path) waypoints.push({ id: stop.id, point, surface: 'sea', passage: index });
+    for (const point of path)
+      waypoints.push({ id: stop.id, point, surface: 'sea', passage: index });
   });
   return waypoints;
 }

@@ -76,7 +76,8 @@ export const Provenance = z
     message: 'Reviewed content cannot be waiting for a revision',
   })
   .refine((value) => value.status === 'reviewed' || (!value.reviewedBy && !value.reviewedAt), {
-    message: 'Only reviewed content records a reviewer; a reopened draft keeps it in revision.reopened',
+    message:
+      'Only reviewed content records a reviewer; a reopened draft keeps it in revision.reopened',
   });
 export type Provenance = z.infer<typeof Provenance>;
 
@@ -161,10 +162,7 @@ export const PARAPHRASES = { min: 3, max: 8, maxLength: 120 };
  */
 export const Paraphrases = z.strictObject({
   question: Text,
-  phrasings: z
-    .array(Text.max(PARAPHRASES.maxLength))
-    .min(PARAPHRASES.min)
-    .max(PARAPHRASES.max),
+  phrasings: z.array(Text.max(PARAPHRASES.maxLength)).min(PARAPHRASES.min).max(PARAPHRASES.max),
   /** The model that wrote them, or "human". */
   generatedBy: Text,
   generatedAt: IsoDate,
@@ -305,7 +303,16 @@ export const GazetteerPlace = z.strictObject({
     .optional(),
   /** Map identity for country entries; containing country for populated places. */
   countryId: CountryId.optional(),
-  source: z.enum(['countries', 'marine', 'rivers', 'regions', 'admin1', 'lakes', 'places', 'override']),
+  source: z.enum([
+    'countries',
+    'marine',
+    'rivers',
+    'regions',
+    'admin1',
+    'lakes',
+    'places',
+    'override',
+  ]),
   /** Natural Earth feature ID, where the dataset has one. */
   neId: z.number().int().optional(),
 });
