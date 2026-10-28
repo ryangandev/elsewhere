@@ -9,6 +9,7 @@ import {
   fetchPage,
   htmlToText,
   mainTextOffset,
+  NetworkCutError,
   pdfToText,
   splitFootnotes,
   type PdfLine,
@@ -22,6 +23,139 @@ afterEach(() => {
 });
 
 describe('HTML text', () => {
+  it('leaves no markup in the text, even from an attribute value that holds ">"', () => {
+    // pib.gov.in keeps an escaped copy of the release, with its ">" left as they are, in the value
+    // of a hidden input. Ending the tag at the first ">" left the rest of the value in the text,
+    // and the character references in it became a raw HTML copy of the release's table.
+    const copy =
+      '&lt;table style=&quot;width:100%&quot;>&lt;tr>&lt;td>Steel&lt;/td>&lt;td>1,234&lt;/td>&lt;/tr>&lt;/table>';
+    const html = `<html><body><p>The release says steel output rose.</p>
+      <table><tr><th>Year</th><td>2024</td></tr></table>
+      <input type="hidden" name="copy" id="copy" value="${copy}" />
+      <div title='a > b' data-x="<p>not text</p>">After the input.</div>
+      <!-- a comment with <b>tags</b> --><!DOCTYPE html><?xml version="1.0"?></body></html>`;
+    const text = htmlToText(html);
+    expect(text).not.toMatch(/<[a-z/!?]/i);
+    expect(text).not.toContain('not text');
+    expect(text).toBe('The release says steel output rose.\n| Year | 2024\nAfter the input.');
+    // A "<" that is not a tag stays.
+    expect(htmlToText('<p>3 < 5 and 7 > 2</p>')).toBe('3 < 5 and 7 > 2');
+  });
+
+  it('tokenizes tags as a browser does: a quote opens a value only after "="', () => {
+    // An apostrophe in an unquoted value, or a quote in an attribute name, is not a quoted value.
+    expect(htmlToText("<a href=/x title=Don't>Link</a> after")).toBe('Link after');
+    expect(htmlToText('<div data-x"y>Text</div><p>More</p>')).toBe('Text\nMore');
+    expect(htmlToText('<p class=it\'s id="a>b">Shown</p>')).toBe('Shown');
+    expect(extractLinks("<a href=/x title=Don't>Link</a>", 'https://site.example/p')).toEqual([
+      { url: 'https://site.example/x', text: 'Link' },
+    ]);
+    // An attribute named inside another's quoted value is not that attribute.
+    expect(
+      extractLinks(`<a title='x href="/wrong"' href="/right">Go</a>`, 'https://site.example/p'),
+    ).toEqual([{ url: 'https://site.example/right', text: 'Go' }]);
+  });
+
+  it('never shows the content of a script, style or other hidden element', () => {
+    // The apostrophe is part of an unquoted value, so the tag ends at ">" and the script is hidden.
+    expect(htmlToText(`<script data-x=it's>var t = "Hidden";</script><p>Visible</p>`)).toBe(
+      'Visible',
+    );
+    expect(htmlToText(`<style media=it's>.a{content:"Hidden"}</style><p>Visible</p>`)).toBe(
+      'Visible',
+    );
+    expect(htmlToText('<noscript data-x"y>Hidden</noscript><p>Visible</p>')).toBe('Visible');
+    expect(htmlToText('<SCRIPT>var a = "<p>Hidden</p>";</SCRIPT ><p>Visible</p>')).toBe('Visible');
+    expect(htmlToText('<script src="a.js"></script><p>Visible</p>')).toBe('Visible');
+    // An unclosed quote swallows the rest of the document into the tag, as in a browser, so the
+    // script's text is not shown either.
+    expect(htmlToText(`<p>Visible</p><script src='a.js>var t = "Hidden";</script>`)).toBe(
+      'Visible',
+    );
+    // A script that never ends takes the rest of the page; other hidden elements do not.
+    expect(htmlToText('<p>Visible</p><script>var t = "Hidden";<p>Hidden too</p>')).toBe('Visible');
+    expect(htmlToText('<template><p>Hidden</p><p>Shown, as before</p>')).toContain('Shown');
+  });
+
+  it('follows the browser through a script that holds "<!--" and a nested "<script"', () => {
+    // After "<!--" a "<script" opens a nested script, whose "</script" does not end the element;
+    // only a "</script" after the nesting has closed does. The text between is script, not page.
+    const legacy = `<script><!-- document.write("<script>x</script>"); var desc = "Kenya has 47 counties"; --></script><p>after</p>`;
+    expect(htmlToText(legacy)).toBe('after');
+    // Without "<!--" a "<script" in a script is only text, and the first "</script" ends it.
+    expect(htmlToText(`<script>var a = "<script>";</script><p>after</p>`)).toBe('after');
+    expect(htmlToText(`<script>var a = "<script>x</script><p>after</p>`)).toBe('after');
+    // The comment closes at "-->", so the next "</script" ends the element, whatever case it is in.
+    expect(htmlToText(`<script><!-- var a = 1; --></SCRIPT><p>after</p>`)).toBe('after');
+    expect(htmlToText(`<script><!-- <script> --> var a = 1; </script><p>after</p>`)).toBe('after');
+    // A nested script that is closed and then more script before the real end.
+    expect(
+      htmlToText(`<script><!-- <script></script> var b = "Hidden"; --></script><p>after</p>`),
+    ).toBe('after');
+    // `<!-->` ends the escape at once, so the first "</script" after it ends the script.
+    expect(htmlToText(`<script><!--> var a = 1; </script><p>after</p>`)).toBe('after');
+    // An unterminated nested script takes the rest of the page, as in a browser.
+    expect(htmlToText(`<script><!-- <script> </script><p>Hidden</p>`)).toBe('');
+  });
+
+  it('ends a comment as a browser does, including the abrupt ends', () => {
+    expect(htmlToText('<p>a</p><!-- c --><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><!--><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><!---><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><!-- c --!><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><!-- c -- d --><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><!-- never ends <p>b</p>')).toBe('a');
+  });
+
+  it('drops bogus end tags and comments instead of leaving them as markup', () => {
+    // A browser ignores "</>" and reads "</ p>" as a comment that runs to the next ">".
+    expect(htmlToText('<p>a</p></><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p></ p><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p></3 x>b')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><![CDATA[ x ]]><?php y ?>b')).not.toMatch(/[<>]/);
+    expect(htmlToText('a </ p> b')).toBe('a b');
+    // Nothing "<"-led is left that a reader would not see as text.
+    expect(htmlToText('<p>3 < 5 and a </ b</p>')).not.toMatch(/<[a-z/!?]/i);
+  });
+
+  it('ends an element at an end tag that has attributes or a slash', () => {
+    expect(htmlToText(`<script>var a = "Hidden";</script type="x"><p>after</p>`)).toBe('after');
+    expect(htmlToText(`<script>var a = "Hidden";</script/><p>after</p>`)).toBe('after');
+    expect(htmlToText(`<style>.a{}</style media=print><p>after</p>`)).toBe('after');
+    expect(htmlToText(`<noscript>Hidden</noscript foo><p>after</p>`)).toBe('after');
+    // "</scripts>" is a different end tag and does not end the script.
+    expect(htmlToText(`<script>var a = 1;</scripts><p>Hidden</p></script><p>after</p>`)).toBe(
+      'after',
+    );
+  });
+
+  it('takes time in proportion to the size of a page made of broken tags', () => {
+    // 40,000 repeats is 160 KB; a pattern that restarted at every "<a" took seconds.
+    const broken = [
+      '<script><!--<script>'.repeat(10_000),
+      '</ p'.repeat(40_000),
+      '<!--!'.repeat(30_000),
+      '<a "'.repeat(40_000),
+      "<a x='".repeat(30_000),
+      '<!--'.repeat(40_000),
+      '<template>'.repeat(20_000),
+      '<a href="/x">'.repeat(15_000),
+    ];
+    const started = performance.now();
+    for (const html of broken) {
+      htmlToText(html);
+      extractLinks(html, 'https://site.example/p');
+    }
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
+  it('keeps a link whose attribute holds ">", with its text', () => {
+    const html = '<a title="a > b" href="/x">Linked page</a>';
+    expect(extractLinks(html, 'https://site.example/p')).toEqual([
+      { url: 'https://site.example/x', text: 'Linked page' },
+    ]);
+  });
+
   it('decodes every named character reference once, as a browser does', () => {
     expect(htmlToText('<p>Code Napol&eacute;on, 20&deg;C, &copy; 2024 &ndash; caf&#233;</p>')).toBe(
       'Code Napoléon, 20°C, © 2024 – café',
@@ -335,6 +469,125 @@ describe('server errors', () => {
       /^the server answered 500$/,
     );
     expect(once.calls).toHaveLength(1);
+  });
+});
+
+describe('a body cut off while it downloads', () => {
+  /**
+   * A response whose body delivers a first chunk and then fails the way undici does when the
+   * connection ends in the middle: a TypeError "terminated" caused by a closed socket.
+   */
+  function cutResponse(error: Error = new TypeError('terminated', { cause: socketClosed() })) {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('<p>Half of the'));
+        controller.error(error);
+      },
+    });
+    return new Response(body, { status: 200, headers: { 'content-type': 'text/html' } });
+  }
+  const socketClosed = () =>
+    Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' });
+
+  /** A fetch stub that answers with each given response in turn (the last one repeats). */
+  function sequence(...answers: (() => Response)[]) {
+    let calls = 0;
+    const stub = (async () => answers[Math.min(calls++, answers.length - 1)]()) as typeof fetch;
+    return { stub, calls: () => calls };
+  }
+  const wholePage = () =>
+    new Response('<p>The page text.</p>', { headers: { 'content-type': 'text/html' } });
+
+  it('is tried again after the waits given, and the whole page is read', async () => {
+    const { stub, calls } = sequence(cutResponse, cutResponse, wholePage);
+    const waits: number[] = [];
+    const page = await fetchPage('https://example.org/long.pdf', {
+      fetch: stub,
+      bodyCutRetriesMs: [10, 20, 30],
+      sleep: async (ms) => {
+        waits.push(ms);
+      },
+    });
+    expect(page.text).toBe('The page text.');
+    expect(calls()).toBe(3);
+    expect(waits).toEqual([10, 20]);
+  });
+
+  it('is reported as a network cut, not a page problem, when every attempt is cut', async () => {
+    const { stub, calls } = sequence(cutResponse);
+    const error = await fetchPage('https://example.org/long.pdf', {
+      fetch: stub,
+      bodyCutRetriesMs: [1, 1],
+      sleep: async () => undefined,
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(NetworkCutError);
+    expect((error as Error).message).toBe(
+      'the connection was cut while the page downloaded (terminated: UND_ERR_SOCKET: other side closed) on all 3 attempts; this is a network failure, not a problem with the page, so try again later',
+    );
+    expect(calls()).toBe(3);
+  });
+
+  it('recognises a reset connection and a premature close, but not a timeout', async () => {
+    for (const error of [
+      Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
+      Object.assign(new Error('Premature close'), { code: 'ERR_STREAM_PREMATURE_CLOSE' }),
+    ]) {
+      const { stub, calls } = sequence(() => cutResponse(error), wholePage);
+      const page = await fetchPage('https://example.org/x', {
+        fetch: stub,
+        bodyCutRetriesMs: [1],
+        sleep: async () => undefined,
+      });
+      expect(page.text).toBe('The page text.');
+      expect(calls()).toBe(2);
+    }
+    const timeout = sequence(() => cutResponse(new DOMException('timed out', 'TimeoutError')));
+    await expect(
+      fetchPage('https://example.org/x', {
+        fetch: timeout.stub,
+        bodyCutRetriesMs: [1, 1],
+        sleep: async () => undefined,
+      }),
+    ).rejects.not.toBeInstanceOf(NetworkCutError);
+    expect(timeout.calls()).toBe(1);
+  });
+
+  it('never retries a refusal or a bot challenge, however many retries are allowed', async () => {
+    const sleep = vi.fn(async () => undefined);
+    for (const status of [401, 403, 429]) {
+      const refused = sequence(() => new Response('no', { status }));
+      await expect(
+        fetchPage('https://example.org/x', {
+          fetch: refused.stub,
+          bodyCutRetriesMs: [1, 1, 1],
+          sleep,
+        }),
+      ).rejects.toThrow(`the server answered ${status}`);
+      expect(refused.calls()).toBe(1);
+    }
+    const challenge = sequence(
+      () =>
+        new Response('<html><body><h1>Just a moment...</h1></body></html>', {
+          headers: { 'content-type': 'text/html' },
+        }),
+    );
+    await expect(
+      fetchPage('https://example.org/x', {
+        fetch: challenge.stub,
+        bodyCutRetriesMs: [1, 1, 1],
+        sleep,
+      }),
+    ).rejects.toThrow('bot challenge');
+    expect(challenge.calls()).toBe(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('is one attempt when no retries are asked for', async () => {
+    const { stub, calls } = sequence(cutResponse, wholePage);
+    await expect(fetchPage('https://example.org/x', { fetch: stub })).rejects.toThrow(
+      /^the connection was cut while the page downloaded \(terminated: UND_ERR_SOCKET: other side closed\); this is a network failure/,
+    );
+    expect(calls()).toBe(1);
   });
 });
 
