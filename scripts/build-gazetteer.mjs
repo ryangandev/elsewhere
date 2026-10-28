@@ -404,24 +404,23 @@ for (const { neId, name, junction } of overrides.passages) {
 // below the scalerank cutoff are added only when the overrides name them.
 {
   const listed = new Set(overrides.rivers.map((river) => river.name));
-  const listedUsed = new Set();
   /** A river's gazetteer name, after the overrides' renames, so differently named pieces join. */
   const riverName = (properties) => {
     const base = englishName(properties);
     const name = /river/i.test(base) ? base : `${base} River`;
-    const rename = renames.get(`rivers:${name}`);
-    if (!rename) return name;
-    renamesUsed.add(`rivers:${name}`);
-    return rename.to;
+    const renameKey = `rivers:${name}`;
+    const rename = renames.get(renameKey);
+    return { name: rename ? rename.to : name, renameKey: rename ? renameKey : undefined };
   };
   const rivers = new Map();
   for (const feature of datasets.rivers.features) {
     const { properties } = feature;
     if (properties.featurecla !== 'River' || !properties.name) continue;
     // Natural Earth splits long rivers into several features; join them by name.
-    const key = riverName(properties);
+    const { name: key, renameKey } = riverName(properties);
     if (properties.scalerank > RIVER_MAX_SCALERANK && !listed.has(key)) continue;
-    if (listed.has(key)) listedUsed.add(key);
+    // A rename counts as used only when it names a river that reaches the gazetteer's candidates.
+    if (renameKey) renamesUsed.add(renameKey);
     const lines =
       feature.geometry.type === 'LineString'
         ? [feature.geometry.coordinates]
@@ -430,9 +429,6 @@ for (const { neId, name, junction } of overrides.passages) {
     river.lines.push(...lines);
     if (properties.scalerank < river.properties.scalerank) river.properties = properties;
     rivers.set(key, river);
-  }
-  for (const name of listed) {
-    if (!listedUsed.has(name)) throw new Error(`Override river not found: ${name}`);
   }
   const lineLength = (line) =>
     line
@@ -537,12 +533,17 @@ for (const canal of overrides.canals) {
 {
   const features = datasets.admin1.features.filter((f) => isIncluded('admin1', f.properties));
   for (const { properties } of features) {
+    // The region belongs to the map country Natural Earth files it under (French Guiana to FRA).
+    if (!countries.some((country) => country.id === properties.adm0_a3)) {
+      throw new Error(`Admin-1 ${properties.name}: ${properties.adm0_a3} is not a map country`);
+    }
     add({
       name: englishName(properties),
       kind: 'region',
       surface: 'land',
       lat: properties.latitude,
       lng: properties.longitude,
+      countryId: properties.adm0_a3,
       source: 'admin1',
       neId: properties.ne_id,
     });
@@ -579,6 +580,11 @@ for (const key of renames.keys()) {
 for (const { neId, name } of overrides.passages) {
   if (!entries.some((entry) => entry.source === 'marine' && entry.neId === neId && entry.path)) {
     throw new Error(`Override passage not found or without a path: ${neId} (${name})`);
+  }
+}
+for (const { name } of overrides.rivers) {
+  if (!entries.some((entry) => entry.source === 'rivers' && entry.name === name)) {
+    throw new Error(`Override river not found or shadowed: ${name}`);
   }
 }
 for (const { dataset, neId, name } of overrides.include) {

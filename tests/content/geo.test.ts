@@ -15,6 +15,7 @@ import {
   placeCoordinates,
   routePoints,
 } from '../../src/content/geo';
+import { findPlaces } from '../../pipeline/generate/gazetteer-context';
 import { CountryFile, type SceneRouteSpec } from '../../src/content/schema';
 import { contentInput, landIndex } from './load';
 
@@ -202,11 +203,11 @@ describe('routes', () => {
       acrossLand: ['bellingshausen-sea', 'scotia-sea'],
     },
     {
-      // Natural Earth has only the Bering Sea and Chukchi Sea polygons, which meet across it. The Bering
-      // Sea's label point is in open water, from where a straight line to the strait crosses
-      // St Lawrence Island, so routes enter the strait from its own ends.
+      // Natural Earth has only the Bering Sea and Chukchi Sea polygons, which meet across it. The
+      // passage starts south of St Lawrence Island, so the Bering Sea's open-water label point
+      // reaches it; a straight line to the Chukchi Sea from Norton Sound crosses the Seward Peninsula.
       passage: 'bering-strait',
-      through: ['bering-strait', 'chukchi-sea'],
+      through: ['bering-sea', 'bering-strait', 'chukchi-sea'],
       acrossLand: ['norton-sound', 'kotzebue-sound'],
     },
     {
@@ -221,6 +222,25 @@ describe('routes', () => {
     expect(getPlace(passage)?.path?.length).toBeGreaterThanOrEqual(2);
     expect(findRouteLandCrossings({ kind: 'sea', via: through }, landIndex())).toEqual([]);
     expect(findRouteLandCrossings({ kind: 'sea', via: acrossLand }, landIndex())).not.toEqual([]);
+  });
+
+  it('reach the Bering Strait from the Pacific side in both directions', () => {
+    const routes = [
+      ['bering-sea', 'bering-strait', 'chukchi-sea'],
+      ['chukchi-sea', 'bering-strait', 'bering-sea'],
+      ['gulf-of-anadyr', 'bering-strait', 'chukchi-sea'],
+      ['chukchi-sea', 'bering-strait', 'gulf-of-anadyr'],
+      ['norton-sound', 'bering-strait', 'chukchi-sea'],
+      ['chukchi-sea', 'bering-strait', 'norton-sound'],
+      // Bristol Bay opens onto the Bering Sea, behind the Alaska Peninsula.
+      ['bristol-bay', 'bering-sea', 'bering-strait', 'chukchi-sea'],
+      ['chukchi-sea', 'bering-strait', 'bering-sea', 'bristol-bay'],
+    ];
+    for (const via of routes) {
+      expect(findRouteLandCrossings({ kind: 'sea', via }, landIndex()), via.join(' > ')).toEqual(
+        [],
+      );
+    }
   });
 
   // Waters and ports the pilot countries need that Natural Earth lacks or leaves out by default:
@@ -303,7 +323,7 @@ describe('routes', () => {
         'kwazulu-natal',
         'limpopo',
         'mpumalanga',
-        'north-west',
+        'north-west-province',
         'northern-cape',
         'western-cape',
       ],
@@ -314,6 +334,26 @@ describe('routes', () => {
     // Zanzibar the city and Zanzibar the island are different places.
     expect(getPlace('zanzibar')).toMatchObject({ kind: 'place', countryId: 'TZA' });
     expect(getPlace('zanzibar-island')).toMatchObject({ kind: 'region' });
+  });
+
+  it('give every admin-1 region the map country Natural Earth files it under', () => {
+    const regions = listPlaces().filter((place) => place.source === 'admin1');
+    expect(regions.length).toBeGreaterThanOrEqual(12);
+    for (const region of regions) {
+      expect(getMapCountry(region.countryId ?? ''), region.id).toBeDefined();
+    }
+    const countryOf = (id: string) => getPlace(id)?.countryId;
+    expect(countryOf('gauteng')).toBe('ZAF');
+    expect(countryOf('north-west-province')).toBe('ZAF');
+    expect(countryOf('sabah')).toBe('MYS');
+    expect(countryOf('french-guiana')).toBe('FRA');
+    expect(getPlace('north-west')).toBeUndefined();
+    // Drafters search by country: the provinces turn up for South Africa.
+    expect(findPlaces({ query: 'gauteng', countryId: 'ZAF', near: null })).toContain('gauteng');
+    const provinces = findPlaces({ query: null, countryId: 'ZAF', near: null }, 200);
+    for (const id of ['eastern-cape', 'free-state', 'kwazulu-natal', 'north-west-province']) {
+      expect(provinces, id).toContain(id);
+    }
   });
 
   it('know the Rhine by one ID although Natural Earth names it in several ways', () => {

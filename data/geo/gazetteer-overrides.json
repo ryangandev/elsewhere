@@ -130,7 +130,7 @@
     {
       "dataset": "admin1",
       "neId": 1159309735,
-      "name": "North West",
+      "name": "North West Province",
       "reason": "One of the nine provinces of South Africa, for stories told by province (home languages); Natural Earth admin-1 polygon."
     },
     {
@@ -194,6 +194,12 @@
       "from": "Rhein River",
       "to": "Rhine River",
       "reason": "English name of the river. Natural Earth draws the Rhine as three river features: two under the German name Rhein (one also named Rhin) and one named Rhine. Renaming Rhein joins them into one river."
+    },
+    {
+      "dataset": "admin1",
+      "from": "North West",
+      "to": "North West Province",
+      "reason": "Natural Earth's name for this South African province is North West, whose ID would read as a compass direction; the province is formally North West Province."
     }
   ],
   "passages": [
@@ -345,9 +351,9 @@
           "bering-sea",
           "chukchi-sea"
         ],
-        "radiusKm": 100
+        "radiusKm": 450
       },
-      "reason": "Natural Earth's marine polygons have no Bering Strait: the Bering Sea and Chukchi Sea polygons meet across it. Labelled at the middle of their shared boundary, with a passage from the Bering Sea to the Chukchi Sea through their water within 100 km of it."
+      "reason": "Natural Earth's marine polygons have no Bering Strait: the Bering Sea and Chukchi Sea polygons meet across it. Labelled at the middle of their shared boundary, with a passage from the Bering Sea to the Chukchi Sea through their water within 450 km of it, which is enough to start south of St Lawrence Island so that routes from the open Bering Sea reach it."
     },
     {
       "id": "kerch-strait",
