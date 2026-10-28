@@ -28,6 +28,9 @@ const MAX_PIXEL_RATIO = 2;
 const SCENE_TRANSITION_MS = 1100;
 const RESET_TRANSITION_MS = 850;
 const ZOOM_TRANSITION_MS = 400;
+// A scene is framed again after a resize only once the narrower side of the globe area, relative
+// to its height, has changed by this share, such as a phone's reading panel collapsing.
+const REFRAME_SHARE = 0.1;
 
 export function loadBasemap(url: string): Promise<Texture> {
   return new TextureLoader().loadAsync(url);
@@ -193,9 +196,12 @@ export function createGlobeEngine(options: EngineOptions) {
   });
   basemap.followCamera(globe.camera());
 
+  let reframeTimer: ReturnType<typeof setTimeout> | undefined;
   const observer = new ResizeObserver(() => {
     globe.width(container.clientWidth).height(container.clientHeight);
     scheduleLayout();
+    clearTimeout(reframeTimer);
+    reframeTimer = setTimeout(reframe, SETTLE_DELAY_MS);
   });
   observer.observe(container);
 
@@ -231,11 +237,45 @@ export function createGlobeEngine(options: EngineOptions) {
   canvas.addEventListener('webglcontextlost', contextLost);
 
   // The overview is where reset returns; the target is where the scene last sent the camera.
+  // Both are framed for the globe area's shape: its narrower side, relative to its height.
+  let shown: MapScene | undefined;
   let overview = options.homeView;
   let target: CameraView | undefined;
+  let framedAspect = 1;
+  // Whether the reader has moved the camera since the scene last placed it.
+  let cameraTaken = false;
+  controls.addEventListener('start', () => {
+    cameraTaken = true;
+  });
+  const aspect = () => {
+    const { clientWidth: width, clientHeight: height } = container;
+    return width > 0 && height > 0 ? Math.min(1, width / height) : 1;
+  };
+  const moveTo = (view: CameraView, ms: number) => {
+    target = view;
+    cameraTaken = false;
+    globe.pointOfView(view, duration(ms));
+  };
+  // Frames the scene for the current globe area and moves the camera when its target changed.
+  const frameScene = (current: MapScene) => {
+    framedAspect = aspect();
+    overview = sceneView(current, countries, options.homeView, framedAspect);
+    const next = sceneTarget(current, countries, options.homeView, framedAspect);
+    if (!target || !sameView(target, next)) moveTo(next, SCENE_TRANSITION_MS);
+  };
+  // A resize that changes the globe area's shape enough frames the scene again, unless the
+  // reader has taken the camera; reset still returns to the new overview.
+  function reframe() {
+    if (!shown || Math.abs(aspect() - framedAspect) < framedAspect * REFRAME_SHARE) return;
+    if (cameraTaken) {
+      framedAspect = aspect();
+      overview = sceneView(shown, countries, options.homeView, framedAspect);
+    } else frameScene(shown);
+  }
 
   return {
     applyScene(scene: MapScene, changes: SceneChanges) {
+      shown = scene;
       if (changes.focusCountry) geography.setSelected(scene.focusCountryId);
       if (changes.focusCountry || changes.highlights) geography.setRoles(rolesOf(scene));
       const dataChanged = labels.setScene({
@@ -246,21 +286,16 @@ export function createGlobeEngine(options: EngineOptions) {
       });
       if (dataChanged) globe.htmlElementsData(labels.data);
       if (changes.routes) routes.setRoutes(scene.routes);
-      overview = sceneView(scene, countries, options.homeView);
-      const next = sceneTarget(scene, countries, options.homeView);
       // The camera only moves when the scene asks for a different view.
-      if (!target || !sameView(target, next)) {
-        target = next;
-        globe.pointOfView(next, duration(SCENE_TRANSITION_MS));
-      }
+      frameScene(scene);
       scheduleLayout();
     },
 
     zoom(direction: 'in' | 'out' | 'reset') {
       if (direction === 'reset') {
-        target = overview;
-        globe.pointOfView(overview, duration(RESET_TRANSITION_MS));
+        moveTo(overview, RESET_TRANSITION_MS);
       } else {
+        cameraTaken = true;
         globe.pointOfView(zoomView(globe.pointOfView(), direction), duration(ZOOM_TRANSITION_MS));
       }
     },
@@ -269,6 +304,7 @@ export function createGlobeEngine(options: EngineOptions) {
       disposed = true;
       cancelAnimationFrame(frame);
       clearTimeout(detailTimer);
+      clearTimeout(reframeTimer);
       observer.disconnect();
       occluderObserver.disconnect();
       document.removeEventListener('visibilitychange', visibility);

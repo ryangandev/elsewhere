@@ -36,45 +36,49 @@ function toLatLng([x, y, z]: Vector) {
 const dot = (a: Vector, b: Vector) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const angle = (a: Vector, b: Vector) => Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
 
-// globe.gl's camera has a 50 degree vertical field of view. The globe area already sits beside
-// the reading panel, so framing only has to keep the scene clear of the map note at the bottom.
+// globe.gl's camera has a 50 degree vertical field of view; its horizontal one follows the globe
+// area's aspect ratio (width over height). The globe area already sits beside the reading panel,
+// so framing only has to keep the scene clear of the view's edges and the map note at the bottom.
 // A country's own view is kept while every point lies within COUNTRY_FILL of the view's
-// half-height, as today's country overviews do; a scene that reaches farther is framed to
-// SCENE_FILL, which leaves its outermost places room for their labels above the note.
+// half-extent, as today's country overviews do; a scene that reaches farther is framed to
+// SCENE_FILL, which leaves its outermost places room for their labels.
 const HALF_FOV = 25 * RADIANS;
 export const COUNTRY_FILL = 0.6;
 export const SCENE_FILL = 0.5;
 
-// How far from the middle of a view a point appears, as a share of the view's half-height.
-// A point beyond the horizon never fits.
-export function viewOffset(view: CameraView, point: { lat: number; lng: number }) {
+// The tangent of the view's half-extent on its narrower side: its half-height in a landscape
+// globe area, its half-width in a portrait one, as on a phone.
+const halfExtent = (aspect: number) => Math.tan(HALF_FOV) * Math.min(1, aspect);
+
+// How far from the middle of a view a point appears, as a share of the view's half-height or
+// half-width, whichever is smaller. A point beyond the horizon never fits.
+export function viewOffset(view: CameraView, point: { lat: number; lng: number }, aspect = 1) {
   const radians = angle(toVector(view), toVector(point));
   const distance = 1 + view.altitude;
   if (Math.cos(radians) <= 1 / distance) return Infinity;
-  return Math.sin(radians) / (distance - Math.cos(radians)) / Math.tan(HALF_FOV);
+  return Math.sin(radians) / (distance - Math.cos(radians)) / halfExtent(aspect);
 }
 
-// The altitude at which a cap of this radius fills SCENE_FILL of the view. Past a hemisphere no
-// altitude shows the whole cap, and the formula would turn back down, so it never fits.
-function capAltitude(radius: number) {
-  if (radius >= Math.PI / 2) return Infinity;
-  return Math.cos(radius) + Math.sin(radius) / (SCENE_FILL * Math.tan(HALF_FOV)) - 1;
+// The altitude at which a cap of this radius fills SCENE_FILL of the view.
+function capAltitude(radius: number, aspect: number) {
+  return Math.cos(radius) + Math.sin(radius) / (SCENE_FILL * halfExtent(aspect)) - 1;
 }
 
-// The scene's places and route waypoints, split into the points framed in full and the open-sea
-// points framed only as a direction. Waypoints are enough: a great-circle step between two points
+// The scene's places and route waypoints, split into the points framed in full and the points
+// a scene names only as a direction. Waypoints are enough: a great-circle step between two points
 // of a cap smaller than a hemisphere stays inside it.
 function scenePoints(scene: MapScene) {
   const points = [...scene.places, ...scene.routes.flatMap((route) => route.waypoints)];
   return {
-    full: points.filter((point) => !point.openSea).map(toVector),
-    openSea: points.filter((point) => point.openSea).map(toVector),
+    full: points.filter((point) => !point.direction).map(toVector),
+    directions: points.filter((point) => point.direction).map(toVector),
   };
 }
 
-// The camera reaches at most this far past the rest of the scene toward an open-sea point:
-// 500 km, in radians of the globe.
-const OPEN_SEA_REACH = 500 / 6371;
+// The camera reaches at most this far past the rest of the scene toward a direction point:
+// 500 km, in radians of the globe. That shows the near coast of a sea or a neighbour's border
+// region beside the scene without turning the view toward the far-off label point.
+export const DIRECTION_REACH = 500 / 6371;
 
 // The point at most `limit` radians from `center`, on the great circle toward `point`.
 function pullToward(center: Vector, point: Vector, limit: number): Vector {
@@ -120,30 +124,35 @@ function enclosingCap(points: readonly Vector[], country: CountryAnchor) {
 }
 
 // The overview a scene returns to on reset: explicit camera, then a view framed from the focus
-// country and everything the scene shows, then home.
+// country and everything the scene shows, then home. `aspect` is the globe area's width over its
+// height.
 export function sceneView(
   scene: MapScene,
   countries: ReadonlyMap<string, CountryAnchor>,
   home: CameraView = HOME_VIEW,
+  aspect = 1,
 ): CameraView {
   if (scene.camera) return scene.camera;
   const country = scene.focusCountryId ? countries.get(scene.focusCountryId) : undefined;
   if (!country) return home;
   const view = countryView(country);
-  const { full, openSea } = scenePoints(scene);
-  // Open-sea points are pulled toward the cap of everything else, to reach at most a fixed
+  const { full, directions } = scenePoints(scene);
+  // Direction points are pulled toward the cap of everything else, to reach at most a fixed
   // distance past it.
   const core = enclosingCap(full, country);
   const points = [
     ...full,
-    ...openSea.map((point) => pullToward(core.center, point, core.radius + OPEN_SEA_REACH)),
+    ...directions.map((point) => pullToward(core.center, point, core.radius + DIRECTION_REACH)),
   ];
   // A scene inside or near its country keeps the country's view, so overviews hold still.
-  if (points.every((point) => viewOffset(view, toLatLng(point)) <= COUNTRY_FILL)) return view;
+  if (points.every((point) => viewOffset(view, toLatLng(point), aspect) <= COUNTRY_FILL)) {
+    return view;
+  }
   // Otherwise the view frames the whole scene, never closer than the country's view and never
-  // farther out than home.
+  // farther out than home. No view shows a scene wider than a hemisphere, so that is home.
   const cap = enclosingCap(points, country);
-  const altitude = Math.max(view.altitude, capAltitude(cap.radius));
+  if (cap.radius >= Math.PI / 2) return home;
+  const altitude = Math.max(view.altitude, capAltitude(cap.radius, aspect));
   return { ...toLatLng(cap.center), altitude: Math.min(home.altitude, altitude) };
 }
 
@@ -161,8 +170,9 @@ export function sceneTarget(
   scene: MapScene,
   countries: ReadonlyMap<string, CountryAnchor>,
   home: CameraView = HOME_VIEW,
+  aspect = 1,
 ): CameraView {
-  const overview = sceneView(scene, countries, home);
+  const overview = sceneView(scene, countries, home, aspect);
   const place = scene.focusPlaceId
     ? scene.places.find((item) => item.id === scene.focusPlaceId)
     : undefined;

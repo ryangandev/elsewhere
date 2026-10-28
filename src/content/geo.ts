@@ -179,17 +179,29 @@ export function isOpenSea(place: GazetteerPlace): boolean {
 }
 
 /**
+ * Whether a scene about `focusCountryId` names a place only as a direction, so the globe reaches
+ * only a bounded way toward it: an open sea, or a country other than the focus country. Both are
+ * label points somewhere in a large area, often far from the part the scene is about.
+ */
+export function isDirection(place: GazetteerPlace, focusCountryId?: string): boolean {
+  return isOpenSea(place) || (place.kind === 'country' && place.countryId !== focusCountryId);
+}
+
+/**
  * The points a route is drawn through before the great-circle steps between them: its stops, and
- * the path points of the passages and rivers a sea or river route follows. Open-sea stops are
- * marked, so the globe frames them only as a direction.
+ * the path points of the passages and rivers a sea or river route follows. Stops that are only a
+ * direction (see `isDirection`) are marked.
  */
 export function routeWaypoints(
   route: Pick<SceneRouteSpec, 'kind' | 'via'>,
-): { lat: number; lng: number; openSea?: true }[] {
+  focusCountryId?: string,
+): { lat: number; lng: number; direction?: true }[] {
   return expandRouteStops(routeStops(route)).map(({ id, point: [lat, lng], passage }) => ({
     lat: round(lat),
     lng: round(lng),
-    ...(passage === undefined && isOpenSea(requirePlace(id)) ? { openSea: true as const } : {}),
+    ...(passage === undefined && isDirection(requirePlace(id), focusCountryId)
+      ? { direction: true as const }
+      : {}),
   }));
 }
 

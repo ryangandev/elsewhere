@@ -7,7 +7,7 @@ import {
   countryPlacePoint,
   getMapCountry,
   getPlace,
-  isOpenSea,
+  isDirection,
   routePoints,
   routeWaypoints,
   type LatLng,
@@ -206,7 +206,7 @@ export function resolveScene(
         lat,
         lng,
         kind: place.kind,
-        ...(isOpenSea(place) ? { openSea: true as const } : {}),
+        ...(isDirection(place, spec.focusCountryId) ? { direction: true as const } : {}),
         ...(note ? { note } : {}),
       };
     }),
@@ -214,7 +214,7 @@ export function resolveScene(
       id: route.id,
       kind: route.kind,
       points: routePoints(route),
-      waypoints: routeWaypoints(route),
+      waypoints: routeWaypoints(route, spec.focusCountryId),
     })),
   };
 }

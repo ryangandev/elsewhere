@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { getMapCountry } from '../../src/content/geo';
 import { resolveScene } from '../../src/content/store';
 import {
+  COUNTRY_FILL,
+  DIRECTION_REACH,
   HOME_VIEW,
   SCENE_FILL,
   ZOOM_LIMITS,
   countryAltitude,
   countryView,
   placeView,
+  sameView,
   sceneTarget,
   sceneView,
   viewOffset,
@@ -161,26 +164,80 @@ describe('scene framing', () => {
     expect(sceneView(overview, egypt)).toEqual(countryView(egypt.get('EGY')!));
   });
 
-  it('marks only open-sea label points as open sea', () => {
+  it('marks open seas and other countries as directions, and nothing else', () => {
     const scene = resolveScene({
       focusCountryId: 'NLD',
       highlights: [],
-      placeIds: ['north-sea', 'english-channel', 'lake-victoria', 'white-nile-river', 'rotterdam'],
+      placeIds: [
+        'north-sea',
+        'english-channel',
+        'lake-victoria',
+        'white-nile-river',
+        'rotterdam',
+        'belgium',
+      ],
       routes: [
         {
           id: 'approach',
           kind: 'sea',
           via: ['north-atlantic-ocean', 'strait-of-dover', 'rotterdam'],
         },
+        { id: 'trade', kind: 'flow', via: ['china', 'netherlands'] },
       ],
     });
-    expect(scene.places.filter((item) => item.openSea).map((item) => item.id)).toEqual([
+    expect(scene.places.filter((item) => item.direction).map((item) => item.id)).toEqual([
       'north-sea',
+      'belgium',
     ]);
     const [start, ...rest] = scene.routes[0].waypoints;
-    expect(start).toMatchObject({ lat: 29.241, lng: -37.31, openSea: true });
+    expect(start).toMatchObject({ lat: 29.241, lng: -37.31, direction: true });
     expect(rest.length).toBeGreaterThan(2);
-    expect(rest.every((point) => !point.openSea)).toBe(true);
+    expect(rest.every((point) => !point.direction)).toBe(true);
+    // Another country as a route stop is a direction too; the focus country is not.
+    expect(scene.routes[1].waypoints.map((point) => point.direction)).toEqual([true, undefined]);
+  });
+
+  it('reaches exactly the set distance past the rest of the scene toward a direction', () => {
+    // A tiny country on the equator, a place 800 km west and an open sea 2000 km east of the
+    // middle of the two: the frame reaches 500 km past the country, as for a place there.
+    const tiny = new Map([['XXX', { lat: 0, lng: 0, area: 1e-10 }]]);
+    const km = (distance: number) => (distance / 6371) * (180 / Math.PI);
+    const west = place('west', 0, -km(800));
+    const core = { lng: -km(400), radius: km(400) };
+    const sea = { ...place('sea', 0, core.lng + km(2000)), direction: true as const };
+    const view = sceneView({ ...EMPTY_SCENE, focusCountryId: 'XXX', places: [west, sea] }, tiny);
+    const reached = place('reached', 0, core.lng + core.radius + (DIRECTION_REACH * 180) / Math.PI);
+    expect(reached.lng).toBeCloseTo(km(500));
+    const same = sceneView(
+      { ...EMPTY_SCENE, focusCountryId: 'XXX', places: [west, reached] },
+      tiny,
+    );
+    // Within the enclosing cap's approximation, about a kilometre here.
+    expect(view.lat).toBeCloseTo(same.lat, 1);
+    expect(view.lng).toBeCloseTo(same.lng, 1);
+    expect(view.altitude).toBeCloseTo(same.altitude, 2);
+    // Both ends sit on the edge of the frame, so the cap is 650 km across each way.
+    expect(view.lng).toBeCloseTo(-km(150), 1);
+    expect(viewOffset(view, west)).toBeCloseTo(SCENE_FILL, 2);
+    expect(viewOffset(view, reached)).toBeCloseTo(SCENE_FILL, 2);
+    expect(viewOffset(view, sea)).toBeGreaterThan(1);
+  });
+
+  it('keeps Japan in view when its overview names China', () => {
+    const japan = new Map([['JPN', getMapCountry('JPN')!]]);
+    const overview = resolveScene({
+      focusCountryId: 'JPN',
+      highlights: [],
+      placeIds: ['republic-of-korea', 'china', 'philippine-sea', 'sea-of-japan'],
+      routes: [],
+    });
+    const country = countryView(japan.get('JPN')!);
+    const view = sceneView(overview, japan);
+    expect(view.altitude).toBeLessThan(country.altitude * 1.5);
+    // Japan stays near the middle; China's far-off label point is not framed.
+    expect(viewOffset(view, country)).toBeLessThan(0.3);
+    const china = overview.places.find((item) => item.id === 'china')!;
+    expect(viewOffset(view, china)).toBeGreaterThan(1);
   });
 
   it('reaches only a bounded way toward an open sea, as a place or a route stop', () => {
@@ -207,7 +264,7 @@ describe('scene framing', () => {
       placeIds: ['canada', 'mexico', 'north-atlantic-ocean', 'north-pacific-ocean'],
       routes: [],
     });
-    full.places = full.places.map((item) => ({ ...item, openSea: undefined }));
+    full.places = full.places.map((item) => ({ ...item, direction: undefined }));
     expect(sceneView(full, countries).altitude).toBe(HOME_VIEW.altitude);
 
     // As a route stop, the open sea is a direction: the route leaves the frame toward it.
@@ -242,8 +299,8 @@ describe('scene framing', () => {
     const view = sceneView(rotterdam, netherlands);
     // The Channel, the Strait of Dover, Rotterdam and the Rhine and Meuse count in full.
     const full = [
-      ...rotterdam.places.filter((item) => !item.openSea),
-      ...rotterdam.routes.flatMap((route) => route.waypoints.filter((point) => !point.openSea)),
+      ...rotterdam.places.filter((item) => !item.direction),
+      ...rotterdam.routes.flatMap((route) => route.waypoints.filter((point) => !point.direction)),
     ];
     for (const point of full)
       expect(viewOffset(view, point)).toBeLessThanOrEqual(SCENE_FILL + 1e-6);
@@ -268,6 +325,44 @@ describe('scene framing', () => {
     expect(sceneView({ ...nileSource, focusCountryId: undefined }, egypt)).toEqual(HOME_VIEW);
   });
 
+  it('frames against the narrower side of a portrait globe area', () => {
+    // A phone with the reading panel collapsed: the globe area is about 421 by 700.
+    const aspect = 421 / 700;
+    const fiji = new Map([['FJI', { lat: -17.8, lng: 178, area: 0.0006 }]]);
+    const islands: MapScene = {
+      ...EMPTY_SCENE,
+      focusCountryId: 'FJI',
+      places: [place('samoa', -13.8, -172), place('tonga', -21.2, -175.2)],
+    };
+    const wide = sceneView(islands, fiji);
+    const tall = sceneView(islands, fiji, HOME_VIEW, aspect);
+    expect(tall.altitude).toBeGreaterThan(wide.altitude * 1.3);
+    expect(Math.max(...islands.places.map((item) => viewOffset(tall, item, aspect)))).toBeCloseTo(
+      SCENE_FILL,
+      2,
+    );
+    // The Nile from Lake Victoria to Cairo needs home's altitude on a phone, centered as before.
+    const landscape = sceneView(nileSource, egypt);
+    const portrait = sceneView(nileSource, egypt, HOME_VIEW, aspect);
+    expect(portrait).toEqual({ ...landscape, altitude: HOME_VIEW.altitude });
+    // A wide globe area frames as a square one: height is its narrower side.
+    expect(sceneView(nileSource, egypt, HOME_VIEW, 1.6)).toEqual(landscape);
+    expect(sceneView(islands, fiji, HOME_VIEW, 1.6)).toEqual(wide);
+    // The country view is kept only while its places fit the narrower side too.
+    const overview = resolveScene({
+      focusCountryId: 'EGY',
+      highlights: [],
+      placeIds: ['cairo', 'alexandria', 'nile-river', 'suez-canal', 'mediterranean-sea', 'red-sea'],
+      routes: [],
+    });
+    const kept = countryView(egypt.get('EGY')!);
+    const narrow = sceneView(overview, egypt, HOME_VIEW, aspect);
+    for (const item of overview.places)
+      expect(viewOffset(narrow, item, aspect)).toBeLessThanOrEqual(
+        sameView(narrow, kept) ? COUNTRY_FILL : SCENE_FILL + 1e-6,
+      );
+  });
+
   it('frames across the antimeridian', () => {
     const fiji = new Map([['FJI', { lat: -17.8, lng: 178, area: 0.0006 }]]);
     const scene: MapScene = {
@@ -288,10 +383,14 @@ describe('scene framing', () => {
       focusCountryId: 'EGY',
       places: [place('jakarta', -6.2, 106.8), place('lima', -12, -77)],
     };
-    expect(sceneView(scene, egypt).altitude).toBe(HOME_VIEW.altitude);
+    // Short of a hemisphere, a cap that needs more than home is framed at home's altitude.
+    const view = sceneView(scene, egypt);
+    expect(view.altitude).toBe(HOME_VIEW.altitude);
+    expect(view).not.toEqual(HOME_VIEW);
     const home = { lat: 0, lng: 0, altitude: 2.5 };
     expect(sceneView(scene, egypt, home).altitude).toBe(2.5);
-    // Points all around the globe need a cap wider than a hemisphere, which no altitude fits.
+    // Points all around the globe need a cap wider than a hemisphere, which no view shows, so
+    // the scene uses the home view itself.
     const around: MapScene = {
       ...scene,
       places: [
@@ -303,6 +402,6 @@ describe('scene framing', () => {
         place('south', -90, 0),
       ],
     };
-    expect(sceneView(around, egypt).altitude).toBe(HOME_VIEW.altitude);
+    expect(sceneView(around, egypt)).toEqual(HOME_VIEW);
   });
 });

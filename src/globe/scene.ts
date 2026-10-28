@@ -3,16 +3,17 @@
 
 export type CameraView = { lat: number; lng: number; altitude: number };
 
-// An open-sea point is the label point of an ocean, sea or gulf: an arbitrary spot in a large
-// area, which a scene names as a direction ("ships arrive from the Atlantic"). The camera reaches
-// only a bounded way toward it rather than framing it in full.
+// A direction point is a label point the scene names as a direction rather than a place to show:
+// an ocean, sea or gulf ("ships arrive from the Atlantic") or a country other than the focus
+// country ("trade with China"). Its label point is an arbitrary spot in a large area, so the
+// camera reaches only a bounded way toward it rather than framing it in full.
 export type ScenePlace = {
   id: string;
   name: string;
   lat: number;
   lng: number;
   kind: 'water' | 'region' | 'place' | 'country';
-  openSea?: true;
+  direction?: true;
   note?: string;
 };
 
@@ -23,7 +24,7 @@ export type SceneRoute = {
   id: string;
   kind: 'sea' | 'land' | 'river' | 'flow';
   points: [number, number][];
-  waypoints: { lat: number; lng: number; openSea?: true }[];
+  waypoints: { lat: number; lng: number; direction?: true }[];
 };
 
 export type MapScene = {
