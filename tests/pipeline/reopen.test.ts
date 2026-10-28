@@ -3,11 +3,22 @@
 // of a reopened hand-written story. The agent revision of one is tested in agent.test.ts. Every
 // test works on a copy of the frozen hand-converted tree (tests/fixtures/hand-converted), whose ten
 // countries were converted by hand and reviewed.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CountryFile, type SceneSpec, type Story } from '../../src/content/schema';
 import { createContentStore } from '../../src/content/store';
 import { readContentTree } from '../../src/content/files';
-import { defaultClaimsDir, readClaims } from '../../pipeline/claims/store';
+import { claimsJobs } from '../../pipeline/claims/plan';
+import {
+  claimsFilePath,
+  defaultClaimsDir,
+  readClaims,
+  recordChecks,
+  unitStatuses,
+  type ClaimCheck,
+  type ClaimVerdict,
+} from '../../pipeline/claims/store';
+import { scopeUnits, storyUnits, type ClaimUnit } from '../../pipeline/claims/units';
 import { parsedCountryFiles, readCountryFile, writeCountryFile } from '../../pipeline/content-tree';
 import {
   assembleCountry,
@@ -562,4 +573,151 @@ describe('a whole-country draft', () => {
       `stories[${federation}].slug: keep the slug "${malaysia.stories[federation].slug}"; "federation" is a question the prototype published, and links and its old URL lead to that path.`,
     ]);
   });
+});
+
+// The claim check results next to the content (claims/<slug>.json) are keyed by each unit's text
+// and cited sources. Reopening changes no text, so the results stay as they are; a redraft makes
+// the units whose text changed read as not checked, and approval waits for them. The frozen
+// hand-converted tree has no claims/ folder, so these tests record some.
+describe('claim checks of a reopened part', () => {
+  const stamp = {
+    checkedAt: '2026-09-27',
+    model: 'claude-opus-5-5',
+    effort: 'high',
+    promptVersion: 'claims-v1',
+  };
+
+  function checkOf(unit: ClaimUnit, verdict: ClaimVerdict): ClaimCheck {
+    return {
+      label: unit.label,
+      text: unit.text,
+      verdict,
+      unsupported: verdict === 'supported' ? [] : [unit.text.slice(0, 20)],
+      evidence: [],
+      note: null,
+      sources: unit.sources.map((source) => ({
+        id: source.id,
+        url: source.url,
+        status: 'read' as const,
+        note: null,
+      })),
+      ...stamp,
+    };
+  }
+
+  /**
+   * France with results recorded for every story: all supported, except the first section of
+   * "overseas", which is flagged as not supported.
+   */
+  function franceWithClaims() {
+    const tree = franceTree();
+    const file = tree.read();
+    const claimsDir = defaultClaimsDir(tree.contentDir);
+    const flagged = storyUnits(file.stories.find((story) => story.id === 'overseas')!)[0];
+    const checks: Record<string, ClaimCheck> = {};
+    for (const unit of file.stories.flatMap(storyUnits)) {
+      checks[unit.key] = checkOf(unit, unit.key === flagged.key ? 'not_supported' : 'supported');
+    }
+    recordChecks(claimsDir, file, checks);
+    return { ...tree, file, claimsDir, path: claimsFilePath(claimsDir, 'france'), flagged };
+  }
+
+  const overseasScope = [{ kind: 'story' as const, storyId: 'overseas' }];
+
+  const overseasStatuses = (contentDir: string, claimsDir: string) => {
+    const file = readCountryFile(contentDir, 'france')!;
+    return unitStatuses(scopeUnits(file, overseasScope[0]), readClaims(claimsDir, file.country));
+  };
+
+  it('stay exactly as recorded when a story is reopened, and review shows them', () => {
+    const { contentDir, review, read, file, claimsDir, path, flagged } = franceWithClaims();
+    const recorded = readFileSync(path, 'utf8');
+    expect(Object.keys(JSON.parse(recorded).checks)).toHaveLength(
+      file.stories.flatMap(storyUnits).length,
+    );
+
+    reopen({ ...review, country: 'FRA', storyId: 'overseas' });
+    expect(readFileSync(path, 'utf8')).toBe(recorded);
+    // The text did not change, so every result of the reopened story still applies.
+    const statuses = overseasStatuses(contentDir, claimsDir);
+    expect(statuses.length).toBeGreaterThan(1);
+    expect(statuses.every(({ check }) => check !== undefined)).toBe(true);
+    expect(statuses[0].unit.key).toBe(flagged.key);
+    expect(statuses[0].check?.verdict).toBe('not_supported');
+
+    const shown = countrySummary(read(), summaryContext(contentDir, read()), 'overseas');
+    expect(shown).toContain('claim check: NOT SUPPORTED');
+    expect(shown).toContain('claim check: supported');
+    expect(shown).toContain(
+      '1 supported, 0 partly supported, 1 not supported, 0 source unreachable, 0 not checked',
+    );
+
+    // Reopening the rest of the country leaves them too.
+    reopen({ ...review, country: 'FRA', all: true, notes: 'Everything else.' });
+    expect(readFileSync(path, 'utf8')).toBe(recorded);
+  });
+
+  it(
+    'lapse only for the text a redraft changes, which approval then waits for',
+    () => {
+      const { contentDir, review, read, claimsDir, path, flagged } = franceWithClaims();
+      reopen({ ...review, country: 'FRA', storyId: 'overseas' });
+      const existing = read();
+      const overseas = existing.stories.find((story) => story.id === 'overseas')!;
+      const secondKey = storyUnits(overseas)[1].key;
+
+      // A redraft that keeps the first section and rewrites the second.
+      const draft = structuredClone(toDraftStory(overseas));
+      draft.sections[1].text = `${draft.sections[1].text} The territories also vote in French elections.`;
+      const submission = storySession(runContext(contentDir), existing, 'overseas').submit(
+        { story: draft, sources: toDraftSources(overseas.sources) },
+        {
+          model: 'claude-opus-5-5',
+          evidence: new Set(overseas.sources.map((source) => normalizeUrl(source.url))),
+        },
+      );
+      if (!submission.ok) throw new Error(submission.issues.join('\n'));
+      writeCountryFile(contentDir, submission.file);
+
+      // Only a claim check writes the claims file, so the old results are all still there, but
+      // the rewritten section no longer matches the one that was checked.
+      const redrafted = overseasStatuses(contentDir, claimsDir);
+      expect(redrafted.map(({ unit }) => unit.key)).not.toContain(secondKey);
+      expect(redrafted.map(({ check }) => check?.verdict)).toEqual(['not_supported', undefined]);
+      expect(Object.keys(readClaims(claimsDir, existing.country).checks)).toContain(secondKey);
+
+      // The next claim check covers only the changed text.
+      const due = claimsJobs(read(), { scopes: overseasScope }, claimsDir);
+      expect(
+        due.map((job) => job.parts.flatMap((part) => part.units.map((unit) => unit.id))),
+      ).toEqual([['overseas-section-2']]);
+
+      // Approval waits for it, and an acceptance never excuses a unit with no current check.
+      const approveOverseas = { ...review, country: 'FRA', storyId: 'overseas' };
+      expect(() => approve(approveOverseas)).toThrow(/not supported[\s\S]*not claim-checked/);
+      const accepting = { ...approveOverseas, acceptClaims: 'Read it.' };
+      expect(() => approve(accepting)).toThrow(/not claim-checked/);
+      expect(() => approve(accepting)).not.toThrow(/not supported/);
+      expect(() => approve(accepting)).toThrow(ReviewError);
+
+      // Checking the new text records its result and drops the one for the text it replaced.
+      const rewritten = storyUnits(read().stories.find((story) => story.id === 'overseas')!)[1];
+      recordChecks(claimsDir, read(), { [rewritten.key]: checkOf(rewritten, 'supported') });
+      const kept = Object.keys(readClaims(claimsDir, existing.country).checks);
+      expect(kept).toContain(rewritten.key);
+      expect(kept).not.toContain(secondKey);
+      expect(kept).toContain(flagged.key);
+
+      // The flag on the first section is still current, so approving takes an acceptance, which
+      // is recorded beside the result in the claims file.
+      expect(() => approve(approveOverseas)).toThrow(/not supported/);
+      expect(approve(accepting)).toMatchObject({ approved: ['FRA/overseas'], acceptedClaims: 1 });
+      const accepted = JSON.parse(readFileSync(path, 'utf8')).checks[flagged.key].accepted;
+      expect(accepted).toEqual({ by: 'Tester', on: RUN_DATE, reason: 'Read it.' });
+      expect(read().stories.find((story) => story.id === 'overseas')!.provenance.status).toBe(
+        'reviewed',
+      );
+    },
+    REDRAFT_TIMEOUT_MS,
+  );
 });

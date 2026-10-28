@@ -33,6 +33,11 @@ export type ContentInput = ContentTree & {
 };
 
 const EM_DASH = '\u2014';
+const HAN = /\p{Script=Han}/u;
+/** A key like "titleZh", from when content held both languages in one file. */
+const CHINESE_KEY = /^[A-Za-z]*Zh$/;
+/** A key like "storyIndex" or "topicIdx": a reference by array position instead of by ID. */
+const INDEX_KEY = /^[A-Za-z]*(?:Index|Idx)$/;
 
 function formatPath(path: PropertyKey[]): string {
   return path
@@ -63,6 +68,18 @@ function* strings(value: unknown, path: PropertyKey[] = []): Generator<[string, 
     for (const [index, item] of value.entries()) yield* strings(item, [...path, index]);
   } else if (value && typeof value === 'object') {
     for (const [key, item] of Object.entries(value)) yield* strings(item, [...path, key]);
+  }
+}
+
+/** Every object key in a value, with the path to it. */
+function* keys(value: unknown, path: PropertyKey[] = []): Generator<[string, PropertyKey[]]> {
+  if (Array.isArray(value)) {
+    for (const [index, item] of value.entries()) yield* keys(item, [...path, index]);
+  } else if (value && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      yield [key, [...path, key]];
+      yield* keys(item, [...path, key]);
+    }
   }
 }
 
@@ -185,6 +202,45 @@ export function validateContent(input: ContentInput): ContentIssue[] {
   for (const { file, data } of [...input.countryFiles, input.trails, input.placeNotes]) {
     for (const [text, path] of strings(data)) {
       if (text.includes(EM_DASH)) report(file, formatPath(path), 'Use "-" instead of the em dash');
+    }
+  }
+
+  // English only for now (docs/product.md#language): no Han characters, apart from a country's own
+  // name for itself (nativeName), and no Chinese-language fields. Drafts are checked too, so a
+  // Japanese or Korean gloss is sent back as well; the wording says non-English, not Chinese.
+  for (const { file, data } of [...input.countryFiles, input.trails, input.placeNotes]) {
+    for (const [text, path] of strings(data)) {
+      if (HAN.test(text) && path.at(-1) !== 'nativeName') {
+        report(
+          file,
+          formatPath(path),
+          "Content is English only, but this contains non-English (Han) text outside a country's native name",
+        );
+      }
+    }
+    for (const [key, path] of keys(data)) {
+      if (HAN.test(key)) {
+        report(
+          file,
+          formatPath(path),
+          `Content is English only, but the key "${key}" contains non-English (Han) text`,
+        );
+      }
+      if (CHINESE_KEY.test(key)) {
+        report(file, formatPath(path), `Content is English only, but "${key}" is a Chinese field`);
+      }
+    }
+  }
+  // Content refers to stories and countries by permanent ID, never by array position.
+  for (const { file, data } of [...input.countryFiles, input.trails]) {
+    for (const [key, path] of keys(data)) {
+      if (INDEX_KEY.test(key)) {
+        report(
+          file,
+          formatPath(path),
+          `"${key}" is an index; refer to stories and countries by ID`,
+        );
+      }
     }
   }
 
