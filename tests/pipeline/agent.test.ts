@@ -14,6 +14,7 @@ import {
   type AgentDeps,
 } from '../../pipeline/agent/commands';
 import { AGENT_EVIDENCE_RULE } from '../../pipeline/agent/brief';
+import { BODY_CUT_RETRIES_MS } from '../../pipeline/agent/reading';
 import {
   MIN_PAGE_CHARACTERS,
   notTheRequestedPage,
@@ -304,6 +305,60 @@ describe('agent fetch command', () => {
     expect(loadEvidence(dir).records).toEqual([]);
   });
 
+  it('downloads a page again when its body is cut off, and reports a network cut as one', async () => {
+    const { dir, begin, output, deps } = setup({ pages });
+    begin();
+    output();
+    const cutBody = () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('<p>Half of the'));
+            controller.error(
+              new TypeError('terminated', {
+                cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }),
+              }),
+            );
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'text/html' } },
+      );
+    const url = 'https://example.org/article';
+    const waits: number[] = [];
+    const sleep = async (ms: number) => {
+      waits.push(ms);
+    };
+    let cuts = 2;
+    const flaky = (async (input: string | URL | Request, init?: RequestInit) =>
+      cuts-- > 0 ? cutBody() : deps.fetch!(input, init)) as typeof fetch;
+    expect(
+      await fetchCommand(
+        { countryId: 'CHL', url, refresh: false },
+        { ...deps, fetch: flaky, sleep },
+      ),
+    ).toBe(0);
+    expect(waits).toEqual(BODY_CUT_RETRIES_MS.slice(0, 2));
+    expect(output()).toContain(`${url} (stored in `);
+
+    // Cut every time: a network failure, said so, and no reason to drop the source.
+    waits.length = 0;
+    const always = (async () => cutBody()) as typeof fetch;
+    const other = 'https://example.org/long';
+    expect(
+      await fetchCommand(
+        { countryId: 'CHL', url: other, refresh: false },
+        { ...deps, fetch: always, sleep },
+      ),
+    ).toBe(1);
+    expect(waits).toEqual(BODY_CUT_RETRIES_MS);
+    const printed = output();
+    expect(printed).toContain(
+      `the connection was cut while the page downloaded (terminated: UND_ERR_SOCKET: other side closed) on all ${BODY_CUT_RETRIES_MS.length + 1} attempts; this is a network failure, not a problem with the page`,
+    );
+    expect(printed).toContain('Run the same command again in a minute');
+    expect(loadEvidence(dir).records.map(({ record }) => record.requestedUrl)).toEqual([url]);
+  });
+
   it('pages through long text and searches it from the stored copy', async () => {
     const { begin, read, output, requested } = setup({ pages });
     begin();
@@ -462,7 +517,7 @@ describe('agent fetch command', () => {
 
     expect(await read('https://example.org/article')).toBe(0);
     expect(output()).toContain(
-      'Redirected to https://www.example.org/article/; either URL may be cited.',
+      "Redirected to https://www.example.org/article/; either URL may be cited. In a revision, a source ID that a part you are not revising also declares keeps that part's URL, whichever you cite; submit prints a notice when that happens. To cite the other URL, give it its own source ID.",
     );
     expect(await read('https://example.org/article', { find: 'copper' })).toBe(0);
     expect(output()).not.toContain('Redirected');
@@ -995,6 +1050,60 @@ describe('pages that are not the requested page', () => {
     }
   });
 
+  it('recognises a page of only menus and footer, and leaves short real pages alone', () => {
+    const check = (text: string, contentType = 'text/html') =>
+      notTheRequestedPage({
+        requestedUrl: 'https://www.mnd.example/news/story',
+        finalUrl: 'https://www.mnd.example/news/story',
+        contentType,
+        text,
+      });
+    const menu = [
+      'Skip to main content',
+      ...Array.from({ length: 30 }, (_, index) => `Menu entry ${String.fromCharCode(65 + index)}`),
+      'Contact us | Feedback | Report vulnerability | Privacy statement | Terms of use',
+      'Last updated 12 Oct 2026',
+    ].join('\n');
+    const refused = check(menu);
+    expect(refused).toContain('almost all of its text is short navigation lines (33 lines');
+    // A footer sentence of ten words or more does not make a page.
+    expect(
+      check(`${menu}\nBest viewed with a recent browser at a resolution of 1024 by 768 pixels.`),
+    ).toContain('short navigation lines');
+
+    // A short page with a few real paragraphs, and a navigation menu around it, is a page.
+    const paragraph = (topic: string) =>
+      `The ${topic} was reviewed by the committee, which found that the programme met its targets for the year and recommended that it continue.`;
+    const shortPage = [
+      ...menu.split('\n').slice(0, 12),
+      'Programme review',
+      paragraph('housing programme'),
+      paragraph('transport programme'),
+      paragraph('water programme'),
+    ].join('\n');
+    expect(shortPage.length).toBeLessThan(900);
+    expect(check(shortPage)).toBeUndefined();
+    const twoThousand = [
+      ...menu.split('\n').slice(0, 12),
+      ...['housing', 'transport', 'water', 'energy', 'health', 'schools'].map(paragraph),
+      'Share this page',
+    ].join('\n');
+    expect(twoThousand.length).toBeGreaterThan(900);
+    expect(check(twoThousand)).toBeUndefined();
+
+    // A table of figures is made of short lines, and a table is data.
+    const table = Array.from(
+      { length: 40 },
+      (_, index) =>
+        `Region ${String.fromCharCode(65 + (index % 26))} | ${1000 + index} | ${index}.5%`,
+    ).join('\n');
+    expect(check(table)).toBeUndefined();
+    // PDFs and plain text are cut into lines by the page's width, so they are not tested.
+    expect(check(menu, 'application/pdf')).toBeUndefined();
+    expect(check(menu, 'text/plain')).toBeUndefined();
+    expect(check(`[Page 1]\n${menu}`, 'text/html')).toBeUndefined();
+  });
+
   it('tells sites apart by their registrable name', () => {
     // One site: a leading www, or another host under a registry's second level.
     for (const [a, b] of [
@@ -1062,7 +1171,19 @@ describe('pages that are not the requested page', () => {
     // A statistics table: numbers and short labels.
     const table = 'Region 2019 2020 2021\nAtacama 286,168 288,944 291,000 (est.)\n'.repeat(40);
     expect(unreadableText(table)).toBeUndefined();
+    // A press-release table, as htmlToText writes it: cells joined by "|", figures with currency
+    // and units, years and shares. Numbers and separators are not unreadable text.
+    const figures =
+      'State | Rs.1,23,456.78 crore | 2023-24 | Q3 | 45.6% | ₹ 7,890\nGujarat | 12,345 | 2024-25 | Q1 | 3.2% | n.a.\n'.repeat(
+        60,
+      );
+    expect(unreadableText(`${prose.repeat(2)}\n${figures}`)).toBeUndefined();
+    expect(unreadableText(figures)).toBeUndefined();
     expect(unreadableText('Short.')).toBeUndefined();
+    // Separators do not make garbage readable.
+    expect(unreadableText('Kdssb | Xqvzt | Bcdfg | %#&@ | '.repeat(60))).toMatch(
+      /^only \d+% of its tokens are words/,
+    );
     expect(unreadableText('\uE001\uE002\uE003 word '.repeat(80))).toMatch(
       /^\d+% of its characters are replacement, private-use or control characters$/,
     );
@@ -1954,7 +2075,12 @@ describe('agent revision session', () => {
       await fetchCommand({ countryId: 'CHL', url: moved, refresh: false }, withPages);
       output();
       writeDraft({ ...revisedAndes(), sources: [{ ...geography(), url: moved }] });
+      // A dry run and the submission both say the change of URL did not land, and which one stays.
+      const notice = `NOTICE: Source "fixture-geography" is declared by the overview, which this revision does not change, with ${geography().url}; this submission declares it with ${moved}, the same page after a redirect. The file keeps ${geography().url} (the URL of the overview wins), so your change to ${moved} did not land.`;
+      expect(submit({ countryId: 'CHL', dryRun: true }, deps)).toBe(0);
+      expect(output()).toContain(notice);
       expect(submit({ countryId: 'CHL' }, deps)).toBe(0);
+      expect(output()).toContain(notice);
       const andes = readCountryFile(contentDir, 'chile')!.stories[3];
       expect(andes.sources.map((source) => source.url)).toEqual([geography().url]);
       expect(readSession(dir, 'CHL').written).toBeDefined();

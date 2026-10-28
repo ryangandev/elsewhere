@@ -26,7 +26,7 @@ import {
   verdictFile,
   writeSession,
 } from '../../pipeline/claims-agent/session';
-import { SERVER_ERROR_RETRIES_MS } from '../../pipeline/agent/reading';
+import { BODY_CUT_RETRIES_MS, SERVER_ERROR_RETRIES_MS } from '../../pipeline/agent/reading';
 import { findPageRecord } from '../../pipeline/agent/session';
 import { htmlToText } from '../../pipeline/claims/local-fetch';
 import { claimsJobs, jobUnits } from '../../pipeline/claims/plan';
@@ -704,6 +704,131 @@ describe('agent claim check submissions', () => {
     expect(await submit({ sessionId: 'CHL-length' }, { ...deps(flaky), sleep })).toBe(0);
     expect(waits).toEqual([SERVER_ERROR_RETRIES_MS[0]]);
     expect(text()).toContain('Units checked: 2. 2 passed');
+  });
+
+  /** A fetch stub whose first answers for a URL are bodies cut off in the middle, as undici ends them. */
+  const cutBodies = (inner: typeof fetch, cuts: number) => {
+    let cut = 0;
+    const cutBody = () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('<p>Half of the'));
+            controller.error(
+              new TypeError('terminated', {
+                cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }),
+              }),
+            );
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'text/html' } },
+      );
+    return (async (input: string | URL | Request, init?: RequestInit) =>
+      (cut += 1) <= cuts ? cutBody() : inner(input, init)) as typeof fetch;
+  };
+
+  it('downloads a page again when its body is cut off during the live verification', async () => {
+    const { dir, deps, text } = await lengthSession();
+    writeVerdicts(dir, [
+      supported('length-section-1', SECTION_ONE),
+      supported('length-section-2', SECTION_TWO),
+    ]);
+    const waits: number[] = [];
+    const sleep = async (ms: number) => {
+      waits.push(ms);
+    };
+    const flaky = cutBodies(stubFetch(livePages()).stub, 2);
+    expect(await submit({ sessionId: 'CHL-length' }, { ...deps(flaky), sleep })).toBe(0);
+    expect(waits).toEqual(BODY_CUT_RETRIES_MS.slice(0, 2));
+    expect(text()).toContain('Units checked: 2. 2 passed');
+  });
+
+  it('reports a body that is cut off on every attempt as a network cut, not a page problem', async () => {
+    const { dir, deps, claimsDir, text } = await lengthSession();
+    writeVerdicts(dir, [supported('length-section-1', SECTION_ONE)]);
+    const sleep = async () => undefined;
+    const cut = cutBodies(stubFetch(livePages()).stub, 100);
+    expect(await submit({ sessionId: 'CHL-length' }, { ...deps(cut), sleep })).toBe(1);
+    const output = text();
+    expect(output).toContain(`Live fetch failed: ${GEOGRAPHY}: the connection was cut while`);
+    expect(output).toContain(`on all ${BODY_CUT_RETRIES_MS.length + 1} attempts`);
+    expect(output).toContain('not a problem with the page');
+    expect(output).toContain('do not mark the source unreachable for it');
+    expect(output).not.toContain('mark the source unreachable with the reason');
+    expect(existsSync(claimsFilePath(claimsDir, 'chile'))).toBe(false);
+
+    // The fetch command says the same, and logs the failure.
+    expect(
+      await fetchCommand(
+        { sessionId: 'CHL-length', url: GEOGRAPHY, refresh: true },
+        { ...deps(cut), sleep },
+      ),
+    ).toBe(1);
+    expect(text()).toContain('Do not mark fixture-geography unreachable for a network cut');
+  });
+
+  it('refuses a page of only menus and footer in the fetch command and at submission', async () => {
+    const menu = Array.from(
+      { length: 26 },
+      (_, index) => `<li>Menu item ${String.fromCharCode(65 + index)}</li>`,
+    ).join('');
+    const menuOnly = {
+      ...livePages(),
+      [GEOGRAPHY]: {
+        type: 'text/html',
+        body: `<html><body><ul>${menu}</ul><p>About us | Contact | Terms of use | Privacy statement</p></body></html>`,
+      },
+    };
+    const { dir, deps, claimsDir, text } = await lengthSession();
+    expect(
+      await fetchCommand(
+        { sessionId: 'CHL-length', url: GEOGRAPHY, offset: 0, refresh: true },
+        deps(stubFetch(menuOnly).stub),
+      ),
+    ).toBe(0);
+    expect(text()).toContain(
+      'WARNING: this is probably not the cited page: almost all of its text is short navigation lines',
+    );
+    writeVerdicts(dir, [supported('length-section-1', 'Menu item C')]);
+    expect(await submit({ sessionId: 'CHL-length' }, deps(stubFetch(menuOnly).stub))).toBe(1);
+    expect(text()).toContain(
+      `the live fetch of ${GEOGRAPHY} at submission failed (it is probably not the cited page: almost all of its text is short navigation lines`,
+    );
+    expect(existsSync(claimsFilePath(claimsDir, 'chile'))).toBe(false);
+  });
+
+  it('--dry-run prints the word count of each quote that is over the limit or within 3 words of it', async () => {
+    const { dir, deps, text } = await lengthSession();
+    const words = (count: number) => Array.from({ length: count }, (_, i) => `w${i}`).join(' ');
+    const live = stubFetch(livePages());
+    writeVerdicts(dir, [
+      supported('length-section-1', words(QUOTE_MAX_WORDS + 2)),
+      supported('length-section-2', words(QUOTE_MAX_WORDS - 3)),
+    ]);
+    expect(await submit({ sessionId: 'CHL-length', dryRun: true }, deps(live.stub))).toBe(1);
+    const output = text();
+    expect(output).toContain(
+      `Quote lengths (a quote may have at most ${QUOTE_MAX_WORDS} words), the long ones:`,
+    );
+    expect(output).toContain(
+      `  length-section-1 (fixture-geography): ${QUOTE_MAX_WORDS + 2} words, 2 words over the limit: "w0 w1 w2`,
+    );
+    expect(output).toContain(
+      `  length-section-2 (fixture-geography): ${QUOTE_MAX_WORDS - 3} words, 3 words under the limit: "w0 w1 w2`,
+    );
+    // The same function counts as the check, so the count agrees with its message.
+    expect(output).toContain(`has ${QUOTE_MAX_WORDS + 2} words; a quote must be under`);
+
+    // Shorter quotes are not listed, and a real submission prints no such lines.
+    writeVerdicts(dir, [
+      supported('length-section-1', SECTION_ONE),
+      supported('length-section-2', words(QUOTE_MAX_WORDS - 4)),
+    ]);
+    await submit({ sessionId: 'CHL-length', dryRun: true }, deps(live.stub));
+    expect(text()).not.toContain('Quote lengths');
+    writeVerdicts(dir, [supported('length-section-1', words(QUOTE_MAX_WORDS + 1))]);
+    await submit({ sessionId: 'CHL-length' }, deps(live.stub));
+    expect(text()).not.toContain('Quote lengths');
   });
 
   it('never verifies a quote against a page that is not the cited page', async () => {

@@ -475,7 +475,7 @@ export function checkRevisions(
     sources: DraftSource[];
   },
   options: RevisionCheckOptions,
-): { ok: true; file: CountryFile } | { ok: false; issues: string[] } {
+): { ok: true; file: CountryFile; notices: string[] } | { ok: false; issues: string[] } {
   const { storyIds } = sentBack;
   const idIssues: string[] = [];
   if (submission.country && !sentBack.overview) {
@@ -512,14 +512,21 @@ export function checkRevisions(
   // read as the same page (a redirect on the same host), keeps the file's URL, so the ID still
   // names one URL in the file.
   const kept = keptDeclarations(existing, sentBack);
+  const notices: string[] = [];
   const sources = submission.sources.map((source) => {
     const other = kept.get(source.id);
-    return other &&
+    if (
+      other &&
       other.url !== source.url &&
       hostOf(other.url) === hostOf(source.url) &&
       options.samePage?.(other.url, source.url)
-      ? { ...source, url: other.url }
-      : source;
+    ) {
+      notices.push(
+        `Source "${source.id}" is declared by ${other.where}, which this revision does not change, with ${other.url}; this submission declares it with ${source.url}, the same page after a redirect. The file keeps ${other.url} (the URL of ${other.where} wins), so your change to ${source.url} did not land. To change the URL everywhere, say so in your report, so the editor sends ${other.where} back too.`,
+      );
+      return { ...source, url: other.url };
+    }
+    return source;
   });
 
   const assembleContext = {
@@ -599,7 +606,9 @@ export function checkRevisions(
       `sources: "${source.id}" is declared by ${other.where} with ${other.url}, which this revision does not change, and this submission declares it with ${source.url}. Cite ${other.url} here (read it in this task first), or give the other URL its own source ID; to correct the URL everywhere, say so in your report, so the editor sends ${other.where} back too and both are revised together.`,
     );
   }
-  return problems.length ? { ok: false, issues: [...new Set(problems)] } : { ok: true, file };
+  return problems.length
+    ? { ok: false, issues: [...new Set(problems)] }
+    : { ok: true, file, notices };
 }
 
 /**
