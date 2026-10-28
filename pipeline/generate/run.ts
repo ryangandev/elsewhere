@@ -102,7 +102,7 @@ function skipReason(job: Job, options: GenerateOptions): string | undefined {
   }
   switch (replaceConflict(existing, options)) {
     case 'reviewed':
-      return 'contains reviewed content; pass --force to replace it';
+      return 'contains reviewed content, or content reopened after review, which is redrafted in place (--revisions); pass --force to replace the file';
     case 'draft':
       return 'a draft exists; pass --regenerate to replace it';
     default:

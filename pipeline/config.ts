@@ -21,9 +21,6 @@ export const MAP_COUNTRIES_FILE = 'data/geo/countries.json';
 /** Sea routes are checked against the detailed geometry the globe draws. */
 export const LAND_GEOMETRY_FILE = 'public/maps/countries-detail.geojson';
 
-/** The country file shown to the model as the quality and shape reference. */
-export const REFERENCE_COUNTRY_FILE = 'content/en/countries/singapore.json';
-
 export const DEFAULT_MODEL = 'claude-opus-5-5';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 /** Research and sourcing is intelligence-sensitive work; Opus 5.5 defaults to medium. */

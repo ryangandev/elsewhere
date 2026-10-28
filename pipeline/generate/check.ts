@@ -1,10 +1,11 @@
 // The checks a submission must pass before it is written: every rule of `npm run content:check`
 // applied to the draft inside the current content tree, plus the pipeline's own rules (sources
-// were retrieved in this task, links go to existing or planned stories, planned and linked story
-// IDs are kept). Problems go back to the model as a repair request.
+// were retrieved in this task, links go to existing or planned stories, and a whole draft keeps
+// every story ID that is planned or that other content or an old URL names). Problems go back to the model as a repair request.
 import type { LandIndex } from '../../src/content/geometry';
-import type { CountryFile } from '../../src/content/schema';
+import { HomeFile, TrailsFile, type CountryFile } from '../../src/content/schema';
 import { validateContent } from '../../src/content/validate';
+import { PROTOTYPE_QUESTIONS } from '../../src/domain/prototype-urls';
 import { contentInput, countryFilePath, parsedCountryFiles } from '../content-tree';
 import type { DraftSource } from './draft-schema';
 import { normalizeUrl } from './evidence';
@@ -51,10 +52,8 @@ export function checkCandidate(input: CheckInput): string[] {
     const revisedIndex = candidate.stories.findIndex((story) => story.id === scope.storyId);
     return path.startsWith(`stories[${revisedIndex}]`) || path === 'stories';
   };
-  for (const issue of validateContent({
-    ...contentInput(contentDir, [{ file, data: candidate }]),
-    land: input.land,
-  })) {
+  const tree = contentInput(contentDir, [{ file, data: candidate }]);
+  for (const issue of validateContent({ ...tree, land: input.land })) {
     if (issue.file === file && inScope(issue.path)) issues.push(`${issue.path}: ${issue.message}`);
   }
 
@@ -70,6 +69,7 @@ export function checkCandidate(input: CheckInput): string[] {
   }
 
   const others = parsedCountryFiles(contentDir);
+  const existing = others.get(countryId);
   others.delete(countryId);
   const drafted =
     scope === 'country'
@@ -104,6 +104,40 @@ export function checkCandidate(input: CheckInput): string[] {
             );
           }
         }
+      }
+    }
+    // The home screen, trails and the prototype's URLs name stories here by ID too. content:check
+    // reports a missing one against home.json or trails.json, which the checks above leave out.
+    const home = HomeFile.safeParse(tree.home.data).data;
+    home?.suggestedQuestions.forEach((ref) => {
+      if (ref.countryId === countryId && !ids.has(ref.storyId)) {
+        issues.push(
+          `stories: the home screen suggests story "${ref.storyId}" here. Keep a story with that ID.`,
+        );
+      }
+    });
+    for (const trail of TrailsFile.safeParse(tree.trails.data).data ?? []) {
+      for (const stop of trail.stops) {
+        if (stop.countryId === countryId && !ids.has(stop.storyId)) {
+          issues.push(
+            `stories: the trail "${trail.id}" (${trail.title}) stops at story "${stop.storyId}" here. Keep a story with that ID.`,
+          );
+        }
+      }
+    }
+    // A prototype question's path is linked from outside as well as redirected to, so it keeps
+    // its slug too.
+    for (const storyId of PROTOTYPE_QUESTIONS[countryId] ?? []) {
+      const index = candidate.stories.findIndex((story) => story.id === storyId);
+      const slug = existing?.stories.find((story) => story.id === storyId)?.slug;
+      if (index < 0) {
+        issues.push(
+          `stories: the prototype published story "${storyId}" here, and its old URL redirects to it. Keep a story with that ID.`,
+        );
+      } else if (slug && candidate.stories[index].slug !== slug) {
+        issues.push(
+          `stories[${index}].slug: keep the slug "${slug}"; "${storyId}" is a question the prototype published, and links and its old URL lead to that path.`,
+        );
       }
     }
     const { min, max } = input.storyCount;

@@ -4,35 +4,20 @@
  * vercel.json, written by `npm run redirects:build`), because a static page cannot see the query
  * string of the request that loaded it. See docs/architecture.md#platform.
  *
- * The prototype could only name the questions and trails listed here, so this set is frozen:
- * content added since never had a query URL. Map identities are not listed, because the map has
- * the same 258 identities the prototype had. Destinations are built from permanent IDs through
+ * The prototype could only name the questions and trails in prototype-urls.ts, a frozen set.
+ * Map identities are not listed there, because the map has the same 258 identities the prototype
+ * had. Destinations are built from permanent IDs through
  * `destinationPath`, so they follow slug changes when the file is regenerated.
+ *
+ * Rules are built from the content a production build publishes (`publishedContent`), whatever
+ * NODE_ENV the builder runs under, so a question that is a draft in production (one review
+ * reopened, for example) gets no rule of its own and falls through to its country, instead of
+ * pointing at a page production never builds.
  */
 import 'server-only';
-import { getStory, listMapCountries, listTrails } from '@/content';
+import { listMapCountries, publishedContent, type ContentStore } from '@/content';
 import { destinationPath } from './paths';
-
-/** The questions the prototype published, by country and story ID. */
-export const PROTOTYPE_QUESTIONS: Readonly<Record<string, readonly string[]>> = {
-  BRA: ['amazon', 'language', 'agriculture'],
-  CHN: ['manufacturing', 'population', 'reforms'],
-  FRA: ['paris', 'europe', 'overseas'],
-  IDN: ['islands', 'language', 'nature'],
-  IND: ['languages', 'monsoon', 'technology'],
-  JPN: ['coasts', 'industry', 'aging'],
-  MYS: ['two-shores', 'electronics', 'federation'],
-  SGP: ['wealth', 'shipping', 'identity'],
-  TUR: ['straits', 'republic', 'identity'],
-  USA: ['dollar', 'geography', 'immigration'],
-};
-
-/** The trails the prototype published. */
-export const PROTOTYPE_TRAILS: readonly string[] = [
-  'water-connects',
-  'made-together',
-  'land-shapes-life',
-];
+import { PROTOTYPE_QUESTIONS, PROTOTYPE_TRAILS } from './prototype-urls';
 
 /** A `has` condition on one query parameter, in Vercel's matchable-value form. */
 export type QueryCondition = {
@@ -76,18 +61,21 @@ const redirect = (has: QueryCondition[], destination: string): VercelRedirect =>
  *   1. a question reached on a trail it is still a stop of keeps the trail;
  *   2. any other question drops the trail;
  *   3. any other country URL (an unknown question, or no question) opens the country.
- * A question that no longer exists falls through to its country; a country that left the map
- * gets no redirect and the home page loads.
+ * A question that no longer exists or is not published falls through to its country, whose page
+ * production always builds (every map identity has one); a country that left the map gets no
+ * redirect and the home page loads.
  */
-export function buildLegacyRedirects(): VercelRedirect[] {
+export function buildLegacyRedirects(
+  content: Pick<ContentStore, 'getStory' | 'listTrails'> = publishedContent,
+): VercelRedirect[] {
   const trailStops: VercelRedirect[] = [];
   const questions: VercelRedirect[] = [];
 
   for (const [countryId, storyIds] of Object.entries(PROTOTYPE_QUESTIONS)) {
     for (const storyId of storyIds) {
-      if (!getStory(countryId, storyId)) continue;
+      if (!content.getStory(countryId, storyId)) continue;
       const story = [countryCondition(countryId), exactly('topic', storyId)];
-      for (const trail of listTrails()) {
+      for (const trail of content.listTrails()) {
         if (!PROTOTYPE_TRAILS.includes(trail.id)) continue;
         const onTrail = trail.stops.some(
           (stop) => stop.countryId === countryId && stop.storyId === storyId,

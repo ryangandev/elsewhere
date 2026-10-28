@@ -70,6 +70,53 @@ describe('references', () => {
     expect(withHome([{ ...shipping, reason: 'Begin here.' }, wealth, dollar])).not.toEqual([]);
   });
 
+  it('from the home screen leave production at least three while some are drafts', () => {
+    type Provenance = { status: string; reviewedBy?: string; reviewedAt?: string };
+    type File = {
+      country: { id: string; provenance: Provenance };
+      stories: { id: string; provenance: Provenance }[];
+    };
+    const asDraft = (provenance: Provenance) => ({
+      ...provenance,
+      status: 'draft',
+      reviewedBy: undefined,
+      reviewedAt: undefined,
+    });
+    /** content/en with these suggested stories (or, for a bare country ID, the country) reopened. */
+    const reopened = (...refs: string[]) => {
+      const input = contentInput();
+      const countryFiles = input.countryFiles.map((entry) => {
+        const data = structuredClone(entry.data) as File;
+        if (refs.includes(data.country.id))
+          data.country.provenance = asDraft(data.country.provenance);
+        for (const story of data.stories) {
+          if (refs.includes(`${data.country.id}/${story.id}`))
+            story.provenance = asDraft(story.provenance);
+        }
+        return { ...entry, data };
+      });
+      return validateContent({ ...input, countryFiles }).filter(
+        (issue) => issue.file === input.home.file,
+      );
+    };
+
+    // Four are suggested, so one can be reopened; production shows the other three.
+    expect(reopened('SGP/shipping')).toEqual([]);
+    expect(reopened('SGP/shipping', 'USA/dollar')).toEqual([
+      expect.objectContaining({
+        path: 'suggestedQuestions',
+        message:
+          'Production shows only 2 of these questions, fewer than 3, while "SGP/shipping", "USA/dollar" are drafts; approve them again or suggest reviewed questions instead',
+      }),
+    ]);
+    // A story in a country sent back whole is unpublished too.
+    expect(reopened('SGP/shipping', 'FRA')).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining('"SGP/shipping", "FRA/overseas"'),
+      }),
+    ]);
+  });
+
   it('never use index keys in content', () => {
     const { countryFiles, trails } = contentInput();
     expect(JSON.stringify([countryFiles, trails])).not.toMatch(/"[A-Za-z]*(?:Index|Idx)"\s*:/);

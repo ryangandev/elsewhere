@@ -5,7 +5,7 @@
 // give: the notes on each part sent back (the country part, stories) and the part as drafted, in
 // the submission's shape, and its context, with the sources the last claim check could not read.
 import { z } from 'zod';
-import { StoryId, type CountryFile } from '../../src/content/schema';
+import { StoryId, type CountryFile, type SceneSpec } from '../../src/content/schema';
 import { readClaims } from '../claims/store';
 import { scopeUnits, type ClaimScope } from '../claims/units';
 import { render, type AgentPromptSet, type AgentRevisionPromptSet } from '../prompts';
@@ -195,6 +195,22 @@ function unreadSection(lines: string[]): string[] {
 }
 
 /**
+ * The note under a part as drafted whose scene has a camera set by hand, which the submission
+ * shape leaves out: what the pipeline does with it (`keepsCamera` in pipeline/generate/assemble.ts).
+ */
+function cameraSection(kind: 'country' | 'story', scene: SceneSpec): string[] {
+  if (!scene.camera) return [];
+  const { lat, lng, altitude } = scene.camera;
+  const camera = `latitude ${lat}, longitude ${lng}, altitude ${altitude}`;
+  return [
+    '#### Camera',
+    kind === 'country'
+      ? `This scene has a camera set by hand (${camera}). The submission has no camera; the pipeline keeps this one with your revision, since it frames the country and stories without a camera borrow it.`
+      : `This scene has a camera set by hand (${camera}). The submission has no camera; the pipeline keeps this one only if your revision keeps the scene's highlights, places and routes exactly as they are, and otherwise drops it, so the globe frames the new scene itself.`,
+  ];
+}
+
+/**
  * The starting draft of a revision session: every part sent back as drafted, in the submission's
  * shape, with the sources they cite declared once. A small fix is then an edit of this file.
  */
@@ -235,6 +251,7 @@ export function renderRevisionBrief(
       notes,
       '#### The story as drafted',
       `\`\`\`json\n${storyDraftUnderRevision(existing, storyId)}\n\`\`\``,
+      ...cameraSection('story', story.scene),
       ...unreadSection(unreadSources(existing, { kind: 'story', storyId }, claimsDir)),
     ].join('\n\n');
   });
@@ -268,9 +285,10 @@ export function renderRevisionBrief(
       sentBack: partsSentBack(sentBack),
       overviewNotes: notes,
       country: asDrafted,
-      countryUnread: unreadSection(unreadSources(existing, { kind: 'overview' }, claimsDir)).join(
-        '\n\n',
-      ),
+      countryUnread: [
+        ...cameraSection('country', existing.country.scene),
+        ...unreadSection(unreadSources(existing, { kind: 'overview' }, claimsDir)),
+      ].join('\n\n'),
       stories: storiesText(existing),
       revisions: revisions.length
         ? revisions.join('\n\n')

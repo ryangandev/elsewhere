@@ -43,13 +43,16 @@ export type Source = z.infer<typeof Source>;
  * A reviewer's request to redraft a draft; the next regeneration consumes it. On a country,
  * `scope: "overview"` sends back only the country part of the file (kicker, overview, quick facts,
  * starter questions, scene and their sources) and keeps every story; without it the whole
- * country is redrafted. A story's request has no scope.
+ * country is redrafted. A story's request has no scope. A request that reopened reviewed content
+ * records the review it undid in `reopened`, since the part is a draft again and its provenance
+ * no longer names a reviewer.
  */
 export const RevisionRequest = z.strictObject({
   notes: Text,
   requestedBy: Text,
   requestedAt: IsoDate,
   scope: z.literal('overview').optional(),
+  reopened: z.strictObject({ reviewedBy: Text, reviewedAt: IsoDate }).optional(),
 });
 export type RevisionRequest = z.infer<typeof RevisionRequest>;
 
@@ -71,6 +74,9 @@ export const Provenance = z
   })
   .refine((value) => value.status !== 'reviewed' || !value.revision, {
     message: 'Reviewed content cannot be waiting for a revision',
+  })
+  .refine((value) => value.status === 'reviewed' || (!value.reviewedBy && !value.reviewedAt), {
+    message: 'Only reviewed content records a reviewer; a reopened draft keeps it in revision.reopened',
   });
 export type Provenance = z.infer<typeof Provenance>;
 

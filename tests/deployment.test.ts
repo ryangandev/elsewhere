@@ -1,16 +1,16 @@
 // vercel.json, checked the way Vercel reads it: compiled to routes with Vercel's own routing
 // utilities, then matched like a request. See docs/architecture.md#platform.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { getTransformedRoutes, type HasField, type Route } from '@vercel/routing-utils';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'vitest';
-import { getStory, listMapCountries, listTrails } from '@/content';
-import {
-  buildLegacyRedirects,
-  PROTOTYPE_QUESTIONS,
-  PROTOTYPE_TRAILS,
-} from '@/domain/legacy-redirects';
+import { createContentStore, listMapCountries, publishedContent } from '@/content';
+import { readContentTree } from '@/content/files';
+import { buildLegacyRedirects } from '@/domain/legacy-redirects';
 import { destinationPath } from '@/domain/paths';
+import { PROTOTYPE_QUESTIONS, PROTOTYPE_TRAILS } from '@/domain/prototype-urls';
 
 // Vercel rejects a vercel.json with more redirects than this.
 const MAX_REDIRECTS = 2048;
@@ -41,9 +41,12 @@ function conditionHolds(condition: Condition, url: URL): boolean {
 }
 
 /** The redirect Vercel answers a request with, or null when the request reaches the files. */
-function redirectFor(path: string): { status: number; location: string } | null {
+function redirectFor(
+  path: string,
+  routeList: Route[] = routes,
+): { status: number; location: string } | null {
   const url = new URL(path, 'https://elsewhere.test');
-  for (const route of routes) {
+  for (const route of routeList) {
     if ('handle' in route) break;
     if (!new RegExp(route.src).test(url.pathname)) continue;
     if (!(route.has ?? []).every((condition) => conditionHolds(condition, url))) continue;
@@ -105,22 +108,24 @@ test('anything else is not redirected', () => {
   assert.equal(redirectFor('/singapore/shipping?trail=water-connects'), null);
 });
 
-test('every prototype destination redirects to its page', () => {
+test('every prototype destination redirects to its page, or its country while unpublished', () => {
   for (const country of listMapCountries()) {
     const id = country.id.toLowerCase();
     assert.equal(location(`/?country=${id}`), destinationPath({ countryId: country.id }));
   }
   for (const [countryId, storyIds] of Object.entries(PROTOTYPE_QUESTIONS)) {
     for (const storyId of storyIds) {
-      assert.ok(getStory(countryId, storyId), `${countryId}/${storyId} is still published`);
       assert.equal(
         location(`/?country=${countryId.toLowerCase()}&topic=${storyId}`),
-        destinationPath({ countryId, storyId }),
+        publishedContent.getStory(countryId, storyId)
+          ? destinationPath({ countryId, storyId })
+          : destinationPath({ countryId }),
       );
     }
   }
-  const trails = listTrails().filter((trail) => PROTOTYPE_TRAILS.includes(trail.id));
-  assert.equal(trails.length, PROTOTYPE_TRAILS.length);
+  const trails = publishedContent
+    .listTrails()
+    .filter((trail) => PROTOTYPE_TRAILS.includes(trail.id));
   for (const trail of trails) {
     for (const { countryId, storyId } of trail.stops) {
       if (!PROTOTYPE_QUESTIONS[countryId]?.includes(storyId)) continue;
@@ -130,5 +135,58 @@ test('every prototype destination redirects to its page', () => {
         destinationPath({ countryId, storyId, trailId: trail.id }),
       );
     }
+  }
+});
+
+test('the rules follow production content, whatever NODE_ENV the builder runs under', () => {
+  // Under Vitest NODE_ENV is "test", where the loaders show drafts; the rules never do.
+  assert.deepEqual(
+    buildLegacyRedirects(),
+    buildLegacyRedirects(
+      createContentStore(readContentTree('content/en'), { includeDrafts: false }),
+    ),
+  );
+
+  // Singapore's shipping question reopened by review: a draft, which production does not build.
+  const dir = mkdtempSync(join(tmpdir(), 'elsewhere-redirects-'));
+  try {
+    cpSync('content/en', dir, { recursive: true });
+    const file = join(dir, 'countries', 'singapore.json');
+    const singapore = JSON.parse(readFileSync(file, 'utf8'));
+    const shipping = singapore.stories.find((story: { id: string }) => story.id === 'shipping');
+    const { reviewedBy, reviewedAt, ...provenance } = shipping.provenance;
+    shipping.provenance = {
+      ...provenance,
+      status: 'draft',
+      revision: {
+        notes: 'Cite pages that state it.',
+        requestedBy: 'Tester',
+        requestedAt: '2026-10-28',
+        reopened: { reviewedBy, reviewedAt },
+      },
+    };
+    writeFileSync(file, JSON.stringify(singapore, null, 2));
+    const tree = readContentTree(dir);
+    const redirects = buildLegacyRedirects(createContentStore(tree, { includeDrafts: false }));
+    const withDrafts = buildLegacyRedirects(createContentStore(tree, { includeDrafts: true }));
+    // The question rule and its trail-stop rule are left out.
+    assert.equal(withDrafts.length - redirects.length, 2);
+    assert.ok(
+      !redirects.some((rule) => rule.destination.startsWith('/singapore/shipping')),
+      'no rule points at the unpublished page',
+    );
+    const reopened = getTransformedRoutes({ ...config, redirects }).routes ?? [];
+    // Its prototype URLs open the country page instead, with or without the trail.
+    assert.equal(redirectFor('/?country=sgp&topic=shipping', reopened)?.location, '/singapore');
+    assert.equal(
+      redirectFor('/?country=sgp&topic=shipping&trail=water-connects', reopened)?.location,
+      '/singapore',
+    );
+    assert.equal(
+      redirectFor('/?country=sgp&topic=wealth', reopened)?.location,
+      '/singapore/wealth',
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
