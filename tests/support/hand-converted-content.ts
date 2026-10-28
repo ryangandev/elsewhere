@@ -19,7 +19,7 @@ export type StoryRef = { countryId: string; storyId: string };
 type StoryData = {
   id: string;
   countryId: string;
-  provenance: { reviewedBy: string; reviewedAt: string } & Record<string, unknown>;
+  provenance: Record<string, unknown>;
 };
 
 /**

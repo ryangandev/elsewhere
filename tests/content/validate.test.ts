@@ -36,32 +36,43 @@ describe('fixture content', () => {
 const ruleIssues = (issues: ContentIssue[]) =>
   issues.filter((issue) => /English only|is an index/.test(issue.message));
 
-describe('English only', () => {
-  /** Validation messages after `edit` changes the Singapore file (and the trails) of the fixture. */
-  function edited(edit: (singapore: Record<string, any>, trails: Record<string, any>[]) => void) {
-    const input = fixtureInput();
-    const trails = structuredClone(input.trails.data) as Record<string, any>[];
-    const countryFiles = input.countryFiles.map((entry) => {
-      if (!entry.file.endsWith('/singapore.json')) return entry;
-      const data = structuredClone(entry.data) as Record<string, any>;
-      edit(data, trails);
-      return { ...entry, data };
-    });
-    return ruleIssues(
-      validateContent({ ...input, countryFiles, trails: { ...input.trails, data: trails } }),
-    );
-  }
+type Edit = [path: (string | number)[], value: unknown];
 
+function setAt(root: unknown, [...path]: Edit[0], value: unknown) {
+  const last = path.pop()!;
+  let node = root as Record<string | number, unknown>;
+  for (const key of path) node = node[key] as Record<string | number, unknown>;
+  node[last] = value;
+}
+
+/** The fixture with values set in the Singapore file and in the trails, and the rule's issues. */
+function editedIssues(edits: { singapore?: Edit[]; trails?: Edit[] }) {
+  const input = fixtureInput();
+  const trails = structuredClone(input.trails.data);
+  for (const [path, value] of edits.trails ?? []) setAt(trails, path, value);
+  const countryFiles = input.countryFiles.map((entry) => {
+    if (!entry.file.endsWith('/singapore.json')) return entry;
+    const data = structuredClone(entry.data);
+    for (const [path, value] of edits.singapore ?? []) setAt(data, path, value);
+    return { ...entry, data };
+  });
+  return ruleIssues(
+    validateContent({ ...input, countryFiles, trails: { ...input.trails, data: trails } }),
+  );
+}
+
+describe('English only', () => {
   it('allows a country its own name for itself', () => {
-    expect(edited((singapore) => (singapore.country.nativeName = '新加坡')).length).toBe(0);
+    expect(editedIssues({ singapore: [[['country', 'nativeName'], '新加坡']] })).toEqual([]);
   });
 
   it('flags Chinese text anywhere else, naming where it is', () => {
-    const issues = edited((singapore, trails) => {
-      singapore.stories[0].summary = '新加坡 is rich.';
-      trails[0].description = 'Water 连接 us.';
-    });
-    expect(issues).toEqual([
+    expect(
+      editedIssues({
+        singapore: [[['stories', 0, 'summary'], '新加坡 is rich.']],
+        trails: [[[0, 'description'], 'Water 连接 us.']],
+      }),
+    ).toEqual([
       expect.objectContaining({
         path: 'stories[0].summary',
         message: 'Content is English only, but this contains Chinese text',
@@ -88,8 +99,7 @@ describe('English only', () => {
   });
 
   it('flags a Chinese-language field next to an English one', () => {
-    const issues = edited((singapore) => (singapore.stories[0].questionZh = 'Why?'));
-    expect(issues).toEqual([
+    expect(editedIssues({ singapore: [[['stories', 0, 'questionZh'], 'Why?']] })).toEqual([
       expect.objectContaining({
         path: 'stories[0].questionZh',
         message: 'Content is English only, but "questionZh" is a Chinese field',
@@ -100,26 +110,18 @@ describe('English only', () => {
 
 describe('index keys', () => {
   it('are flagged anywhere in a country file or a trail, since content refers to IDs', () => {
-    const input = fixtureInput();
-    const trails = structuredClone(input.trails.data) as Record<string, any>[];
-    trails[0].stops[0].topicIndex = 0;
-    const countryFiles = input.countryFiles.map((entry) => {
-      if (!entry.file.endsWith('/singapore.json')) return entry;
-      const data = structuredClone(entry.data) as Record<string, any>;
-      data.stories[0].next[0].storyIdx = 1;
-      return { ...entry, data };
-    });
     expect(
-      ruleIssues(
-        validateContent({ ...input, countryFiles, trails: { ...input.trails, data: trails } }),
-      ),
+      editedIssues({
+        singapore: [[['stories', 0, 'next', 0, 'storyIdx'], 1]],
+        trails: [[[0, 'stops', 0, 'topicIndex'], 0]],
+      }),
     ).toEqual([
       expect.objectContaining({
         path: 'stories[0].next[0].storyIdx',
         message: '"storyIdx" is an index; refer to stories and countries by ID',
       }),
       expect.objectContaining({
-        file: input.trails.file,
+        file: fixtureInput().trails.file,
         path: '[0].stops[0].topicIndex',
         message: '"topicIndex" is an index; refer to stories and countries by ID',
       }),
