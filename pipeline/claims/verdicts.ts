@@ -133,14 +133,18 @@ const LOST_LIGATURE = '\u0000';
  * line break can make one.
  */
 const LINE_END_HYPHEN = '﷐';
-/** The line pdfToText puts before each page of a PDF; it is not the page's text. */
-const PAGE_MARKER = /^\[Page \d+\]$/gm;
+/**
+ * The lines pdfToText puts before each page of a PDF and before the footnotes of each page, which
+ * follow the last page; they are not the page's text.
+ */
+const PAGE_MARKER = /^\[(Page|Footnotes of page) \d+\]$/gm;
 
 /**
  * Text as quotes are compared: what changes between a page and a faithful copy of its words is
  * folded away, and the words themselves are kept.
  *
- * - The "[Page n]" lines of a PDF's text go, so a quote can run on across a page break.
+ * - The "[Page n]" and "[Footnotes of page n]" lines of a PDF's text go, so a quote can run on
+ *   across a page break.
  * - A soft hyphen at the end of a line joins the word; a hyphen between letters at the end of a
  *   line becomes LINE_END_HYPHEN, which matches a hyphen or nothing.
  * - Escapes a model sometimes writes in place of a character (`\u2212`, `\"`) are decoded.
@@ -209,7 +213,11 @@ export const QUOTE_MAX_GAP = 300;
  */
 export const QUOTE_MAX_WORDS = 29;
 
-/** The words of a quote: runs without spaces that hold a letter or digit, so "..." and "-" do not count. */
+/**
+ * The words of a quote: runs without spaces that hold a letter or digit, so "..." and "-" do not
+ * count. Every part of a quote counts, so a "..." does not lower the count: two parts of 20 words
+ * on either side of one make a quote of 40 words.
+ */
 export const quoteWords = (quote: string) =>
   quote.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
 
@@ -499,7 +507,7 @@ export function checkVerdicts(input: unknown, context: VerdictContext): VerdictR
       const words = quoteWords(item.quote);
       if (words > QUOTE_MAX_WORDS) {
         unitIssues.push(
-          `${at}: the quote "${item.quote}" has ${words} words; a quote must be under ${QUOTE_MAX_WORDS + 1} words, so quote only the words that state the claim, or give each part as its own quote`,
+          `${at}: the quote "${item.quote}" has ${words} words; a quote must be under ${QUOTE_MAX_WORDS + 1} words, counting the words of every part (a "..." does not lower the count), so quote only the words that state the claim, or give each part as its own quote`,
         );
         continue;
       }

@@ -338,7 +338,7 @@ describe('agent fetch command', () => {
       ['https://loop.example/a', 'fetch failed (redirect count exceeded)'],
       [
         'https://wrong.example/',
-        "fetch failed (ERR_TLS_CERT_ALTNAME_INVALID: Hostname/IP does not match certificate's altnames: Host: wrong.example)",
+        "certificate error: the site's TLS certificate could not be verified (ERR_TLS_CERT_ALTNAME_INVALID: Hostname/IP does not match certificate's altnames: Host: wrong.example), and a page is never read over an unverified connection",
       ],
       ['https://reset.example/', 'fetch failed (read ECONNRESET)'],
       ['https://refused.example/', 'fetch failed (ECONNREFUSED)'],

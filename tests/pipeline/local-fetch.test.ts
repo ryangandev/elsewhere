@@ -1,17 +1,21 @@
-// Reading pages on this computer: HTML character references, PDF text layers (text drawn twice,
-// running headers and footers, pdf.js warnings) and retries after a server error. Fetches go to
-// stubs; no network.
+// Reading pages on this computer: HTML character references, links and where the main text
+// starts, PDF text layers (text drawn twice, running headers and footers, footnotes, pdf.js
+// warnings), certificate errors and retries after a server error. Fetches go to stubs; no network.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   dropOverdrawnText,
   dropRunningLines,
+  extractLinks,
   fetchPage,
   htmlToText,
+  mainTextOffset,
   pdfToText,
+  splitFootnotes,
+  type PdfLine,
   type PdfTextItem,
 } from '../../pipeline/claims/local-fetch';
 import { quoteInText } from '../../pipeline/claims/verdicts';
-import { minimalPdf } from './helpers';
+import { minimalPdf, type PlacedLine } from './helpers';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -24,6 +28,81 @@ describe('HTML text', () => {
     );
     // A page that escaped its text twice shows the reference itself, in a browser and here.
     expect(htmlToText('<p>Napol&amp;eacute;on</p>')).toBe('Napol&eacute;on');
+  });
+});
+
+describe('HTML links', () => {
+  it('resolves relative links against the base element, as a browser does', () => {
+    // Destatis pages set a base, and resolving against the page URL repeated their path.
+    const page =
+      'https://www.destatis.de/EN/Themes/Economy/National-Accounts-Domestic-Product/_node.html';
+    const html = `<html><head><base href="https://www.destatis.de/"></head><body>
+      <a href="EN/Themes/Economy/National-Accounts-Domestic-Product/Tables/gdp.html">GDP</a>
+      <a href="/EN/Press/index.html">Press</a>
+      <a href="https://example.org/other">Other</a></body></html>`;
+    expect(extractLinks(html, page).map((link) => link.url)).toEqual([
+      'https://www.destatis.de/EN/Themes/Economy/National-Accounts-Domestic-Product/Tables/gdp.html',
+      'https://www.destatis.de/EN/Press/index.html',
+      'https://example.org/other',
+    ]);
+    // A relative base resolves against the page; without one, links resolve against the page.
+    const relative = '<base href="/sub/"><a href="a.html">A</a>';
+    expect(extractLinks(relative, 'https://site.example/x/y.html')[0].url).toBe(
+      'https://site.example/sub/a.html',
+    );
+    expect(extractLinks('<a href="a.html">A</a>', 'https://site.example/x/y.html')[0].url).toBe(
+      'https://site.example/x/a.html',
+    );
+  });
+});
+
+describe('where the main text starts', () => {
+  const menu = Array.from(
+    { length: 90 },
+    (_, index) => `<li><a href="/s${index}">Section ${index} of the menu</a></li>`,
+  ).join('');
+  const page = (main: string) =>
+    `<html><body><header><nav><ul>${menu}</ul></nav></header>${main}<footer>Footer</footer></body></html>`;
+
+  it('starts at the main element, an element with role main, or the only article', () => {
+    for (const main of [
+      '<main><h1>Title</h1><p>Body.</p></main>',
+      '<div role="main"><h1>Title</h1><p>Body.</p></div>',
+      '<article><h1>Title</h1><p>Body.</p></article>',
+    ]) {
+      const html = page(main);
+      const text = htmlToText(html);
+      const offset = mainTextOffset(html, text)!;
+      expect(offset).toBeGreaterThan(1500);
+      expect(text.slice(offset)).toMatch(/^Title\nBody\./);
+    }
+  });
+
+  it('leaves pages that start with their text, or mark no single main part', () => {
+    const short = '<nav>Home</nav><main><p>Body.</p></main>';
+    expect(mainTextOffset(short, htmlToText(short))).toBeUndefined();
+    const two = page('<article><p>One.</p></article><article><p>Two.</p></article>');
+    expect(mainTextOffset(two, htmlToText(two))).toBeUndefined();
+    const none = page('<div><p>Body.</p></div>');
+    expect(mainTextOffset(none, htmlToText(none))).toBeUndefined();
+  });
+});
+
+describe('certificate errors', () => {
+  it('names a certificate that could not be verified, and never reads the page another way', async () => {
+    let requests = 0;
+    const stub = (async () => {
+      requests += 1;
+      throw new TypeError('fetch failed', {
+        cause: Object.assign(new Error('unable to verify the first certificate'), {
+          code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+        }),
+      });
+    }) as typeof fetch;
+    await expect(fetchPage('https://www.knbs.or.ke/reports/', { fetch: stub })).rejects.toThrow(
+      "certificate error: the site's TLS certificate could not be verified (UNABLE_TO_VERIFY_LEAF_SIGNATURE: unable to verify the first certificate), and a page is never read over an unverified connection",
+    );
+    expect(requests).toBe(1);
   });
 });
 
@@ -119,6 +198,72 @@ describe('PDF running headers and footers', () => {
     expect(quoteInText('submit the dispute to the Permanent Court of Arbitration', text)).toBe(
       true,
     );
+  });
+});
+
+describe('PDF footnotes', () => {
+  const body = (text: string, y: number): PdfLine => ({ text, size: 11, y });
+  const note = (text: string, y: number): PdfLine => ({ text, size: 8, y });
+  const lines = (count: number, from = 700) =>
+    Array.from({ length: count }, (_, index) =>
+      body(`Body line ${index + 1} of the page.`, from - index * 14),
+    );
+
+  it('splits the small lines at the foot of a page that start with a marker', () => {
+    const page = [
+      ...lines(6),
+      note('1 Census of 2017, table 3.', 90),
+      note('continued from the table notes.', 80),
+      note('2 Ministry figures.', 70),
+      { text: '14', size: 8, y: 40 },
+    ];
+    expect(splitFootnotes(page)).toEqual({
+      body: [...lines(6), { text: '14', size: 8, y: 40 }],
+      footnotes: page.slice(6, 9),
+    });
+  });
+
+  it('leaves pages it cannot tell about as they are', () => {
+    // Too few lines of body text.
+    const short = [...lines(4), note('1 A note.', 90)];
+    expect(splitFootnotes(short).footnotes).toEqual([]);
+    // Small text with no marker, such as a caption or a source line.
+    const caption = [...lines(6), note('Source: national statistics office.', 90)];
+    expect(splitFootnotes(caption).footnotes).toEqual([]);
+    // Small text above the lowest body line is not at the foot.
+    const aside = [...lines(3), note('1 A side note.', 660), ...lines(3, 640)];
+    expect(splitFootnotes(aside).footnotes).toEqual([]);
+    // A numbered list in body type is body text.
+    const list = [...lines(6), body('1 First item.', 90), body('2 Second item.', 76)];
+    expect(splitFootnotes(list).footnotes).toEqual([]);
+  });
+
+  it('moves footnotes after the last page, so a sentence reads on across the page break', async () => {
+    const placed = (texts: string[], size = 11, from = 700): PlacedLine[] =>
+      texts.map((text, index) => ({ text, size, y: from - index * 14 }));
+    const filler = [
+      'Chile has sixteen regions.',
+      'Each region has a governor.',
+      'The regions differ in size.',
+      'Most people live in the centre.',
+    ];
+    const pdf = minimalPdf([
+      [
+        ...placed([...filler, 'The census of 2017 counted 17.6 million people in the']),
+        ...placed(['1 Instituto Nacional de Estadisticas, 2018.'], 8, 90),
+      ],
+      placed(['whole country, a rise of ten percent.', ...filler]),
+    ]);
+    const text = await pdfToText(pdf);
+    expect(text).toBe(
+      [
+        `[Page 1]\n${filler.join('\n')}\nThe census of 2017 counted 17.6 million people in the`,
+        `[Page 2]\nwhole country, a rise of ten percent.\n${filler.join('\n')}`,
+        '[Footnotes of page 1]\n1 Instituto Nacional de Estadisticas, 2018.',
+      ].join('\n\n'),
+    );
+    expect(quoteInText('17.6 million people in the whole country', text)).toBe(true);
+    expect(quoteInText('Instituto Nacional de Estadisticas, 2018', text)).toBe(true);
   });
 });
 

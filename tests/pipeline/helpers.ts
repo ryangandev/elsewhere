@@ -30,11 +30,16 @@ export function tempContentTree(): string {
   return dir;
 }
 
+/** A line of a PDF page set at its own size, on its own baseline (PDF units up from the bottom). */
+export type PlacedLine = { text: string; size: number; y: number };
+
 /**
  * A small valid PDF with one page per entry, each line of text in Helvetica, so PDF extraction
- * is tested without a binary fixture. Text must not contain parentheses or backslashes.
+ * is tested without a binary fixture. Lines are set in 12-point type 14 units apart, unless a
+ * page gives placed lines, each with its own size and baseline (as footnotes are set). Text must
+ * not contain parentheses or backslashes.
  */
-export function minimalPdf(pages: string[][]): Uint8Array<ArrayBuffer> {
+export function minimalPdf(pages: (string[] | PlacedLine[])[]): Uint8Array<ArrayBuffer> {
   const objects: string[] = [];
   const pageIds = pages.map((_, index) => 4 + index * 2);
   objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
@@ -42,7 +47,11 @@ export function minimalPdf(pages: string[][]): Uint8Array<ArrayBuffer> {
   objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
   pages.forEach((lines, index) => {
     const id = pageIds[index];
-    const stream = `BT /F1 12 Tf 72 720 Td 14 TL ${lines.map((line) => `(${line}) Tj T*`).join(' ')} ET`;
+    const stream = lines.every((line) => typeof line === 'string')
+      ? `BT /F1 12 Tf 72 720 Td 14 TL ${lines.map((line) => `(${line}) Tj T*`).join(' ')} ET`
+      : (lines as PlacedLine[])
+          .map(({ text, size, y }) => `BT /F1 ${size} Tf 72 ${y} Td (${text}) Tj ET`)
+          .join(' ');
     objects[id] =
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${id + 1} 0 R >>`;
     objects[id + 1] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
