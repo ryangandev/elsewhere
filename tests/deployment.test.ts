@@ -1,23 +1,37 @@
 // vercel.json, checked the way Vercel reads it: compiled to routes with Vercel's own routing
 // utilities, then matched like a request. See docs/architecture.md#platform.
+//
+// The redirect rules are built from the hand-converted countries frozen in
+// tests/fixtures/hand-converted, so these tests hold whatever content/en has and whatever is
+// reviewed in it. Two tests read production content on purpose: "the committed redirects are
+// current" compares vercel.json with it, and the first half of "the rules follow production
+// content" compares the default builder with a store made from the same files.
 import assert from 'node:assert/strict';
 import { getTransformedRoutes, type HasField, type Route } from '@vercel/routing-utils';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'vitest';
-import { createContentStore, listMapCountries, publishedContent } from '@/content';
+import { createContentStore, listMapCountries } from '@/content';
 import { readContentTree } from '@/content/files';
 import { buildLegacyRedirects } from '@/domain/legacy-redirects';
 import { destinationPath } from '@/domain/paths';
 import { PROTOTYPE_QUESTIONS, PROTOTYPE_TRAILS } from '@/domain/prototype-urls';
+import { HAND_CONVERTED_CONTENT_DIR } from './content/load';
 
 // Vercel rejects a vercel.json with more redirects than this.
 const MAX_REDIRECTS = 2048;
 
 const config = JSON.parse(readFileSync('vercel.json', 'utf8'));
 const compiled = getTransformedRoutes(config);
-const routes: Route[] = compiled.routes ?? [];
+
+/** What production publishes of the frozen hand-converted countries: all of it reviewed. */
+const published = createContentStore(readContentTree(HAND_CONVERTED_CONTENT_DIR), {
+  includeDrafts: false,
+});
+// vercel.json's own settings with the redirects the builder makes for that content.
+const routes: Route[] =
+  getTransformedRoutes({ ...config, redirects: buildLegacyRedirects(published) }).routes ?? [];
 
 type Condition = HasField[number];
 
@@ -117,15 +131,13 @@ test('every prototype destination redirects to its page, or its country while un
     for (const storyId of storyIds) {
       assert.equal(
         location(`/?country=${countryId.toLowerCase()}&topic=${storyId}`),
-        publishedContent.getStory(countryId, storyId)
+        published.getStory(countryId, storyId)
           ? destinationPath({ countryId, storyId })
           : destinationPath({ countryId }),
       );
     }
   }
-  const trails = publishedContent
-    .listTrails()
-    .filter((trail) => PROTOTYPE_TRAILS.includes(trail.id));
+  const trails = published.listTrails().filter((trail) => PROTOTYPE_TRAILS.includes(trail.id));
   for (const trail of trails) {
     for (const { countryId, storyId } of trail.stops) {
       if (!PROTOTYPE_QUESTIONS[countryId]?.includes(storyId)) continue;
@@ -150,7 +162,7 @@ test('the rules follow production content, whatever NODE_ENV the builder runs un
   // Singapore's shipping question reopened by review: a draft, which production does not build.
   const dir = mkdtempSync(join(tmpdir(), 'elsewhere-redirects-'));
   try {
-    cpSync('content/en', dir, { recursive: true });
+    cpSync(HAND_CONVERTED_CONTENT_DIR, dir, { recursive: true });
     const file = join(dir, 'countries', 'singapore.json');
     const singapore = JSON.parse(readFileSync(file, 'utf8'));
     const shipping = singapore.stories.find((story: { id: string }) => story.id === 'shipping');

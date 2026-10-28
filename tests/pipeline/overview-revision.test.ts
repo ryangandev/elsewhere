@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CountryFile } from '../../src/content/schema';
 import { defaultClaimsDir, readClaims } from '../../pipeline/claims/store';
-import { BATCH_CUSTOM_ID, DEFAULT_CONTENT_DIR } from '../../pipeline/config';
+import { BATCH_CUSTOM_ID } from '../../pipeline/config';
 import {
   countryFilePath,
   parsedCountryFiles,
@@ -163,10 +163,7 @@ describe('sending the overview back alone', () => {
 describe('the API redraft of an overview', () => {
   it('tags every job with a valid batch custom ID that no other job shares', () => {
     const jobs: Job[] = [];
-    for (const file of [
-      ...parsedCountryFiles(DEFAULT_CONTENT_DIR).values(),
-      readCountryFile(chileTree().contentDir, 'chile')!,
-    ]) {
+    for (const file of parsedCountryFiles(chileTree().contentDir).values()) {
       const countryId = file.country.id;
       jobs.push({ kind: 'country', countryId }, { kind: 'overview', countryId });
       for (const story of file.stories) jobs.push({ kind: 'story', countryId, storyId: story.id });

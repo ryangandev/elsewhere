@@ -1,5 +1,6 @@
-// Shared setup for the pipeline tests: a disposable copy of the English content tree, so drafts
-// and review decisions never touch content/en.
+// Shared setup for the pipeline tests: a disposable copy of a frozen content tree, so drafts and
+// review decisions never touch content/en, and no test depends on which countries content/en has
+// or what is reviewed in it.
 import { cpSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ import { landIndex } from '../../pipeline/content-tree';
 import type { Plan } from '../../pipeline/generate/check';
 import { renderLinkTargets, type RunContext } from '../../pipeline/generate/tasks';
 import { loadPrompts } from '../../pipeline/prompts';
+import { HAND_CONVERTED_CONTENT_DIR } from '../content/load';
 
 const created: string[] = [];
 
@@ -23,10 +25,10 @@ export function tempDir(): string {
   return dir;
 }
 
-/** A temporary copy of content/en. */
+/** A temporary copy of the hand-converted tree. */
 export function tempContentTree(): string {
   const dir = join(tempDir(), 'en');
-  cpSync('content/en', dir, { recursive: true });
+  cpSync(HAND_CONVERTED_CONTENT_DIR, dir, { recursive: true });
   return dir;
 }
 

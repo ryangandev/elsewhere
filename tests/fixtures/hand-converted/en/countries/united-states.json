@@ -1,0 +1,408 @@
+{
+  "country": {
+    "id": "USA",
+    "slug": "united-states",
+    "name": "United States",
+    "region": "North America",
+    "kicker": "A continental country with worldwide reach.",
+    "overview": {
+      "summary": "A federal republic whose huge internal market, immigration, and global connections helped build exceptional economic influence. Its fifty states contain sharply different landscapes, histories, and ways of life.",
+      "geography": "The contiguous states stretch between the Atlantic and Pacific, with Canada to the north and Mexico to the south. Alaska and Hawaii extend the country into the Arctic and central Pacific.",
+      "sourceIds": [
+        "federal-reserve-dollar-2025",
+        "census-foreign-born-2024"
+      ],
+      "whyItMatters": [
+        {
+          "title": "The world’s financial reference point",
+          "text": "The dollar and US financial markets link American economic decisions to borrowing, trade, and savings around the world.",
+          "sourceIds": [
+            "federal-reserve-dollar-2025"
+          ]
+        },
+        {
+          "title": "Ideas that travel",
+          "text": "Universities, technology companies, media, and scientific institutions give the country influence well beyond its physical borders.",
+          "sourceIds": [
+            "census-foreign-born-2024"
+          ]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Population",
+        "value": "340 million",
+        "asOf": "2024",
+        "sourceIds": [
+          "world-bank-population-2024"
+        ]
+      },
+      {
+        "label": "Capital",
+        "value": "Washington, D.C.",
+        "sourceIds": [
+          "census-foreign-born-2024"
+        ]
+      },
+      {
+        "label": "Language",
+        "value": "English; many other languages",
+        "sourceIds": [
+          "census-foreign-born-2024"
+        ]
+      },
+      {
+        "label": "Currency",
+        "value": "US dollar",
+        "sourceIds": [
+          "federal-reserve-dollar-2025"
+        ]
+      }
+    ],
+    "starterStoryIds": [
+      "dollar",
+      "geography",
+      "immigration"
+    ],
+    "scene": {
+      "camera": {
+        "lat": 38,
+        "lng": -98,
+        "altitude": 1.45
+      },
+      "focusCountryId": "USA",
+      "highlights": [
+        {
+          "countryId": "CAN",
+          "role": "related"
+        },
+        {
+          "countryId": "MEX",
+          "role": "related"
+        }
+      ],
+      "placeIds": [
+        "canada",
+        "mexico",
+        "north-atlantic-ocean",
+        "north-pacific-ocean"
+      ],
+      "routes": []
+    },
+    "sources": [
+      {
+        "id": "federal-reserve-dollar-2025",
+        "title": "The international role of the U.S. dollar, 2025 edition",
+        "publisher": "Federal Reserve",
+        "url": "https://www.federalreserve.gov/econres/notes/feds-notes/the-international-role-of-the-u-s-dollar-2025-edition-20250718.html"
+      },
+      {
+        "id": "census-foreign-born-2024",
+        "title": "Foreign-born population",
+        "publisher": "U.S. Census Bureau",
+        "url": "https://www.census.gov/newsroom/press-releases/2024/foreign-born-population.html"
+      },
+      {
+        "id": "world-bank-population-2024",
+        "title": "Population, 2024",
+        "publisher": "World Bank",
+        "url": "https://datacatalogfiles.worldbank.org/ddh-published/0038126/DR0046429/POP.pdf"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-09-26",
+      "reviewedBy": "ryan",
+      "reviewedAt": "2026-09-27",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "dollar",
+      "countryId": "USA",
+      "slug": "dollar",
+      "question": "Why does the rest of the world use dollars?",
+      "paraphrases": {
+        "question": "Why does the rest of the world use dollars?",
+        "phrasings": [
+          "Why is the US dollar the world's main reserve currency?",
+          "how come every country trades in US dollars?",
+          "What makes the American dollar so dominant in global trade?",
+          "Why do other countries borrow and invoice in dollars?",
+          "us dollar global dominance"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Money & influence",
+      "summary": "A currency becomes international when many people find it useful at the same time.",
+      "sections": [
+        {
+          "title": "Deep markets, useful assets",
+          "text": "Large, liquid financial markets offer places to borrow, invest, and hold reserves. US Treasury securities are important in that system.",
+          "sourceIds": [
+            "federal-reserve-dollar-2025"
+          ]
+        },
+        {
+          "title": "A network that reinforces itself",
+          "text": "If trading partners invoice and borrow in dollars, others have a reason to do the same. That network gives US monetary policy effects far beyond the country.",
+          "sourceIds": [
+            "federal-reserve-dollar-2025"
+          ]
+        }
+      ],
+      "takeaway": "The dollar’s role is supported by institutions, markets, and network effects, not simply by America’s size.",
+      "scene": {
+        "camera": {
+          "lat": 40,
+          "lng": -39,
+          "altitude": 1.8
+        },
+        "focusCountryId": "USA",
+        "highlights": [
+          {
+            "countryId": "CAN",
+            "role": "related"
+          },
+          {
+            "countryId": "MEX",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "canada",
+          "mexico",
+          "north-atlantic-ocean",
+          "north-pacific-ocean"
+        ],
+        "routes": [
+          {
+            "id": "dollar-network",
+            "kind": "flow",
+            "via": [
+              "washington-dc",
+              "london"
+            ]
+          }
+        ],
+        "mapNote": "Financial connections extend across both oceans."
+      },
+      "next": [
+        {
+          "countryId": "USA",
+          "storyId": "geography"
+        },
+        {
+          "countryId": "CHN",
+          "storyId": "manufacturing",
+          "reason": "Another kind of economic influence: production networks."
+        },
+        {
+          "countryId": "BRA",
+          "storyId": "agriculture",
+          "reason": "How does land become a global economic resource?"
+        }
+      ],
+      "sources": [
+        {
+          "id": "federal-reserve-dollar-2025",
+          "title": "The international role of the U.S. dollar, 2025 edition",
+          "publisher": "Federal Reserve",
+          "url": "https://www.federalreserve.gov/econres/notes/feds-notes/the-international-role-of-the-u-s-dollar-2025-edition-20250718.html"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "geography",
+      "countryId": "USA",
+      "slug": "geography",
+      "question": "How much did geography help?",
+      "paraphrases": {
+        "question": "How much did geography help?",
+        "phrasings": [
+          "Did geography make the United States powerful?",
+          "How much did rivers, farmland and two oceans help America grow?",
+          "was the US just lucky with its map?",
+          "What role did geography play in the rise of the United States?",
+          "us geography advantages"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Geography",
+      "summary": "The map created opportunities. People and institutions determined how they were used.",
+      "sections": [
+        {
+          "title": "A large connected interior",
+          "text": "Productive farmland, major rivers, and access to two oceans helped support trade and a large internal market. Roads and railways later extended those connections.",
+          "sourceIds": [
+            "census-foreign-born-2024"
+          ]
+        },
+        {
+          "title": "Expansion was not empty space",
+          "text": "The territorial growth of the United States involved Indigenous dispossession, slavery, war, and settlement. Geographic advantages cannot be separated from that history.",
+          "sourceIds": [
+            "census-foreign-born-2024"
+          ]
+        }
+      ],
+      "takeaway": "A favorable map helps explain capacity. It does not explain away the costs of building a nation.",
+      "scene": {
+        "focusCountryId": "USA",
+        "highlights": [],
+        "placeIds": [
+          "mississippi-river",
+          "gulf-of-mexico",
+          "rocky-mountains"
+        ],
+        "routes": [
+          {
+            "id": "mississippi",
+            "kind": "river",
+            "via": [
+              "minneapolis",
+              "st-louis",
+              "memphis",
+              "new-orleans"
+            ]
+          }
+        ],
+        "mapNote": "Follow the interior river corridor toward the Gulf of Mexico."
+      },
+      "next": [
+        {
+          "countryId": "USA",
+          "storyId": "immigration"
+        },
+        {
+          "countryId": "BRA",
+          "storyId": "amazon",
+          "reason": "Start with a forest that moves water through the atmosphere."
+        },
+        {
+          "countryId": "CHN",
+          "storyId": "manufacturing",
+          "reason": "Another kind of economic influence: production networks."
+        }
+      ],
+      "sources": [
+        {
+          "id": "census-foreign-born-2024",
+          "title": "Foreign-born population",
+          "publisher": "U.S. Census Bureau",
+          "url": "https://www.census.gov/newsroom/press-releases/2024/foreign-born-population.html"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "immigration",
+      "countryId": "USA",
+      "slug": "immigration",
+      "question": "What does “a nation of immigrants” leave out?",
+      "paraphrases": {
+        "question": "What does “a nation of immigrants” leave out?",
+        "phrasings": [
+          "Is the United States really a nation of immigrants?",
+          "What's missing from the idea that America is a nation of immigrants?",
+          "who doesn't fit the US immigrant origin story?",
+          "How do Indigenous peoples and enslaved Africans fit the US immigrant story?",
+          "america nation of immigrants idea"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "People & identity",
+      "summary": "Migration is central to the country, but it is not everyone’s origin story.",
+      "sections": [
+        {
+          "title": "Many routes into American life",
+          "text": "Successive waves of immigration brought skills, languages, and communities. Foreign-born residents include both naturalized citizens and noncitizens.",
+          "sourceIds": [
+            "census-foreign-born-2024"
+          ]
+        },
+        {
+          "title": "Different histories of belonging",
+          "text": "Indigenous peoples preceded the state. Enslaved Africans were brought by force. Immigration rules and citizenship rights have also changed through political conflict.",
+          "sourceIds": [
+            "census-foreign-born-2024"
+          ]
+        }
+      ],
+      "takeaway": "The useful story is about different paths to belonging, not one shared path of arrival.",
+      "scene": {
+        "focusCountryId": "USA",
+        "highlights": [
+          {
+            "countryId": "CAN",
+            "role": "related"
+          },
+          {
+            "countryId": "MEX",
+            "role": "related"
+          }
+        ],
+        "placeIds": [
+          "canada",
+          "mexico",
+          "north-atlantic-ocean",
+          "north-pacific-ocean"
+        ],
+        "routes": [],
+        "mapNote": "Oceans and land borders have both shaped migration."
+      },
+      "next": [
+        {
+          "countryId": "USA",
+          "storyId": "dollar"
+        },
+        {
+          "countryId": "CHN",
+          "storyId": "manufacturing",
+          "reason": "Another kind of economic influence: production networks."
+        },
+        {
+          "countryId": "BRA",
+          "storyId": "agriculture",
+          "reason": "How does land become a global economic resource?"
+        }
+      ],
+      "sources": [
+        {
+          "id": "census-foreign-born-2024",
+          "title": "Foreign-born population",
+          "publisher": "U.S. Census Bureau",
+          "url": "https://www.census.gov/newsroom/press-releases/2024/foreign-born-population.html"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    }
+  ]
+}

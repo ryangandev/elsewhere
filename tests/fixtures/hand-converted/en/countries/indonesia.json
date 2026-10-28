@@ -1,0 +1,384 @@
+{
+  "country": {
+    "id": "IDN",
+    "slug": "indonesia",
+    "name": "Indonesia",
+    "region": "Southeast Asia",
+    "kicker": "An ocean of islands. A shared national idea.",
+    "overview": {
+      "summary": "A vast archipelago between the Indian and Pacific oceans. Indonesia brings many languages, landscapes, and communities into one republic. Its scale and extraordinary biodiversity make it much more than a collection of holiday islands.",
+      "geography": "Sumatra lies beside the Malacca Strait. Java stretches to its southeast, while Kalimantan occupies much of Borneo. Other islands extend eastward toward New Guinea and the Pacific.",
+      "sourceIds": [
+        "world-bank-indonesia-overview",
+        "world-bank-indonesia-environment"
+      ],
+      "whyItMatters": [
+        {
+          "title": "A regional center of gravity",
+          "text": "Southeast Asia’s largest economy has a large domestic market and an important voice in regional cooperation.",
+          "sourceIds": [
+            "world-bank-indonesia-overview"
+          ]
+        },
+        {
+          "title": "Living systems across land and sea",
+          "text": "Tropical forests, reefs, and coastal ecosystems make its environmental choices consequential well beyond its islands.",
+          "sourceIds": [
+            "world-bank-indonesia-environment"
+          ]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Population",
+        "value": "283 million",
+        "asOf": "2024",
+        "sourceIds": [
+          "world-bank-population-2024"
+        ]
+      },
+      {
+        "label": "Capital",
+        "value": "Jakarta (2024)",
+        "sourceIds": [
+          "world-bank-indonesia-overview"
+        ]
+      },
+      {
+        "label": "Language",
+        "value": "Indonesian (official)",
+        "sourceIds": [
+          "indonesia-travel-language"
+        ]
+      },
+      {
+        "label": "Currency",
+        "value": "Indonesian rupiah",
+        "sourceIds": [
+          "world-bank-indonesia-overview"
+        ]
+      }
+    ],
+    "starterStoryIds": [
+      "islands",
+      "language",
+      "nature"
+    ],
+    "scene": {
+      "camera": {
+        "lat": -3,
+        "lng": 118,
+        "altitude": 1.15
+      },
+      "focusCountryId": "IDN",
+      "highlights": [],
+      "placeIds": [
+        "sumatra",
+        "java",
+        "borneo",
+        "indian-ocean"
+      ],
+      "routes": []
+    },
+    "sources": [
+      {
+        "id": "world-bank-indonesia-overview",
+        "title": "Indonesia overview",
+        "publisher": "World Bank",
+        "url": "https://www.worldbank.org/en/country/indonesia/overview"
+      },
+      {
+        "id": "world-bank-indonesia-environment",
+        "title": "Indonesia and its environment",
+        "publisher": "World Bank",
+        "url": "https://www.worldbank.org/en/country/indonesia/brief/world-bank-and-environment-in-indonesia"
+      },
+      {
+        "id": "world-bank-population-2024",
+        "title": "Population, 2024",
+        "publisher": "World Bank",
+        "url": "https://datacatalogfiles.worldbank.org/ddh-published/0038126/DR0046429/POP.pdf"
+      },
+      {
+        "id": "indonesia-travel-language",
+        "title": "Language",
+        "publisher": "Indonesia Ministry of Tourism",
+        "url": "https://www.indonesia.travel/gb/en/general-information/bahasa"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-09-26",
+      "reviewedBy": "ryan",
+      "reviewedAt": "2026-09-27",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "islands",
+      "countryId": "IDN",
+      "slug": "islands",
+      "question": "How do thousands of islands become one country?",
+      "paraphrases": {
+        "question": "How do thousands of islands become one country?",
+        "phrasings": [
+          "How did Indonesia unite so many islands into a single nation?",
+          "how is indonesia one country when it's thousands of islands",
+          "What holds the Indonesian archipelago together as one republic?",
+          "How did Indonesia become a nation after Dutch rule across all its islands?",
+          "indonesia archipelago national unity"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Geography & identity",
+      "summary": "The water between the islands is part of the story, not an empty gap.",
+      "sections": [
+        {
+          "title": "Connections across water",
+          "text": "Travel and trade have long linked different islands. Today, an archipelago still depends on connections between its parts. Distances and sea crossings shape the practical work of moving people and goods.",
+          "sourceIds": [
+            "world-bank-indonesia-environment"
+          ]
+        },
+        {
+          "title": "A shared political project",
+          "text": "Independence was proclaimed in 1945 after Dutch colonial rule and Japanese wartime occupation. A national language and shared institutions helped build a republic across communities with very different local histories.",
+          "sourceIds": [
+            "indonesia-travel-history"
+          ]
+        }
+      ],
+      "takeaway": "Indonesia is a national project spanning islands, not an island with a single identity.",
+      "scene": {
+        "focusCountryId": "IDN",
+        "highlights": [],
+        "placeIds": [
+          "sumatra",
+          "java",
+          "sulawesi"
+        ],
+        "routes": [
+          {
+            "id": "island-chain",
+            "kind": "flow",
+            "via": [
+              "sumatra",
+              "java",
+              "sulawesi"
+            ]
+          }
+        ],
+        "mapNote": "Follow the island chain from Sumatra through Java toward the east."
+      },
+      "next": [
+        {
+          "countryId": "IDN",
+          "storyId": "language"
+        },
+        {
+          "countryId": "TUR",
+          "storyId": "straits",
+          "reason": "Now look west: another narrow passage connects whole regions."
+        },
+        {
+          "countryId": "MYS",
+          "storyId": "two-shores",
+          "reason": "Follow Borneo north into a different federation."
+        }
+      ],
+      "sources": [
+        {
+          "id": "world-bank-indonesia-environment",
+          "title": "Indonesia and its environment",
+          "publisher": "World Bank",
+          "url": "https://www.worldbank.org/en/country/indonesia/brief/world-bank-and-environment-in-indonesia"
+        },
+        {
+          "id": "indonesia-travel-history",
+          "title": "History",
+          "publisher": "Indonesia Ministry of Tourism",
+          "url": "https://www.indonesia.travel/gb/en/general-information/history"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "language",
+      "countryId": "IDN",
+      "slug": "language",
+      "question": "Why does one shared language matter so much?",
+      "paraphrases": {
+        "question": "Why does one shared language matter so much?",
+        "phrasings": [
+          "Why is the Indonesian language so important for Indonesia?",
+          "why does indonesia have one national language with so many local ones",
+          "What role did the 1928 Youth Pledge play in Indonesian becoming the shared language?",
+          "How does Indonesian connect people who speak different regional languages?",
+          "indonesian national language importance"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "People & language",
+      "summary": "Indonesian creates a meeting place across many local languages.",
+      "sections": [
+        {
+          "title": "A language for a common future",
+          "text": "The 1928 Youth Pledge made a shared language part of the independence movement’s national vision. Indonesian later became the official language of the republic.",
+          "sourceIds": [
+            "indonesia-travel-language",
+            "indonesia-travel-history"
+          ]
+        },
+        {
+          "title": "Unity without sameness",
+          "text": "Indonesian is used across the country, while regional languages remain part of everyday life. Speaking to the nation and speaking within a local community need not mean using the same language.",
+          "sourceIds": [
+            "indonesia-travel-language"
+          ]
+        }
+      ],
+      "takeaway": "A shared language can connect communities without describing everything about them.",
+      "scene": {
+        "focusCountryId": "IDN",
+        "highlights": [],
+        "placeIds": [
+          "sumatra",
+          "java",
+          "borneo",
+          "indian-ocean"
+        ],
+        "routes": [],
+        "mapNote": "One national language connects communities spread across the archipelago."
+      },
+      "next": [
+        {
+          "countryId": "IDN",
+          "storyId": "nature"
+        },
+        {
+          "countryId": "MYS",
+          "storyId": "two-shores",
+          "reason": "Follow Borneo north into a different federation."
+        },
+        {
+          "countryId": "IND",
+          "storyId": "languages",
+          "reason": "Another large country brings many languages together."
+        }
+      ],
+      "sources": [
+        {
+          "id": "indonesia-travel-language",
+          "title": "Language",
+          "publisher": "Indonesia Ministry of Tourism",
+          "url": "https://www.indonesia.travel/gb/en/general-information/bahasa"
+        },
+        {
+          "id": "indonesia-travel-history",
+          "title": "History",
+          "publisher": "Indonesia Ministry of Tourism",
+          "url": "https://www.indonesia.travel/gb/en/general-information/history"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "nature",
+      "countryId": "IDN",
+      "slug": "nature",
+      "question": "Why is its natural world so varied?",
+      "paraphrases": {
+        "question": "Why is its natural world so varied?",
+        "phrasings": [
+          "Why does Indonesia have such diverse wildlife and ecosystems?",
+          "why is indonesia's biodiversity so huge",
+          "How do the Indomalayan and Australasian regions shape Indonesia's nature?",
+          "Why does Indonesia have so many species found nowhere else?",
+          "indonesia biodiversity ecosystems"
+        ],
+        "generatedBy": "claude-opus-5-5",
+        "generatedAt": "2026-10-26",
+        "promptVersion": "paraphrase/v1"
+      },
+      "category": "Nature & geography",
+      "summary": "An island chain can hold many different living worlds.",
+      "sections": [
+        {
+          "title": "Between two biological regions",
+          "text": "Indonesia spans the Indomalayan and Australasian biogeographic regions. Its forests, coasts, and seas support extraordinary biodiversity, including species found nowhere else.",
+          "sourceIds": [
+            "world-bank-indonesia-environment"
+          ]
+        },
+        {
+          "title": "Nature and everyday life",
+          "text": "These ecosystems support livelihoods as well as wildlife. Land use, pollution, and pressure on coastal environments affect people who depend on them. The country also sits in a region of active tectonics, where natural hazards shape life.",
+          "sourceIds": [
+            "world-bank-indonesia-environment"
+          ]
+        }
+      ],
+      "takeaway": "The same country can contain several ecological worlds, each with its own pressures.",
+      "scene": {
+        "focusCountryId": "IDN",
+        "highlights": [],
+        "placeIds": [
+          "borneo",
+          "sulawesi",
+          "new-guinea"
+        ],
+        "routes": [],
+        "mapNote": "Look east from Borneo and Sulawesi toward New Guinea."
+      },
+      "next": [
+        {
+          "countryId": "IDN",
+          "storyId": "islands"
+        },
+        {
+          "countryId": "MYS",
+          "storyId": "two-shores",
+          "reason": "Follow Borneo north into a different federation."
+        },
+        {
+          "countryId": "IND",
+          "storyId": "languages",
+          "reason": "Another large country brings many languages together."
+        }
+      ],
+      "sources": [
+        {
+          "id": "world-bank-indonesia-environment",
+          "title": "Indonesia and its environment",
+          "publisher": "World Bank",
+          "url": "https://www.worldbank.org/en/country/indonesia/brief/world-bank-and-environment-in-indonesia"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-09-26",
+        "reviewedBy": "ryan",
+        "reviewedAt": "2026-09-27",
+        "status": "reviewed"
+      }
+    }
+  ]
+}

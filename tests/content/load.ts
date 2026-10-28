@@ -15,6 +15,15 @@ import type { ContentInput } from '../../src/content/validate';
  */
 export const FIXTURE_CONTENT_DIR = 'tests/fixtures/content/en';
 
+/**
+ * The ten countries converted by hand and reviewed, as content/en held them before the pipeline
+ * drafted the rest, with their home screen, trails and place notes. Tests about that content
+ * (reopening it, revising it, the prototype's redirects to it) and about drafting the countries
+ * that were still unwritten (Chile, Argentina and the rest) use it. Frozen: it does not change
+ * when content/en does.
+ */
+export const HAND_CONVERTED_CONTENT_DIR = 'tests/fixtures/hand-converted/en';
+
 export const readJson = (file: string): unknown => JSON.parse(readFileSync(file, 'utf8'));
 const entry = (file: string) => ({ file, data: readJson(file) });
 
