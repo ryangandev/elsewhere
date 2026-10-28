@@ -69,6 +69,7 @@ export function checkCandidate(input: CheckInput): string[] {
   }
 
   const others = parsedCountryFiles(contentDir);
+  const existing = others.get(countryId);
   others.delete(countryId);
   const drafted =
     scope === 'country'
@@ -124,10 +125,18 @@ export function checkCandidate(input: CheckInput): string[] {
         }
       }
     }
+    // A prototype question's path is linked from outside as well as redirected to, so it keeps
+    // its slug too.
     for (const storyId of PROTOTYPE_QUESTIONS[countryId] ?? []) {
-      if (!ids.has(storyId)) {
+      const index = candidate.stories.findIndex((story) => story.id === storyId);
+      const slug = existing?.stories.find((story) => story.id === storyId)?.slug;
+      if (index < 0) {
         issues.push(
           `stories: the prototype published story "${storyId}" here, and its old URL redirects to it. Keep a story with that ID.`,
+        );
+      } else if (slug && candidate.stories[index].slug !== slug) {
+        issues.push(
+          `stories[${index}].slug: keep the slug "${slug}"; "${storyId}" is a question the prototype published, and links and its old URL lead to that path.`,
         );
       }
     }

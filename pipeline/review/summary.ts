@@ -24,6 +24,7 @@ import {
 import { gazetteerPlaces, requireMapCountry } from '../content-tree';
 import { isReopened } from '../generate/replace';
 import type { UrlStatus } from '../validate/urls';
+import { PROTOTYPE_QUESTIONS } from '../../src/domain/prototype-urls';
 import type { ReopenResult } from './actions';
 
 export type ReviewContext = {
@@ -302,11 +303,17 @@ export function sentBackText(row: DraftListing): string {
 }
 
 /**
- * Told after reopening or approving: the prototype URL redirects are built from what production
- * publishes (src/domain/legacy-redirects.ts), so they change when a review does.
+ * Told after reopening or approving content in a country the prototype had questions in: the
+ * prototype URL redirects are built from what production publishes (src/domain/legacy-redirects.ts),
+ * so they change when a review there does. Other countries' reviews never change them.
  */
-export const REDIRECTS_NOTE =
-  'Production publishes only reviewed content, and the prototype URL redirects follow it: rebuild them with npm run redirects:build and commit vercel.json (npm test fails while they are out of date).';
+export function redirectsNote(countryId: string): string[] {
+  return PROTOTYPE_QUESTIONS[countryId]
+    ? [
+        `${countryId} had questions in the prototype, whose old URLs redirect to what production publishes: rebuild the redirects with npm run redirects:build and commit vercel.json (npm test fails while they are out of date).`,
+      ]
+    : [];
+}
 
 /** What `reopen` prints: what it reopened, what that means for production, and the next commands. */
 export function reopenReport(result: ReopenResult): string {
@@ -321,7 +328,7 @@ export function reopenReport(result: ReopenResult): string {
       : []),
     `Each is a draft again, with your notes as its revision request and the review it undid on record there.`,
     `Production builds leave drafts out until they are approved again${result.overview ? `, and while the overview is a draft they leave out the whole of ${id}` : ''}. npm run content:check reports a home screen left with fewer than three published questions.`,
-    REDIRECTS_NOTE,
+    ...redirectsNote(id),
   ];
   const steps = [
     ...(result.wholeCountry

@@ -17,10 +17,11 @@ import {
   loadCountry,
   reopen,
   requestRevision,
+  resolveCountry,
   reviewerName,
   ReviewError,
 } from './actions';
-import { countrySummary, listing, REDIRECTS_NOTE, reopenReport, sentBackText } from './summary';
+import { countrySummary, listing, redirectsNote, reopenReport, sentBackText } from './summary';
 
 const USAGE = `Usage: npm run content:review -- <command> [options]
 
@@ -144,7 +145,9 @@ async function main(): Promise<number> {
     console.log(
       `Approved ${result.approved.join(', ') || 'nothing'} in ${result.file}.${accepted}`,
     );
-    if (result.approved.length) console.log(REDIRECTS_NOTE);
+    if (result.approved.length) {
+      for (const line of redirectsNote(resolveCountry(country).id)) console.log(line);
+    }
     return 0;
   }
 

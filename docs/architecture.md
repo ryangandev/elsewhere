@@ -114,7 +114,7 @@ What changed from the prototype:
   `src/domain/legacy-redirects.ts` builds the rules through `destinationPath`, from the frozen list of questions and trails the prototype published (`src/domain/prototype-urls.ts`) plus every map identity (the prototype had the same 258), and `npm run redirects:build` writes them into `vercel.json`.
   Content added since never had a query URL, so new questions do not add rules.
   The rules follow the content a production build publishes (`publishedContent`), whatever `NODE_ENV` the builder runs under: a prototype question that is a draft in production, reopened after review for example, gets no rule of its own and falls through to its country, whose page production always builds.
-  So the rules change when review does: run `npm run redirects:build` after `content:review -- reopen` or `approve` changes what production publishes (both print this), and commit `vercel.json` with the content.
+  So the rules change when review does: run `npm run redirects:build` after `content:review -- reopen` or `approve` changes what production publishes in a country the prototype had questions in (both print this for those countries only, since no other country's review changes a rule), and commit `vercel.json` with the content.
   `tests/deployment.test.ts` compiles `vercel.json` with Vercel's own routing utilities, matches requests against the result, and fails when the committed rules differ from what the builder produces.
   Vercel passes the original query string on to the destination, so a redirected URL can keep `country` and `topic`; pages ignore them, and a trail the question is not on is ignored too.
   There is no in-browser fallback: Vercel is the only host, and keeping a second copy of the mapping in the client would cost a script and an index fetch on the home page for links that only ever pointed at the prototype.
@@ -172,7 +172,7 @@ Rules:
   Country IDs are the ISO 3166 alpha-3 codes of the map identities in `data/geo/countries.json`; story IDs are unique within a country.
 - Slugs are readable URL segments and may change; IDs may not.
   A country's slug must match its map identity, and its file is named after the slug so content paths match URLs.
-  A revision keeps each story's slug, since readers, links and the prototype redirects already use its URL; only a whole-country draft sets new ones.
+  A revision keeps each story's slug, since readers, links and the prototype redirects already use its URL; only a whole-country draft sets new ones, and never for a question the prototype published.
 - Every section, overview item and quick fact lists the source IDs that support it, and every declared source is cited.
 - `placeIds` and route `via` lists reference gazetteer IDs; coordinates are looked up from `data/geo`, never written by hand or by the model.
 - `sea` routes must stay at sea (see [Content pipeline](#content-pipeline)).
@@ -259,13 +259,13 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    The draft is submitted through a tool (`submit_draft`) whose schema carries every constraint, then parsed with zod and checked with every `content:check` rule inside the current tree.
    The tool is not strict: the API refuses to compile a whole country draft into a strict grammar, so a shape mistake goes through the repair loop like any other problem.
    The pipeline adds its own rules: every cited URL came back from a search or fetch in the same conversation, next questions point to existing or planned stories, a country has 4 to 6 stories, and text is English.
-   A whole-country draft keeps every story ID that something else names: planned stories, stories other countries link to, the home screen's suggestions, trail stops, and the questions the prototype published (whose old URLs redirect to them); `content:check` reports a missing home or trail story against `home.json` or `trails.json`, so the draft check names it for the country instead.
+   A whole-country draft keeps every story ID that something else names: planned stories, stories other countries link to, the home screen's suggestions, trail stops, and the questions the prototype published (whose old URLs redirect to them), which also keep their slugs, since links lead to their paths; `content:check` reports a missing home or trail story against `home.json` or `trails.json`, so the draft check names it for the country instead.
    Problems go back to the model as a tool error, up to three repairs; a job that still fails saves its last draft and log in `pipeline/.cache/failed/`.
    The pipeline fills in what the model does not write: known IDs, each entry's own source list with tracking parameters removed from its URLs, `accessedAt` (the run date) and `provenance: { generatedBy, generatedAt, promptVersion, status: 'draft' }`.
    The model never sets a camera; the globe frames the scene.
    Only content converted by hand has one, and a revision decides whether to keep the camera of the part it replaces (`keepsCamera` in `pipeline/generate/assemble.ts`).
    A country part always keeps it, since every hand-converted country scene sets one and a story without one borrows it; dropping Singapore's would frame its stories from its tiny area.
-   A story camera frames that story's own places and routes (France's "overseas" and the United States' "dollar" have one), so a revised story keeps it only while its scene has the same highlights, places and routes, in order, and otherwise drops it, so the globe frames the new scene itself.
+   A story camera frames that story's own places and routes (Brazil's "language", France's "overseas" and the United States' "dollar" have one), so a revised story keeps it only while its scene has the same highlights, places and routes, in order, and otherwise drops it, so the globe frames the new scene itself.
    `content:review -- show` prints a hand-set camera, and a revision brief says under each part with one whether it will be kept.
    An existing draft is replaced only with `--regenerate`, and a file with reviewed content, or content reopened after review, only with `--force`.
 3. **Verify.**

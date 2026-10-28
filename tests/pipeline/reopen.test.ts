@@ -23,7 +23,7 @@ import { approve, reopen, requestRevision, ReviewError } from '../../pipeline/re
 import {
   countrySummary,
   listing,
-  REDIRECTS_NOTE,
+  redirectsNote,
   reopenReport,
   sentBackText,
 } from '../../pipeline/review/summary';
@@ -130,7 +130,11 @@ describe('reopening reviewed content', () => {
     expect(report).toContain(
       'npm run content:check reports a home screen left with fewer than three published questions.',
     );
-    expect(report).toContain(REDIRECTS_NOTE);
+    expect(report).toContain(
+      'FRA had questions in the prototype, whose old URLs redirect to what production publishes: rebuild the redirects with npm run redirects:build and commit vercel.json',
+    );
+    // Only a country the prototype had questions in has redirects to rebuild.
+    expect(redirectsNote('CHL')).toEqual([]);
   });
 
   it('reopens a reviewed overview alone and keeps every story', () => {
@@ -534,5 +538,27 @@ describe('a whole-country draft', () => {
         storyCount: { min: 3, max: 6 },
       }),
     ).toEqual([]);
+
+    // A prototype question keeps its path as well as its ID.
+    const renamed = {
+      ...malaysia,
+      stories: malaysia.stories.map((story) =>
+        story.id === 'federation' ? { ...story, slug: 'one-federation' } : story,
+      ),
+    };
+    const federation = malaysia.stories.findIndex((story) => story.id === 'federation');
+    expect(
+      checkCandidate({
+        contentDir,
+        candidate: renamed,
+        scope: 'country',
+        plan: new Map(),
+        submittedSources: [],
+        evidence: new Set(),
+        storyCount: { min: 3, max: 6 },
+      }),
+    ).toEqual([
+      `stories[${federation}].slug: keep the slug "${malaysia.stories[federation].slug}"; "federation" is a question the prototype published, and links and its old URL lead to that path.`,
+    ]);
   });
 });
