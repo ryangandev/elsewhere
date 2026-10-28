@@ -15,8 +15,14 @@ export const Slug = z
   .string()
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use lowercase letters, digits and single hyphens');
 
-/** Permanent story ID. Unique within its country; never derived from the title or position. */
-export const StoryId = Slug;
+/**
+ * Permanent story ID. Unique within its country; never derived from the title or position.
+ * "overview" is reserved: the claims agent names the session that checks a country's overview
+ * CHL-overview, which a story with that ID would share.
+ */
+export const StoryId = Slug.refine((id) => id !== 'overview', {
+  message: 'The story ID "overview" is reserved for the country overview',
+});
 
 /** Gazetteer feature ID from data/geo/gazetteer.json. */
 export const PlaceId = Slug;
