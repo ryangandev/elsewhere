@@ -28,17 +28,22 @@
       "admin1": {
         "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson",
         "sha256": "22d0e3ad85eb3e27f17cabf8ba2d50e554fbc27a87796ff891d958185da62fb5"
+      },
+      "lakes": {
+        "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_lakes.geojson",
+        "sha256": "2d036f53dedec578001c5c30c2959ee7d4eebc1306900fa4367c49929ec8f2d9"
       }
     },
     "filters": {
       "marine": "all named features except river mouths",
-      "rivers": "featurecla River, scalerank <= 2; canals named in gazetteer-overrides.json",
+      "rivers": "featurecla River, scalerank <= 2 or named in gazetteer-overrides.json; canals named in gazetteer-overrides.json",
       "regions": "scalerank <= 3",
       "places": "scalerank <= 2, or a national capital",
-      "admin1": "only features listed in gazetteer-overrides.json"
+      "admin1": "only features listed in gazetteer-overrides.json",
+      "lakes": "only features listed in gazetteer-overrides.json"
     },
     "overrides": "data/geo/gazetteer-overrides.json",
     "seaPointGeometry": "public/maps/countries-detail.geojson",
-    "features": 1258
+    "features": 1278
   }
 }

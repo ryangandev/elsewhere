@@ -1,5 +1,5 @@
 {
-  "description": "Hand-maintained inputs to scripts/build-gazetteer.mjs. 'include' adds Natural Earth features that the default filters leave out, by dataset and ne_id. 'rename' replaces a Natural Earth name with its common English form before the ID is derived; renaming one feature to another's name merges them into the higher-ranked one. 'passages' gives marine features other than straits and channels a passage path, by ne_id; with 'between' ends a passage where it meets two named water bodies instead of at the ends of its long axis, and with 'junction' places a passage whose own polygon is unusable where two named water bodies meet, with a path through their water within radiusKm. 'canals' adds canals by their name in Natural Earth's river and lake centerlines; the joined centerline is the canal's passage path. 'features' adds the few features Natural Earth lacks; each is anchored to Natural Earth geometry, never to typed coordinates: a gazetteer place ('place'), the part of a country polygon containing a place ('countryPart'), the line where two marine polygons meet ('junction'), the middle of the shortest line between two region polygons ('narrows'), or the part of a marine polygon near where other water bodies meet it ('adjoining'). Keep every list short and give every entry a reason that names the geographic source.",
+  "description": "Hand-maintained inputs to scripts/build-gazetteer.mjs. 'include' adds Natural Earth features that the default filters leave out, by dataset (places, regions, admin1, lakes) and ne_id. 'rename' replaces a Natural Earth name with its common English form before the ID is derived; renaming one feature to another's name merges them into the higher-ranked one. 'passages' gives marine features other than straits and channels a passage path, by ne_id; with 'between' ends a passage where it meets two named water bodies instead of at the ends of its long axis, and with 'junction' places a passage whose own polygon is unusable where two named water bodies meet, with a path through their water within radiusKm. 'rivers' adds rivers below the default scalerank cutoff by their gazetteer name (after renames, which also join a river Natural Earth names in several ways). 'canals' adds canals by their name in Natural Earth's river and lake centerlines; the joined centerline is the canal's passage path. 'features' adds the few features Natural Earth lacks; each is anchored to Natural Earth geometry, never to typed coordinates: a gazetteer place ('place'), the part of a country polygon containing a place ('countryPart'), the line where two marine polygons meet ('junction'), the middle of the shortest line between two region polygons ('narrows'), or the part of a marine polygon near where other water bodies meet it ('adjoining'). Keep every list short and give every entry a reason that names the geographic source.",
   "include": [
     {
       "dataset": "places",
@@ -60,6 +60,96 @@
       "neId": 1159103425,
       "name": "Cape Breton Island",
       "reason": "Island on the south side of Cabot Strait; the strait's anchor."
+    },
+    {
+      "dataset": "places",
+      "neId": 1159146435,
+      "name": "Rotterdam",
+      "reason": "Port city at the mouth of the Rhine, a populated place (scalerank 6) below the default cutoff; stories on the Rhine need a sea end."
+    },
+    {
+      "dataset": "places",
+      "neId": 1159150829,
+      "name": "Mombasa",
+      "reason": "Kenya's port city on the Indian Ocean, an admin-1 capital (scalerank 3) below the default cutoff."
+    },
+    {
+      "dataset": "places",
+      "neId": 1159150789,
+      "name": "Zanzibar",
+      "reason": "Zanzibar City, the admin-1 capital of Zanzibar (scalerank 3), below the default cutoff."
+    },
+    {
+      "dataset": "places",
+      "neId": 1159148339,
+      "name": "Lamu",
+      "reason": "Swahili coast town on Lamu Island off northern Kenya, a populated place (scalerank 6) below the default cutoff."
+    },
+    {
+      "dataset": "regions",
+      "neId": 1159102847,
+      "name": "Zanzibar Island",
+      "reason": "The island of Zanzibar (Unguja), off the coast of Tanzania; Natural Earth's region polygon is scalerank 5, below the default cutoff."
+    },
+    {
+      "dataset": "lakes",
+      "neId": 1159113191,
+      "name": "Lake Victoria",
+      "reason": "Africa's largest lake, shared by Uganda, Kenya and Tanzania. Natural Earth keeps lake polygons in its lakes dataset, which the gazetteer reads only for the lakes listed here."
+    },
+    {
+      "dataset": "admin1",
+      "neId": 1159309731,
+      "name": "Northern Cape",
+      "reason": "One of the nine provinces of South Africa, for stories told by province (home languages); Natural Earth admin-1 polygon."
+    },
+    {
+      "dataset": "admin1",
+      "neId": 1159309747,
+      "name": "KwaZulu-Natal",
+      "reason": "One of the nine provinces of South Africa, for stories told by province (home languages); Natural Earth admin-1 polygon."
+    },
+    {
+      "dataset": "admin1",
+      "neId": 1159309739,
+      "name": "Free State",
+      "reason": "One of the nine provinces of South Africa, for stories told by province (home languages); Natural Earth admin-1 polygon."
+    },
+    {
+      "dataset": "admin1",
+      "neId": 1159311157,
+      "name": "Eastern Cape",
+      "reason": "One of the nine provinces of South Africa, for stories told by province (home languages); Natural Earth admin-1 polygon."
+    },
+    {
+      "dataset": "admin1",
+      "neId": 1159309745,
+      "name": "Limpopo",
+      "reason": "One of the nine provinces of South Africa, for stories told by province (home languages); Natural Earth admin-1 polygon."
+    },
+    {
+      "dataset": "admin1",
+      "neId": 1159309735,
+      "name": "North West Province",
+      "reason": "One of the nine provinces of South Africa, for stories told by province (home languages); Natural Earth admin-1 polygon."
+    },
+    {
+      "dataset": "admin1",
+      "neId": 1159309743,
+      "name": "Mpumalanga",
+      "reason": "One of the nine provinces of South Africa, for stories told by province (home languages); Natural Earth admin-1 polygon."
+    },
+    {
+      "dataset": "admin1",
+      "neId": 1159309733,
+      "name": "Western Cape",
+      "reason": "One of the nine provinces of South Africa, for stories told by province (home languages); Natural Earth admin-1 polygon."
+    },
+    {
+      "dataset": "admin1",
+      "neId": 1159309741,
+      "name": "Gauteng",
+      "reason": "One of the nine provinces of South Africa, for stories told by province (home languages); Natural Earth admin-1 polygon."
     }
   ],
   "rename": [
@@ -86,6 +176,30 @@
       "from": "St. Lawrence River",
       "to": "Saint Lawrence River",
       "reason": "One ID for the river. Natural Earth has it twice: the marine polygon 'Saint Lawrence River' (the estuary from Montreal to the gulf, with a passage path) and the river centerline 'St. Lawrence'. The same name merges them into the marine feature, which routes can follow."
+    },
+    {
+      "dataset": "regions",
+      "from": "Zanzibar Archipelago",
+      "to": "Zanzibar Island",
+      "reason": "Natural Earth's polygon (named Zanzibar Archipelago) is the single main island, Unguja, between latitudes 5.7 and 6.5 south; Pemba is a separate polygon. The island is known simply as Zanzibar, and the city has that name's ID."
+    },
+    {
+      "dataset": "lakes",
+      "from": "Nyanza",
+      "to": "Lake Victoria",
+      "reason": "Natural Earth's English name for the lake is Nyanza (a Bantu word for lake); its own name is Lake Victoria, the name used in English."
+    },
+    {
+      "dataset": "rivers",
+      "from": "Rhein River",
+      "to": "Rhine River",
+      "reason": "English name of the river. Natural Earth draws the Rhine as three river features: two under the German name Rhein (one also named Rhin) and one named Rhine. Renaming Rhein joins them into one river."
+    },
+    {
+      "dataset": "admin1",
+      "from": "North West",
+      "to": "North West Province",
+      "reason": "Natural Earth's name for this South African province is North West, whose ID would read as a compass direction; the province is formally North West Province."
     }
   ],
   "passages": [
@@ -132,6 +246,20 @@
         "radiusKm": 500
       },
       "reason": "Natural Earth's Drake Passage polygon is seven slivers along the Antarctic shore, with no water to route through. The passage is where the Pacific and Atlantic polygons meet south of Cape Horn, so it is labelled at the middle of their shared boundary, with a path from the Pacific to the Atlantic through their water within 500 km of it."
+    }
+  ],
+  "rivers": [
+    {
+      "name": "Rhine River",
+      "reason": "Natural Earth's river centerlines (scalerank 4), below the default cutoff of 2; the river runs from the Alps through Germany to the North Sea at Rotterdam."
+    },
+    {
+      "name": "Vaal River",
+      "reason": "Natural Earth's river centerlines (scalerank 4), below the default cutoff of 2; the Orange River's main tributary in South Africa."
+    },
+    {
+      "name": "Orange River",
+      "reason": "Natural Earth's river centerlines (scalerank 4 and 6), below the default cutoff of 2; South Africa's longest river, flowing west to the Atlantic."
     }
   ],
   "canals": [
@@ -211,6 +339,36 @@
         "radiusKm": 150
       },
       "reason": "Natural Earth folds the Celtic Sea into the North Atlantic. It is the part of the Atlantic south of Ireland that the Irish Sea (through St George's Channel), the Bristol Channel and the English Channel open onto, so it is labelled at the interior point of the Atlantic's water within 150 km of where each of those three meets it."
+    },
+    {
+      "id": "bering-strait",
+      "name": "Bering Strait",
+      "kind": "water",
+      "surface": "sea",
+      "anchor": {
+        "type": "junction",
+        "placeIds": [
+          "bering-sea",
+          "chukchi-sea"
+        ],
+        "radiusKm": 450
+      },
+      "reason": "Natural Earth's marine polygons have no Bering Strait: the Bering Sea and Chukchi Sea polygons meet across it. Labelled at the middle of their shared boundary, with a passage from the Bering Sea to the Chukchi Sea through their water within 450 km of it, which is enough to start south of St Lawrence Island so that routes from the open Bering Sea reach it."
+    },
+    {
+      "id": "kerch-strait",
+      "name": "Kerch Strait",
+      "kind": "water",
+      "surface": "sea",
+      "anchor": {
+        "type": "junction",
+        "placeIds": [
+          "black-sea",
+          "sea-of-azov"
+        ],
+        "radiusKm": 50
+      },
+      "reason": "Natural Earth's marine polygons have no Kerch Strait: the Black Sea and Sea of Azov polygons meet across it. Labelled at the middle of their shared boundary, with a passage from the Black Sea to the Sea of Azov through their water within 50 km of it."
     }
   ]
 }

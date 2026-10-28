@@ -386,15 +386,20 @@ The claim check fixtures cover only the Chile overview and one story, so they ru
 Geo data in `data/geo/` is generated from Natural Earth 10m datasets, which are cached in `.map-sources/` and recorded with URL and SHA-256 in `data/geo/sources.json`:
 
 - `countries.json` (`npm run maps:countries`) holds all 258 map identities: ID, slug, English name and short map name, region, population and label anchor.
-- `gazetteer.json` (`npm run maps:gazetteer`) holds about 1,260 named places (37 KB gzipped): every country, named seas and straits, major rivers, physical regions, and major cities and capitals.
+- `gazetteer.json` (`npm run maps:gazetteer`) holds about 1,280 named places (38 KB gzipped): every country, named seas and straits, major rivers, physical regions, and major cities and capitals.
   IDs are slugs of the English name; when two kinds share a name, the lower-priority one gets a suffix, so `singapore` is the country and `singapore-city` the city.
-- `gazetteer-overrides.json` is the only hand-maintained input: a short list of extra Natural Earth features to include, renames to common English names, extra passages, canals, and the few features Natural Earth lacks.
+- `gazetteer-overrides.json` is the only hand-maintained input: a short list of extra Natural Earth features to include, renames to common English names, extra rivers, extra passages, canals, and the few features Natural Earth lacks.
   Added features are anchored to Natural Earth geometry, never to typed coordinates, and every entry gives a reason.
   The Suez and Panama canals come from Natural Earth's river and lake centerlines, which have no marine polygon for them.
-  The Strait of Hormuz, which Natural Earth draws only as the line where the Persian Gulf and Gulf of Oman polygons meet, is labelled at the middle of that line.
+  The Strait of Hormuz, which Natural Earth draws only as the line where the Persian Gulf and Gulf of Oman polygons meet, is labelled at the middle of that line; the Bering Strait (Bering and Chukchi seas, with a 450 km radius so the path starts south of St Lawrence Island) and the Kerch Strait (Black Sea and Sea of Azov) are placed the same way.
   The Drake Passage, whose Natural Earth polygon is only slivers along the Antarctic shore, is placed the same way where the Pacific and Atlantic polygons meet south of Cape Horn.
   Cabot Strait is the middle of the shortest line between the Cape Breton Island and Newfoundland region polygons, and the Celtic Sea is the part of the North Atlantic polygon near where the Irish Sea, the Bristol Channel and the English Channel meet it.
   Natural Earth has the Saint Lawrence twice (the estuary polygon and the river centerline); a rename merges them into one ID, `saint-lawrence-river`, the estuary with its passage path.
+  Rivers join by their renamed name, so the Rhine, which Natural Earth draws under both "Rhein" and "Rhine", is one `rhine-river`; rivers below the default scalerank cutoff (the Rhine, Vaal and Orange) are added by name in the overrides' `rivers` list.
+  Lakes come from Natural Earth's separate lakes dataset, read only for the lakes the overrides include (Lake Victoria, which Natural Earth names "Nyanza" in English).
+  Admin-1 regions are included one at a time by `ne_id`: Sabah, Sarawak, French Guiana and the nine provinces of South Africa (the North West province is `north-west-province`).
+  Each carries the map country Natural Earth files it under (`adm0_a3`), so country searches find it.
+  They are story places only; the globe's country names come from `data/geo/countries.json`, so adding gazetteer places never changes what the globe labels.
 
 Sea routes are checked against `public/maps/countries-detail.geojson`, the detailed geometry the globe draws; the base geometry's coarser coastlines close narrow straits such as the Bosporus.
 

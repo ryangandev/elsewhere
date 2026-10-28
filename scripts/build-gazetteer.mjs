@@ -7,6 +7,7 @@
 // - rivers: major rivers (scalerank <= 2)
 // - regions: islands, ranges, plains, deserts and other physical regions (scalerank <= 3)
 // - places: major populated places (scalerank <= 2) and every national capital
+// - lakes and admin1: only the features listed in the overrides (Lake Victoria, a few provinces)
 // - data/geo/gazetteer-overrides.json: extra Natural Earth features by ne_id, English renames,
 //   extra passages (including ones whose Natural Earth polygon is too broken to route through,
 //   placed where two oceans meet instead), canals from the river and lake centerlines, and the
@@ -47,6 +48,7 @@ const datasets = {
   regions: await readDataset('regions'),
   places: await readDataset('places'),
   admin1: await readDataset('admin1'),
+  lakes: await readDataset('lakes'),
 };
 
 const included = new Map();
@@ -398,20 +400,32 @@ for (const { neId, name, junction } of overrides.passages) {
   entry.path = path;
 }
 
-// Major rivers: one entry per river, labelled at the middle vertex of its longest line.
+// Major rivers: one entry per river, labelled at the middle vertex of its longest line. Rivers
+// below the scalerank cutoff are added only when the overrides name them.
 {
+  const listed = new Set(overrides.rivers.map((river) => river.name));
+  /** A river's gazetteer name, after the overrides' renames, so differently named pieces join. */
+  const riverName = (properties) => {
+    const base = englishName(properties);
+    const name = /river/i.test(base) ? base : `${base} River`;
+    const renameKey = `rivers:${name}`;
+    const rename = renames.get(renameKey);
+    return { name: rename ? rename.to : name, renameKey: rename ? renameKey : undefined };
+  };
   const rivers = new Map();
   for (const feature of datasets.rivers.features) {
     const { properties } = feature;
     if (properties.featurecla !== 'River' || !properties.name) continue;
-    if (properties.scalerank > RIVER_MAX_SCALERANK && !isIncluded('rivers', properties)) continue;
     // Natural Earth splits long rivers into several features; join them by name.
-    const key = englishName(properties);
+    const { name: key, renameKey } = riverName(properties);
+    if (properties.scalerank > RIVER_MAX_SCALERANK && !listed.has(key)) continue;
+    // A rename counts as used only when it names a river that reaches the gazetteer's candidates.
+    if (renameKey) renamesUsed.add(renameKey);
     const lines =
       feature.geometry.type === 'LineString'
         ? [feature.geometry.coordinates]
         : feature.geometry.coordinates;
-    const river = rivers.get(key) ?? { properties, lines: [] };
+    const river = rivers.get(key) ?? { properties, name: key, lines: [] };
     river.lines.push(...lines);
     if (properties.scalerank < river.properties.scalerank) river.properties = properties;
     rivers.set(key, river);
@@ -425,13 +439,11 @@ for (const { neId, name, junction } of overrides.passages) {
       a.properties.scalerank - b.properties.scalerank ||
       a.properties.name.localeCompare(b.properties.name),
   );
-  for (const { properties, lines } of sorted) {
+  for (const { properties, name, lines } of sorted) {
     const longest = lines.reduce((best, line) =>
       lineLength(line) > lineLength(best) ? line : best,
     );
     const [lng, lat] = longest[Math.floor(longest.length / 2)];
-    const base = englishName(properties);
-    const name = /river/i.test(base) ? base : `${base} River`;
     add({
       name,
       kind: 'water',
@@ -498,16 +510,40 @@ for (const canal of overrides.canals) {
   });
 }
 
+// Lakes, only when listed in the overrides (Lake Victoria): Natural Earth's lake polygons are a
+// separate dataset from its regions and marine features.
+{
+  const features = datasets.lakes.features.filter((f) => isIncluded('lakes', f.properties));
+  const points = await innerPoints(features);
+  features.forEach(({ properties }, index) => {
+    const [lng, lat] = points[index];
+    add({
+      name: englishName(properties),
+      kind: 'water',
+      surface: 'land',
+      lat,
+      lng,
+      source: 'lakes',
+      neId: properties.ne_id,
+    });
+  });
+}
+
 // First-level administrative regions, only when listed in the overrides (e.g. Sabah, French Guiana).
 {
   const features = datasets.admin1.features.filter((f) => isIncluded('admin1', f.properties));
   for (const { properties } of features) {
+    // The region belongs to the map country Natural Earth files it under (French Guiana to FRA).
+    if (!countries.some((country) => country.id === properties.adm0_a3)) {
+      throw new Error(`Admin-1 ${properties.name}: ${properties.adm0_a3} is not a map country`);
+    }
     add({
       name: englishName(properties),
       kind: 'region',
       surface: 'land',
       lat: properties.latitude,
       lng: properties.longitude,
+      countryId: properties.adm0_a3,
       source: 'admin1',
       neId: properties.ne_id,
     });
@@ -544,6 +580,11 @@ for (const key of renames.keys()) {
 for (const { neId, name } of overrides.passages) {
   if (!entries.some((entry) => entry.source === 'marine' && entry.neId === neId && entry.path)) {
     throw new Error(`Override passage not found or without a path: ${neId} (${name})`);
+  }
+}
+for (const { name } of overrides.rivers) {
+  if (!entries.some((entry) => entry.source === 'rivers' && entry.name === name)) {
+    throw new Error(`Override river not found or shadowed: ${name}`);
   }
 }
 for (const { dataset, neId, name } of overrides.include) {
@@ -757,10 +798,11 @@ updateSourcesManifest('gazetteer', {
   datasets: Object.fromEntries(Object.keys(datasets).map((name) => [name, sourceRecord(name)])),
   filters: {
     marine: 'all named features except river mouths',
-    rivers: `featurecla River, scalerank <= ${RIVER_MAX_SCALERANK}; canals named in gazetteer-overrides.json`,
+    rivers: `featurecla River, scalerank <= ${RIVER_MAX_SCALERANK} or named in gazetteer-overrides.json; canals named in gazetteer-overrides.json`,
     regions: `scalerank <= ${REGION_MAX_SCALERANK}`,
     places: `scalerank <= ${PLACE_MAX_SCALERANK}, or a national capital`,
     admin1: 'only features listed in gazetteer-overrides.json',
+    lakes: 'only features listed in gazetteer-overrides.json',
   },
   overrides: OVERRIDES,
   seaPointGeometry: LAND_GEOMETRY,
