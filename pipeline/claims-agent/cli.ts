@@ -11,9 +11,16 @@ import { fetchCommand, start, status, submit, type ClaimsAgentDeps } from './com
 const USAGE = `Usage: npm run content:claims-agent -- <command> ... [options]
 
 Commands:
-  start <country> [story]   plan the due units into sessions and write each brief.md; prints
-                            the session IDs
-    --recheck               also check units that have a result for their current text
+  start <country> [story]   plan the units to check into sessions and write each brief.md;
+                            prints the session IDs
+                            Scope: the country's overview units (summary, geography, why it
+                            matters, quick facts) and its stories' units, of which only those
+                            without a result for their current text are due.
+                            [story] narrows it to that story's units (session CHL-length).
+    --overview              narrows it to the overview units (session CHL-overview); not
+                            with [story]
+    --recheck               makes every unit in scope due, even with a result for its
+                            current text; with [story] or --overview only that part
     --drafts                only the overview and stories that are still drafts
     --sources-per-session <n>
                             most cited sources one session reads (default ${CLAIM_SOURCES_PER_SESSION});
@@ -22,7 +29,11 @@ Commands:
     --claims-dir <dir>      where results are saved (default: claims/ in the content directory)
     --model <id>            recorded as the model that judged (default ${DEFAULT_MODEL})
     --effort <level>        recorded with it (default "default", the subagent's own)
-    --fresh                 discard every existing session of the country first
+    --fresh                 move every existing session of the country to finished/ first,
+                            unfinished ones too
+                            Without it, start moves a finished session of the same name to
+                            finished/ (fetch records and submissions stay), and refuses while
+                            an unfinished one holds a unit it would hand out.
   fetch <session> <url>     read one of the session's cited pages and print a part
     --offset <n>            print the part starting at character n (without it, a page
                             that marks its main text is printed from there)
@@ -40,6 +51,7 @@ type Options = NonNullable<ParseArgsConfig['options']>;
 
 const OPTIONS: Record<string, Options> = {
   start: {
+    overview: { type: 'boolean', default: false },
     recheck: { type: 'boolean', default: false },
     drafts: { type: 'boolean', default: false },
     'sources-per-session': { type: 'string', default: String(CLAIM_SOURCES_PER_SESSION) },
@@ -97,6 +109,7 @@ async function main(): Promise<number> {
         {
           country: target,
           storyId: argument,
+          overviewOnly: values.overview === true,
           contentDir: string('content-dir')!,
           claimsDir: string('claims-dir'),
           model: string('model')!,

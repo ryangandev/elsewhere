@@ -15,7 +15,7 @@ Run every command from the repository root.
 ## Workflow
 
 1. If the task gives a session ID, use it; the session already exists, and may have been started by an earlier subagent, so run `npm run content:claims-agent -- status <session>` first and check only the units still to check.
-   If the task gives a country, run `npm run content:claims-agent -- start <ID> [story]` with the options the task gives (`--recheck`, `--drafts`, `--sources-per-session`, `--content-dir`, `--claims-dir`, `--model`, `--effort`).
+   If the task gives a country, run `npm run content:claims-agent -- start <ID> [story]` (`--overview` instead of a story checks only the overview) with the options the task gives (`--overview`, `--recheck`, `--drafts`, `--sources-per-session`, `--content-dir`, `--claims-dir`, `--model`, `--effort`).
    It prints one or more session IDs; check each in turn.
    If it refuses, report why and stop; do not work around it, and do not pass `--fresh` unless the task says so.
 2. Read the session's brief, `pipeline/.cache/claims-agent/<session>/brief.md`, completely before anything else.

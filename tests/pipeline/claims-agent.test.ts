@@ -3,7 +3,7 @@
 // a live fetch it makes itself, and saves passing verdicts in the API path's claims format. Fetches
 // go to stubs; no network, no key.
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { CountryFile } from '../../src/content/schema';
@@ -128,6 +128,7 @@ function setup() {
   });
   const startOptions = (options: Partial<StartOptions> = {}): StartOptions => ({
     country: 'CHL',
+    overviewOnly: false,
     contentDir,
     model: 'claude-opus-5-5',
     effort: 'default',
@@ -291,6 +292,199 @@ describe('agent claim check sessions', () => {
     expect(text()).toMatch(/Unfinished sessions already hold some of these units: CHL-part1/);
     expect(start(startOptions({ fresh: true }), deps())).toBe(0);
     expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL']);
+  });
+
+  describe('overview only', () => {
+    const overviewIds = (file: CountryFile) =>
+      scopeUnits(file, { kind: 'overview' }).map((unit) => unit.id);
+    const storyIds = (file: CountryFile) =>
+      file.stories.flatMap((story) => storyUnits(story)).map((unit) => unit.id);
+
+    function saveResult(
+      claimsDir: string,
+      file: CountryFile,
+      unit: { key: string; label: string; text: string },
+    ) {
+      recordChecks(claimsDir, file, {
+        [unit.key]: {
+          label: unit.label,
+          text: unit.text,
+          verdict: 'supported',
+          unsupported: [],
+          evidence: [],
+          note: null,
+          sources: [],
+          checkedAt: RUN_DATE,
+          model: 'claude-opus-5-5',
+          effort: 'high',
+          promptVersion: 'claims-agent-v3',
+        },
+      });
+    }
+
+    const saveAll = (claimsDir: string, file: CountryFile) => {
+      for (const scope of allScopes(file)) {
+        for (const unit of scopeUnits(file, scope)) saveResult(claimsDir, file, unit);
+      }
+    };
+
+    it('scopes a session to the overview units, named CHL-overview', () => {
+      const { root, deps, startOptions, text } = setup();
+      const file = chileFile();
+      expect(start(startOptions({ overviewOnly: true }), deps())).toBe(0);
+      expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL-overview']);
+      const [{ session }] = listSessions(root);
+      expect(session.units.map((unit) => unit.id).sort()).toEqual(overviewIds(file).sort());
+      expect(session.label).toBe('CHL/overview');
+      expect(session.units.some((unit) => storyIds(file).includes(unit.id))).toBe(false);
+      expect(text()).toContain('CHL-overview:');
+    });
+
+    it('keeps the name CHL when the overview is merely the only part still due', () => {
+      const { root, deps, startOptions, claimsDir } = setup();
+      const file = chileFile();
+      for (const story of file.stories) {
+        for (const unit of storyUnits(story)) saveResult(claimsDir, file, unit);
+      }
+      expect(start(startOptions(), deps())).toBe(0);
+      expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL']);
+    });
+
+    it('checks the overview units that are due, and with --recheck all of them but no story unit', () => {
+      const { root, deps, startOptions, claimsDir } = setup();
+      const file = chileFile();
+      const [first, ...rest] = scopeUnits(file, { kind: 'overview' });
+      saveResult(claimsDir, file, first);
+      saveResult(claimsDir, file, storyUnits(file.stories[0])[0]);
+      const idsOf = () =>
+        listSessions(root).flatMap(({ session }) => session.units.map((unit) => unit.id));
+
+      expect(start(startOptions({ overviewOnly: true }), deps())).toBe(0);
+      expect(idsOf().sort()).toEqual(rest.map((unit) => unit.id).sort());
+
+      const again = startOptions({ overviewOnly: true, recheck: true, fresh: true });
+      expect(start(again, deps())).toBe(0);
+      expect(idsOf().sort()).toEqual(overviewIds(file).sort());
+      expect(listSessions(root).every(({ session }) => session.recheck)).toBe(true);
+    });
+
+    it('has nothing to check when every overview unit has a result, and --recheck alone covers stories too', () => {
+      const { root, deps, startOptions, claimsDir, text } = setup();
+      const file = chileFile();
+      saveAll(claimsDir, file);
+      expect(start(startOptions({ overviewOnly: true }), deps())).toBe(0);
+      expect(text()).toContain('Nothing to check');
+      expect(listSessions(root)).toEqual([]);
+
+      expect(start(startOptions({ recheck: true }), deps())).toBe(0);
+      const ids = listSessions(root).flatMap(({ session }) => session.units.map((u) => u.id));
+      const every = allScopes(file).flatMap((scope) => scopeUnits(file, scope));
+      expect(ids.sort()).toEqual(every.map((unit) => unit.id).sort());
+    });
+
+    it('refuses --overview together with a story', () => {
+      const { root, deps, startOptions, text } = setup();
+      expect(start(startOptions({ overviewOnly: true, storyId: 'length' }), deps())).toBe(1);
+      expect(text()).toContain('--overview checks the overview alone');
+      expect(listSessions(root)).toEqual([]);
+    });
+  });
+
+  describe('replacing an earlier session', () => {
+    const STAMP = 'CHL-length-2026-10-27T09-30-00-000Z';
+
+    const finish = (dir: string) => {
+      const current = readSession(dir, 'CHL-length');
+      writeSession(dir, { ...current, passed: current.units.map((unit) => unit.id) });
+    };
+
+    it('moves a finished session to finished/ with its fetch records and submissions', async () => {
+      const { dir, deps, root, startOptions, text } = await lengthSession();
+      mkdirSync(submissionsDir(dir), { recursive: true });
+      writeFileSync(join(submissionsDir(dir), '1.json'), '{}');
+      finish(dir);
+      expect(start(startOptions({ storyId: 'length', recheck: true }), deps())).toBe(0);
+
+      const moved = join(root, 'finished', STAMP);
+      expect(readdirSync(join(root, 'finished'))).toEqual([STAMP]);
+      expect(readSession(moved, 'CHL-length').fetches).toHaveLength(1);
+      expect(findPageRecord(pagesDir(moved), GEOGRAPHY)).toBeDefined();
+      expect(existsSync(join(submissionsDir(moved), '1.json'))).toBe(true);
+      expect(text()).toContain(`Moved the earlier session to ${moved}.`);
+
+      // The new session starts empty, and the archive is not listed as a session.
+      expect(readSession(dir, 'CHL-length').fetches).toEqual([]);
+      expect(existsSync(pagesDir(dir))).toBe(false);
+      expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL-length']);
+    });
+
+    it('does not overwrite an archive made at the same time', async () => {
+      const { dir, deps, root, startOptions } = await lengthSession();
+      for (let round = 0; round < 2; round += 1) {
+        finish(dir);
+        expect(start(startOptions({ storyId: 'length', recheck: true }), deps())).toBe(0);
+      }
+      expect(readdirSync(join(root, 'finished')).sort()).toEqual([STAMP, `${STAMP}-2`]);
+    });
+
+    it('moves an unfinished session that holds nothing this start would hand out', async () => {
+      const { dir, deps, root, contentDir, startOptions } = await lengthSession();
+      const oldKeys = readSession(dir, 'CHL-length').units.map((unit) => unit.key);
+      // The text changed, so none of the session's units is a current one any more.
+      const file = chileFile();
+      file.stories[0].sections[0].text = 'Changed placeholder text for the pipeline tests.';
+      file.stories[0].sections[1].text = 'Also changed placeholder text for the pipeline tests.';
+      writeCountryFile(contentDir, file);
+      expect(start(startOptions({ storyId: 'length' }), deps())).toBe(0);
+      expect(readdirSync(join(root, 'finished'))).toEqual([STAMP]);
+      const moved = readSession(join(root, 'finished', STAMP), 'CHL-length');
+      expect(moved.units.map((unit) => unit.key)).toEqual(oldKeys);
+      expect(readSession(dir, 'CHL-length').units.map((unit) => unit.key)).not.toEqual(oldKeys);
+    });
+
+    it('still refuses while an unfinished session holds a unit it would hand out, and keeps it', async () => {
+      const { dir, deps, root, startOptions, text } = await lengthSession();
+      expect(start(startOptions({ storyId: 'length' }), deps())).toBe(1);
+      expect(text()).toContain('Unfinished sessions already hold some of these units: CHL-length');
+      expect(existsSync(join(root, 'finished'))).toBe(false);
+      expect(readSession(dir, 'CHL-length').fetches).toHaveLength(1);
+    });
+
+    it('--fresh sets an unfinished session aside instead of deleting it', async () => {
+      const { dir, deps, root, startOptions } = await lengthSession();
+      expect(start(startOptions({ storyId: 'length', fresh: true }), deps())).toBe(0);
+      expect(readdirSync(join(root, 'finished'))).toEqual([STAMP]);
+      expect(readSession(join(root, 'finished', STAMP), 'CHL-length').fetches).toHaveLength(1);
+      expect(readSession(dir, 'CHL-length').fetches).toEqual([]);
+    });
+
+    it('--fresh with nothing to check leaves every session where it is', async () => {
+      const { deps, root, startOptions, claimsDir, text } = await lengthSession();
+      const file = chileFile();
+      for (const scope of allScopes(file)) {
+        for (const unit of scopeUnits(file, scope)) {
+          recordChecks(claimsDir, file, {
+            [unit.key]: {
+              label: unit.label,
+              text: unit.text,
+              verdict: 'supported',
+              unsupported: [],
+              evidence: [],
+              note: null,
+              sources: [],
+              checkedAt: RUN_DATE,
+              model: 'claude-opus-5-5',
+              effort: 'high',
+              promptVersion: 'claims-v1',
+            },
+          });
+        }
+      }
+      expect(start(startOptions({ fresh: true }), deps())).toBe(0);
+      expect(text()).toContain('Nothing to check');
+      expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL-length']);
+      expect(existsSync(join(root, 'finished'))).toBe(false);
+    });
   });
 
   it('fetches only the cited URLs and logs failures', async () => {
@@ -905,7 +1099,7 @@ describe('agent claim check submissions', () => {
     // A session as claims-agent-v2 wrote it, whose brief describes --find as listing 20 places.
     writeSession(dir, { ...readSession(dir, 'CHL-length'), promptVersion: 'claims-agent-v2' });
     const refusal =
-      'Session CHL-length started on the claims-agent-v2 prompts, whose brief describes the fetch command as it no longer works. Discard it and plan again with: npm run content:claims-agent -- start CHL --fresh';
+      'Session CHL-length started on the claims-agent-v2 prompts, whose brief describes the fetch command as it no longer works. Set it aside and plan again with: npm run content:claims-agent -- start CHL --fresh';
     expect(
       await fetchCommand(
         { sessionId: 'CHL-length', url: GEOGRAPHY, refresh: false },

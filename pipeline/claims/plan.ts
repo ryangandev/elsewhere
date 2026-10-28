@@ -27,7 +27,10 @@ export const jobUnits = (job: ClaimsJob): ClaimUnit[] => job.parts.flatMap((part
 export const jobScopes = (job: ClaimsJob): ClaimScope[] => job.parts.map((part) => part.scope);
 
 export type JobSelection = {
-  /** Only these overviews and stories; without it, the overview and every story. */
+  /**
+   * Only these overviews and stories; without it, the overview and every story. A single scope
+   * names the check after it.
+   */
   scopes?: ClaimScope[];
   /** Only the overview and stories that are still drafts. */
   draftsOnly?: boolean;
@@ -121,12 +124,17 @@ export function splitParts(parts: ClaimPart[], max: number): ClaimPart[][] {
 const sameScope = (a: ClaimScope, b: ClaimScope) =>
   (a.kind === 'overview' ? '' : a.storyId) === (b.kind === 'overview' ? '' : b.storyId);
 
-/** A check named after what it covers: the country, or the one story it checks. */
-function name(file: CountryFile, parts: ClaimPart[]) {
-  const label = scopesLabel(
-    file.country.id,
-    parts.map((part) => part.scope),
-  );
+/**
+ * A check named after what it covers: the country, or the one story it checks. When the run asked
+ * for one scope by name (`scoped`), the overview is named too ("CHL/overview"), so a check of the
+ * overview alone never shares a name with a check of the whole country.
+ */
+function name(file: CountryFile, parts: ClaimPart[], scoped: boolean) {
+  const scopes = parts.map((part) => part.scope);
+  const label =
+    scoped && scopes.length === 1 && scopes[0].kind === 'overview'
+      ? `${file.country.id}/overview`
+      : scopesLabel(file.country.id, scopes);
   return { label, tag: `claims-${label.replace('/', '-')}` };
 }
 
@@ -149,7 +157,7 @@ function numbered(
 /** One session for every unit of these overviews and stories, however many sources they cite. */
 export function jobFor(file: CountryFile, scopes: ClaimScope[]): ClaimsJob {
   const parts = scopes.map((scope) => ({ scope, units: scopeUnits(file, scope) }));
-  return { file, parts, ...name(file, parts) };
+  return { file, parts, ...name(file, parts, false) };
 }
 
 /** The sessions a file needs: its due units, split by the sources they cite. */
@@ -177,7 +185,7 @@ export function claimsJobs(
     .filter((part) => part.units.length);
   if (!parts.length) return [];
   const groups = splitParts(parts, selection.maxSources ?? CLAIM_SOURCES_PER_SESSION);
-  return numbered(file, groups, name(file, parts), 'part');
+  return numbered(file, groups, name(file, parts, selection.scopes?.length === 1), 'part');
 }
 
 /**

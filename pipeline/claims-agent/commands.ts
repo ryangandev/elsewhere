@@ -68,8 +68,10 @@ import { loadCountry } from '../review/actions';
 import { renderBrief, renderRepair } from './brief';
 import {
   DEFAULT_CLAIMS_AGENT_DIR,
+  archiveSession,
   briefFile,
   dueUnits,
+  hasSession,
   listSessions,
   pagesDir,
   readSession,
@@ -113,6 +115,8 @@ export type StartOptions = {
   country: string;
   /** Only this story. */
   storyId?: string;
+  /** Only the overview units (summary, geography, why it matters, quick facts). */
+  overviewOnly: boolean;
   contentDir: string;
   /** Where results are saved (default: claims/ in the content directory). */
   claimsDir?: string;
@@ -124,7 +128,7 @@ export type StartOptions = {
   draftsOnly: boolean;
   /** Most cited sources in one session; a country citing more is split into several sessions. */
   maxSources: number;
-  /** Discard every existing session of the country first. */
+  /** Set every existing session of the country aside (into finished/) first. */
   fresh: boolean;
 };
 
@@ -144,25 +148,31 @@ function outdatedSession(session: ClaimsAgentSession): string | undefined {
   ) {
     return undefined;
   }
-  return `Session ${session.sessionId} started on the ${session.promptVersion} prompts, whose brief describes the fetch command as it no longer works. Discard it and plan again with: ${command(`start ${session.countryId} --fresh`)}`;
+  return `Session ${session.sessionId} started on the ${session.promptVersion} prompts, whose brief describes the fetch command as it no longer works. Set it aside and plan again with: ${command(`start ${session.countryId} --fresh`)}`;
 }
 
 export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
   const { root, now } = context(deps);
   const file = loadCountry(options.contentDir, options.country);
   const countryId = file.country.id;
+  if (options.overviewOnly && options.storyId) {
+    deps.out(
+      '--overview checks the overview alone and [story] checks one story, so use one of them.',
+    );
+    return 1;
+  }
   if (options.storyId && !file.stories.some((story) => story.id === options.storyId)) {
     deps.out(`${countryId} has no story "${options.storyId}".`);
     return 1;
   }
   const claimsDir = options.claimsDir ?? defaultClaimsDir(options.contentDir);
   const existing = listSessions(root).filter(({ session }) => session.countryId === countryId);
-  if (options.fresh) {
-    for (const { dir } of existing) rmSync(dir, { recursive: true, force: true });
-  }
   const scopes: ClaimScope[] | undefined = options.storyId
     ? [{ kind: 'story', storyId: options.storyId }]
-    : undefined;
+    : options.overviewOnly
+      ? [{ kind: 'overview' }]
+      : undefined;
+  const archived: string[] = [];
   const jobs = claimsJobs(
     file,
     {
@@ -179,7 +189,9 @@ export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
     );
     return 0;
   }
-  if (!options.fresh) {
+  if (options.fresh) {
+    for (const { session } of existing) archived.push(archiveSession(root, session));
+  } else {
     const wanted = new Set(jobs.flatMap(jobUnits).map((unit) => unit.key));
     const holding = existing.filter(({ session }) =>
       dueUnits(session).some((unit) => wanted.has(unit.key)),
@@ -190,8 +202,8 @@ export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
         [
           `Unfinished sessions already hold some of these units: ${holding.map(({ id }) => id).join(', ')}.`,
           outdated.length
-            ? `${outdated.map(({ id }) => id).join(', ')} started on older prompts, whose brief describes the fetch command as it no longer works, so pass --fresh to discard every session of this country and plan again.`
-            : 'Continue them (a new subagent can pick up a session where the last one stopped), or pass --fresh to discard every session of this country and plan again.',
+            ? `${outdated.map(({ id }) => id).join(', ')} started on older prompts, whose brief describes the fetch command as it no longer works, so pass --fresh to set every session of this country aside and plan again.`
+            : 'Continue them (a new subagent can pick up a session where the last one stopped), or pass --fresh to set every session of this country aside (into finished/) and plan again.',
         ].join('\n'),
       );
       return 1;
@@ -203,7 +215,10 @@ export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
   for (const job of jobs) {
     const id = job.tag.replace(/^claims-/, '');
     const dir = sessionDir(root, id);
-    rmSync(dir, { recursive: true, force: true });
+    // A session left under this name holds no unit handed out now (unfinished ones that do were
+    // refused above), or is finished; keep its fetch records and submissions.
+    if (hasSession(dir)) archived.push(archiveSession(root, readSession(dir, id)));
+    else rmSync(dir, { recursive: true, force: true });
     const units = jobUnits(job);
     const sources = citedSources(units);
     writeSession(dir, {
@@ -228,6 +243,7 @@ export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
     created.push({ id, units: units.length, sources: sources.length });
   }
 
+  for (const target of archived) deps.out(`Moved the earlier session to ${target}.`);
   deps.out(
     `${plural(created.length, 'claims agent session')} for ${file.country.name} (${countryId}) in ${root}:`,
   );
