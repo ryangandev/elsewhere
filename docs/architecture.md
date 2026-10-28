@@ -149,7 +149,7 @@ SceneSpec   camera?, focusCountryId, highlights[{countryId, role}], placeIds[], 
 Route       id, kind: sea | land | river | flow, via: placeId[] (2 or more)
 Source      id, title, publisher, url (https), accessedAt?
 Provenance  generatedBy ("human" or a model ID), generatedAt, promptVersion?, reviewedBy?, reviewedAt?,
-            status: draft | reviewed, revision?{notes, requestedBy, requestedAt} (drafts only)
+            status: draft | reviewed, revision?{notes, requestedBy, requestedAt, scope?} (drafts only)
 Trail       id, title, label, description, stops[{countryId, storyId, connection}]
 Home        suggestedQuestions[{countryId, storyId}] (3 to 4, distinct, shown in this order)
 ```
@@ -181,6 +181,8 @@ Rules:
   They restate the question and make no claims, so they cite no sources.
   They record the question they were written for; once the story's question changes they fail validation as stale until `npm run content:paraphrase` replaces them.
   No phrasing may repeat the question, another phrasing, or another question in the same file.
+- A revision request on a country sends back the whole country, or with `scope: "overview"` only its country part (kicker, overview, quick facts, starter questions, scene and their sources), keeping every story.
+  A story's request has no scope.
 - Only `reviewed` content is built into production.
   In production the loaders drop drafts and every starter question, next question and trail stop that points at one; development shows drafts.
 - Locale is a directory, so a Chinese edition is a parallel `content/zh/` tree with the same IDs.
@@ -228,7 +230,7 @@ npm run content:generate -- --batch pilot      # plan, then draft every country 
 npm run content:generate -- --country CHL      # draft one country (repeat --country for more)
 npm run content:generate -- --revisions        # redraft everything review sent back
 npm run content:agent -- start CHL             # or let a Claude Code subagent draft Chile
-npm run content:agent -- start CHL --revisions # or redraft Chile's sent-back stories in one
+npm run content:agent -- start CHL --revisions # or redraft what Chile has sent back in one
 npm run content:verify                         # content rules and source URLs
 npm run content:claims -- CHL                  # check Chile's text against its sources
 npm run content:claims-agent -- start CHL      # or let a Claude Code subagent check it
@@ -326,9 +328,18 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    A flagged unit either goes back through `revise`, or Ryan opens the sources, finds the claim stated (for example on a page the check could not read), and approves with `--accept-claims "<why>"`, which records who accepted it, when and why on that result in `content/en/claims/`, so the decision is committed with the approval.
    `--accept-claims` never excuses a unit that has no current check.
    An acceptance belongs to the exact text and sources, so it lapses when either changes.
-   `revise <country> [story] --notes "..."` records `provenance.revision`, and there are two ways to redraft it.
+   `revise <country> [story] --notes "..."` records `provenance.revision` on a story or the whole country.
+   `revise <country> --overview --notes "..."` records it on the country with `scope: "overview"`, which sends back only the country part and keeps every story; it refuses a story and a reviewed overview.
+   `list` shows what each country has sent back (the whole country or the overview, and how many stories), `show` says whether a country's request is for the whole country or the overview alone, and `approve` refuses while either waits.
+   There are two ways to redraft what is sent back.
    `content:generate -- --revisions` redrafts everything sent back through the API: a story keeps its ID and the rest of the file, with the notes and the old story in the prompt.
-   [Agent drafting](#agent-drafting) does the same in a Claude Code subagent: `content:agent -- start <country> --revisions` for a country's sent-back stories, with the same checks and the stricter evidence rule, and `content:agent -- start <country>` for a whole country sent back.
+   An overview sent back alone is its own conversation, tagged `<country>.overview`, with the `revise-overview` task: the notes, the country part as drafted in the submission's shape (`{ country, sources }`), and the country's stories, whose IDs its starter questions may use.
+   It submits through `submit_overview`, is checked by `checkRevisions` in `pipeline/generate/tasks.ts` (the function agent revision sessions use too), and the write reads the file again and replaces only the country part, so every story stays byte for byte as it was.
+   Each API conversation is checked against the file as it was when the run started, so an overview and a story of one country redrafted in the same run are each checked alone, and `content:verify` checks the merged file.
+   For the same reason the API path cannot move a source ID that the overview and a story share to a corrected URL; an agent revision session that revises both parts can.
+   v3 gained `revise-overview.md` without a new version: a template only overview revisions use changes no text a recorded v3 draft was made from.
+   [Agent drafting](#agent-drafting) does the same in a Claude Code subagent: `content:agent -- start <country> --revisions` for a country's sent-back overview and stories in one session, with the same checks and the stricter evidence rule, and `content:agent -- start <country>` for a whole country sent back.
+   Either way the claim check results of the unchanged units stay current, since results are keyed by the unit's text, so the next claim check covers only what changed.
    A whole country can be sent back only while nothing in it is reviewed.
    Changes go through notes and regeneration rather than JSON edits, so every text stays sourced.
 7. **Commit.**
@@ -426,7 +437,7 @@ Ask Claude Code to run it for a country; one subagent drafts one country, and se
 ```sh
 npm run content:agent -- start CHL [--content-dir <dir>] [--model <id>] [--date YYYY-MM-DD] [--regenerate] [--fresh]
 npm run content:agent -- start CHL --revisions [--content-dir <dir>] [--model <id>] [--date YYYY-MM-DD] [--fresh]
-npm run content:agent -- fetch CHL "<url>" [--offset <n>] [--find <words> | --links] [--refresh]
+npm run content:agent -- fetch CHL "<url>" [--offset <n>] [--find <words>]... [--matches <n>] [--links] [--refresh]
 npm run content:agent -- places CHL [--query <name>]... [--country <map ID>]... [--near <place ID>]
 npm run content:agent -- submit CHL [<draft.json>] [--dry-run]
 npm run content:agent -- status CHL
@@ -437,11 +448,13 @@ npm run content:agent -- status CHL
   Its prompts are their own version line, `pipeline/prompts/agent-v<n>/`: agent-v1 is v3 with the research, tool and submission instructions rewritten for these commands, and every content, tone and sourcing rule unchanged.
   agent-v2 is agent-v1 with the research section made current: it recommends sources the fetch command can read (national statistics offices, government and parliament pages, international organizations, museums, archives, libraries, open pages of academic publishers and reputable news), because Britannica refuses the local fetcher and the CIA World Factbook is discontinued.
   It adds three instructions: read pages only through the fetch command and never with curl, wget or another HTTP tool, use `--links` to find documents, and never put personal information (names, email addresses, domains) in any request.
-  agent-v1 stays as it was for the ten drafts that recorded it; a session keeps the prompt version it started with.
-  A draft records `promptVersion: "agent-v2"` and the session's model (`claude-opus-5-5` by default) as `generatedBy`, so agent drafts can be told apart from API drafts.
+  agent-v3 is agent-v2 with what the friction of the first revision sessions taught: sources are cited by https URL and the fetch command reads http and https as one page, a redirect to a file is cited by the file's URL, `--find` takes several terms, printing starts at a page's main text, and a page on another site is not the page asked for.
+  It adds `revise-overview.md`, the task of a revision session that includes the overview.
+  Earlier versions stay as they were for the drafts that recorded them; a session keeps the prompt version it started with.
+  A draft records `promptVersion: "agent-v3"` and the session's model (`claude-opus-5-5` by default) as `generatedBy`, so agent drafts can be told apart from API drafts.
   Running `start` again continues an unfinished session with its evidence and its prompt version and rebuilds the brief; `--fresh` discards the session first.
   It refuses a file with reviewed content, and an existing draft that review did not send back unless `--regenerate` is given.
-- `start --revisions` starts a revision session instead, for every story of the country that review sent back; see [Revisions](#revisions) below.
+- `start --revisions` starts a revision session instead, for the overview and every story of the country that review sent back; see [Revisions](#revisions) below.
 - `fetch` reads a page from the editor's computer with `fetchPage` in `pipeline/claims/local-fetch.ts`: HTML and plain text as the server returns them, without scripts, and PDFs by their text layer with a `[Page n]` line before each page.
   PDFs are read with unpdf, a maintained packaging of Mozilla's pdf.js for Node with no dependencies of its own.
   pdf.js runs at verbosity 0 (errors only), so its font warnings ("TT: undefined function") never mix with a command's output.
@@ -449,16 +462,21 @@ npm run content:agent -- status CHL
   A run of text is dropped as a copy when it lies on the same baseline, in the same size, within the stretch of longer runs it overlaps, and its letters are among theirs, since two different texts are never drawn over each other; the copies are not always split into runs the same way, so longer runs are kept first.
   Running headers and footers are kept once: a line among the first or last three of at least two in five pages (and at least three pages) that is the same on each, or differs only by the page number, stays where it first appears and is dropped from the pages after.
   No text is lost that way, and a sentence that runs on from one page to the next reads on with only the `[Page n]` line between, which the quote matcher skips; a table's "Total 1,204" and "Total 1,388" are different lines and both stay.
+  Footnotes at the foot of a page would still cut such a sentence, so they move after the last page, each page's under a `[Footnotes of page n]` line, which the quote matcher skips too.
+  A page's footnotes are its last lines from one that starts with a footnote marker (a number of up to three digits or a footnote symbol), all set at most 85% of the size most of the page's letters are in and all below every line of body text; a page needs five lines of body text to tell, and a page number among them stays in place.
   Some PDFs map the "fi" and "fl" ligature glyphs to U+0000 in their own ToUnicode table (Panama's constitution from constituteproject.org does), so "official" comes out as "of", a NUL and "cial"; the letters cannot be recovered from the file, so the text keeps the NUL and the quote matcher reads it as "fi" or "fl".
   HTML character references are decoded once with the `entities` package, which knows every named reference HTML defines ("&eacute;" was left as it was before); a page that escapes its text twice ("&amp;eacute;") shows "&eacute;", as it does in a browser.
   Text is decoded in the charset the Content-Type header names, else the one an HTML page declares in a `<meta charset>` or `http-equiv` tag in its first 2 KB, else UTF-8; a page that declares nothing and is not valid UTF-8 is read as windows-1252, which older government sites such as Argentina's InfoLEG serve without saying so.
   Each page becomes an evidence record in `evidence/`: the requested and final URLs, both normalized, the HTTP status, the content type, the time, the SHA-256 of the text, and the text, up to 2 million characters from at most 40 MB.
   It prints 20,000 characters at a time (Claude Code shows up to 30,000 characters of a command's output), with `--offset` for another part and `--find` to list where words appear; later reads come from the stored copy unless `--refresh` is given.
+  An HTML page that marks its main text (a `<main>` element, an element with `role="main"`, or its only `<article>`) after at least 1,500 characters of navigation is printed from there, with a line that says where the main text starts and how to print the start with `--offset 0`; the record keeps that offset, outside the hash, and `--offset` always counts from the start of the stored text.
   Reading a long page part by part with `--offset` is the way to read all of it; there is nothing to save elsewhere, and the stored copy makes each part instant.
-  `--find` searches for the words literally, ignoring case, and says how many times they appear; it lists 20 at a time, each with about 150 characters on either side shown with line breaks and runs of spaces as one space, and ends with the command for the next 20, where `--offset` is the character to search from.
+  `--find` searches for the words literally, ignoring case, and says how many times they appear; it lists 5 places at a time (`--matches <n>` for up to 50), each with about 150 characters on either side shown with line breaks and runs of spaces as one space, and ends with how many more there are and the command for them, where `--offset` is the character to search from.
+  It may be repeated to search several terms in one call, each under its own heading with its own count, because subagents otherwise ran one search after another.
   The commands ignore a closed output pipe, so `fetch ... | head` ends quietly instead of with an `EPIPE` error.
   `--links` lists the page's links instead of its text, because the text leaves them out and a drafter otherwise resorts to curl to find a statistics table PDF or a primary source.
   Each line is the anchor text and the absolute URL, `text | URL`, in page order and once per URL (fragments are dropped, an empty anchor takes the text of a later link to the same URL, and links to the page itself, `mailto:` and `javascript:` are left out).
+  Relative links resolve against the page's `<base href>` when it has one, as a browser resolves them: Destatis pages set one, and resolving against the page URL repeated their path.
   It pages like the text, 20,000 characters at a time, but `--offset` then counts links, so a part never ends in the middle of a URL.
   The links are kept in the evidence record (at most 5,000 per page) and are not covered by the hash, since they are only a way to find pages; a record stored before links were kept asks for `--refresh`.
   PDFs and plain text have no links.
@@ -466,15 +484,23 @@ npm run content:agent -- status CHL
   A bot challenge is a page of at most 3,000 characters with a phrase of the interstitial pages of Cloudflare, Akamai, Imperva or Anubis (`BOT_CHALLENGE` in `pipeline/claims/local-fetch.ts`), whatever its status: hal.ird.fr answered 200 with an Anubis proof-of-work page ("Making sure you're not a bot!", with either apostrophe), which was stored as a citable page before Anubis was on the list.
   A longer page that mentions such a phrase is read, so an article about captchas is not refused.
   A server error (5xx) is tried again after 5, 20 and 60 seconds, or after the server's `Retry-After` when that is a minute or less, because usgs.gov answered 504 for longer than subagents kept retrying by hand; any other status, such as the 403 that Britannica, EITI and Wiley answer, is final at once, since asking again would not change it.
-  A network failure reports its cause along with "fetch failed" (Node keeps the real reason in `error.cause`), such as a redirect loop, a certificate for another host name, `ECONNRESET` or an unknown host, so a page that will never load is told apart from one that may load later.
+  A network failure reports its cause along with "fetch failed" (Node keeps the real reason in `error.cause`), such as a redirect loop, `ECONNRESET` or an unknown host, so a page that will never load is told apart from one that may load later.
+  A TLS certificate that cannot be verified (expired, self signed, issued for another name, or from an issuer this computer does not trust, as when knbs.or.ke did not send its intermediate certificate) is named as a certificate error, and the page is never read over such a connection.
   The claim check's `fetch_page` tool shares this reason.
-  Every failed fetch is recorded in `session.json` with its URL, time and reason, and `status` lists it, so a drafter sees which pages failed and why.
+  Every failed fetch is recorded in `session.json`, one entry per URL with the latest time and reason and the number of failed attempts, and `status` lists it, so a drafter sees which pages failed and why without one page tried again and again filling the log.
+  The prompts tell the subagents never to work around a 403, a bot challenge or a rate limit, and the fetcher has no way to.
   A failed fetch is only a note: it is never evidence, and a cited page still needs a stored record.
-  Some URLs answer 200 with a page that is not the one requested, such as a script stub or a redirect to a login page or a site's home page.
-  A page is flagged when its text is under 300 characters (the stub that prompted the check was 209, and a login form is about 100 to 250, while a page worth citing has thousands and even a short government notice with its navigation reaches 400 or more), when it redirected to a site's home page (`/`, `/index.html` or a language root such as `/en`) from a deeper path, or when it redirected to a login, sign-in, single sign-on or consent path or host (`/user/sign-in`, `idp.nature.com`) from a page that is not one.
-  A change of host alone is not flagged, since a DOI or an agency's new domain legitimately lands elsewhere.
+  Some URLs answer 200 with a page that is not the one requested, such as a script stub or a redirect to a login page, a site's home page or another site.
+  A page is flagged when its text is under 300 characters (the stub that prompted the check was 209, and a login form is about 100 to 250, while a page worth citing has thousands and even a short government notice with its navigation reaches 400 or more), when it redirected to a site's home page (`/`, `/index.html` or a language root such as `/en`) from a deeper path, when it redirected to a login, sign-in, single sign-on or consent path or host (`/user/sign-in`, `idp.nature.com`) from a page that is not one, or when it redirected to another site.
+  A site is a host's last two labels, or three under a country code with a short second level, so `data.ons.gov.uk` and `www.ons.gov.uk` are one site; a redirect from a DOI or handle resolver (`doi.org`, `hdl.handle.net` and a few others) to the publisher is expected and not flagged.
+  The cross-site rule came from a Kenya draft whose Commonwealth governance URL redirected to a pilates studio; a page that really moved to another site is fetched and cited by its new URL, which then has no redirect.
   `fetch` prints a warning for a flagged page but still stores it, `status` marks it as not citable, and `submit` rejects a source that cites it with the reason.
   The flag is computed from the stored record each time, never saved, so the warning and the rejection agree (`pipeline/agent/page-check.ts`).
+  A first fetch also says what a redirect means for the URL to cite (`redirectKind`): one that ended at a PDF or another file, as a download link does, asks for the file's URL; one that stayed on the site but on a path sharing no word with the requested one (an error or search page) is a warning; any other says either URL may be cited.
+  A first fetch of an http URL says that sources are cited by https URL, that http and https count as the same page, and to fetch the https URL with `--refresh` before citing it.
+  These notes print only on the fetch that stores the page, while the flag's warning prints on every read.
+  Some PDFs map their fonts' glyphs to arbitrary characters, so the extracted text is not words (the Facts about Germany PDF was hundreds of thousands of such characters) and a search for a phrase the page states finds nothing.
+  `unreadableText` calls the text unreadable when more than 5% of its characters are replacement, private-use or control characters, or when fewer than half of its tokens that are not numbers are words (a Latin word of four letters or more needs a vowel, which catches glyphs mapped to shifted letters); `fetch` then warns on every read, and a `--find` miss says the page may still state the words.
 - `places` searches the gazetteer like the API path's `find_places` tool.
   `--query` may be repeated to search several names in one call, each result headed by its query.
   `--country` may be repeated too, for places in any of the listed countries (the cities on both sides of a border, sorted with `--near`), since a drafter who repeated it expected that.
@@ -487,38 +513,47 @@ npm run content:agent -- status CHL
   A passing draft is written to the session's content directory by the same writer as the API path, after the same refusals as `start`.
   `submit --dry-run` runs the same refusals and checks and prints the same problems, or says the draft would pass with its story, source and pending reference counts.
   It writes nothing to the content tree, keeps no submission, changes nothing in the session and never finishes it, so a drafter can check a draft (for example its map routes) before submitting.
-- `status` lists the fetched pages, the failed fetches and the submissions, and in a revision session the stories sent back with their notes.
+- `status` lists the fetched pages, the failed fetches and the submissions, and in a revision session the overview and stories sent back with their notes.
 
 The evidence rule is stricter than the API path's: a cited URL must have been read through `fetch` in the session, so a search result never counts, and neither does WebFetch, which returns a model's summary instead of the page.
 The subagent could in principle write the files the commands own; the hash catches an edited record, and the claim check, which reads every cited source again (through the API, or in a claim-checker subagent with every quote verified against a live fetch), is the independent audit before review, as it is for API drafts.
-Agent drafting writes whole countries, including one that review sent back as a whole, and redrafts the single stories review sent back in a revision session.
+Agent drafting writes whole countries, including one that review sent back as a whole, and redrafts the overview and the single stories review sent back in a revision session.
 
 #### Revisions
 
-`start <country> --revisions` is the agent counterpart of `content:generate -- --revisions`, so a sent-back story can be redrafted on a subscription too.
+`start <country> --revisions` is the agent counterpart of `content:generate -- --revisions`, so a sent-back overview or story can be redrafted on a subscription too.
 It is a mode of `start` rather than a command of its own because everything after it is the same session: `fetch`, `places`, `submit` and `status` take the country as before and work the same way, and the flag mirrors the API path's `--revisions`; a separate `revise` command would also be confused with `content:review -- revise`, which sends a story back.
 
-- One session revises every story of the country that is sent back, so the subagent sees them together; it refuses when none is, when the country file does not exist, and when the whole country is sent back, which `start` without the flag drafts again.
+- One session revises everything of the country that is sent back short of the whole country, the overview and every story, so the subagent sees them together; it refuses when nothing is, when the country file does not exist, and when the whole country is sent back, which `start` without the flag drafts again.
+  The refusals say how to send the overview or a story back, and how to draft a whole country again.
   `--regenerate` has no meaning for it and is refused.
 - A session lives in the country's directory, `pipeline/.cache/agent/<country>/`, like a drafting session, so the commands find it by the country alone.
   A finished session there (a drafting session that wrote the country, or an earlier revision) is moved to `pipeline/.cache/agent/finished/<country>-<time it was written>/`, keeping its evidence and submissions for audit while the new session starts with no evidence.
   An unfinished drafting session is left alone and `start --revisions` refuses until it is finished or discarded with `--fresh`; `start` without the flag likewise refuses while an unfinished revision session is there.
   Running `start --revisions` again continues an unfinished revision session with its evidence and prompt version, and rebuilds the brief from what is sent back now.
-- `session.json` records the stories and their revision requests (notes, who and when).
-  The brief is the shared system prompt, reference example, gazetteer and link targets of every brief, then the revision task, `revise-story.md`, with what the API path's revise-story task gives for each story (the editor's notes and the story as drafted, without its paraphrases and the request), the country's other stories, the stories elsewhere that link here and the places around the country, plus the commands and the JSON Schema of the submission.
-  The task tells the subagent to fetch again every page it keeps from the old story.
-- The submission is one JSON object with every story sent back and the sources they cite (`StoryRevisionsDraft` in `pipeline/generate/draft-schema.ts`); the stories are written together or not at all.
-  `submit` checks it with the API revision path's own function, `checkStoryRevisions` in `pipeline/generate/tasks.ts`: each story keeps the ID of a story sent back and appears once, every one of them is there, and each replaces its story in place and passes every check the API path applies to a revised story, inside the current tree.
-  The evidence rule is the agent one: every cited URL, a source kept from the old story included, must have been read through `fetch` in this session.
-  It refuses, without recording a submission, when a story's revision request changed since `start` (it was redrafted another way, or sent back with new notes), so the subagent never answers notes the editor replaced.
-- A passing submission is written by the same writer as the API path: the file is read again, only the revised stories change, in their places, and the rest of the file is byte for byte as it was.
-  Each revised story gets new provenance as on the API path, which clears its revision request: `generatedBy` is the session's model, `promptVersion` the session's (`agent-v2`), status `draft`.
-  Like an API revision, a revised story has no paraphrases, so `content:paraphrase -- <country>` writes them again; `submit` says so with the other next steps.
+- `session.json` records the overview's revision request when the overview is sent back, and the stories and their requests (notes, who and when).
+  The brief is the shared system prompt, reference example, gazetteer and link targets of every brief, then the revision task: `revise-story.md` for stories alone, or `revise-overview.md` when the overview is sent back, with or without stories.
+  For each part it gives what the API path's revision tasks give: the editor's notes and the part as drafted (a story without its paraphrases and the request), in the submission's shape, `{ country, sources }` or `{ story, sources }`, so it can be copied as the starting draft.
+  Under each part it lists the sources its last claim check could not read (the sources its current results report unreadable), from the current results in the claims directory, so the subagent replaces them or reads them again.
+  It adds the country's other stories, the stories elsewhere that link here and the places around the country, plus the commands and the JSON Schema of the submission.
+  The task tells the subagent to fetch again every page it keeps from the old part.
+- `start` also writes the starting draft, `draft.json`, with every part sent back as drafted and the sources they cite declared once, so a small fix is an edit of that file; an existing `draft.json` is kept as it is, and the output and the brief say which.
+- The submission is one JSON object with the country part when the overview is sent back, every story sent back, and the sources they cite (`CountryRevisionsDraft` or `StoryRevisionsDraft` in `pipeline/generate/draft-schema.ts`); the parts are written together or not at all.
+  `submit` checks it with the API revision path's own function, `checkRevisions` in `pipeline/generate/tasks.ts`: the country part is there exactly when the overview is sent back, each story keeps the ID of a story sent back and appears once, every one of them is there, and each part replaces its own in place and passes every check the API path applies to it, inside the current tree.
+  The evidence rule is the agent one: every cited URL, a source kept from the old part included, must have been read through `fetch` in this session.
+  A source ID means one URL in a file, so a revised part that reuses an ID a kept part declares with another URL is refused with both places and both URLs, and told to keep the file's URL or give its source its own ID; when the overview and the story that share an ID are revised together, both may switch it to a corrected URL.
+  A revised source whose URL this session read as the same page as the kept part's (one redirected to the other on the same host) keeps the file's URL instead of being refused.
+  It refuses, without recording a submission, when a part's revision request changed since `start` (it was redrafted another way, sent back with new notes, the overview was sent back after `start`, or the whole country is sent back now), so the subagent never answers notes the editor replaced.
+- A passing submission is written by the same writer as the API path: the file is read again, only the revised parts change, in their places, and the rest of the file is byte for byte as it was.
+  Each revised part gets new provenance as on the API path, which clears its revision request: `generatedBy` is the session's model, `promptVersion` the session's (`agent-v3`), status `draft`.
+  Like an API revision, a revised story has no paraphrases, so `content:paraphrase -- <country>` writes them again.
+  `submit` lists the next steps: `content:verify`, the agent claim check `content:claims-agent -- start <country>` ahead of the API check, both of which check only the units whose text changed, the paraphrases when stories were revised, and review.
 - `--dry-run` and `status` work as in a drafting session.
 
-agent-v2 gained `revise-story.md` with revision sessions.
-Adding a template that only revision sessions use changes no text that a drafting brief or a recorded draft was made from, so it did not need a new version: every agent-v2 drafting brief renders as before, and a revision records `agent-v2` with the exact text that produced it.
+agent-v2 gained `revise-story.md` with revision sessions, and agent-v3 has `revise-overview.md` from the start.
+Adding a template that only revision sessions use changes no text that a drafting brief or a recorded draft was made from, so revise-story did not need a new version: every agent-v2 drafting brief renders as before, and a revision records `agent-v2` with the exact text that produced it.
 agent-v1 has no revision template, and a revision session always starts on the current version.
+An unfinished agent-v2 revision session cannot take an overview sent back after it started, since agent-v2 has no revise-overview template; `start --revisions --fresh` starts it again on agent-v3.
 
 ### Agent claim check
 
@@ -531,7 +566,7 @@ The API claim check stays as a reserve and writes the same results.
 
 ```sh
 npm run content:claims-agent -- start CHL [story] [--recheck] [--drafts] [--sources-per-session <n>] [--content-dir <dir>] [--claims-dir <dir>] [--model <id>] [--effort <label>] [--fresh]
-npm run content:claims-agent -- fetch <session> "<url>" [--offset <n>] [--find <words>] [--refresh]
+npm run content:claims-agent -- fetch <session> "<url>" [--offset <n>] [--find <words>]... [--matches <n>] [--refresh]
 npm run content:claims-agent -- submit <session> [<verdicts.json>] [--dry-run]
 npm run content:claims-agent -- status <session or country>
 ```
@@ -541,12 +576,14 @@ npm run content:claims-agent -- status <session or country>
   Planning every part from one reading of the claims file is what keeps parts apart: if each subagent planned its own part, a result saved in between would shift the packing.
   It refuses while an unfinished session of the country holds a unit it would hand out; such a session can be continued by another subagent, or discarded with `--fresh`.
   Each session has `session.json` (the units by ID and key, the sources, model, effort, prompt version, fetches and submissions) and `brief.md`.
-  The brief is the claims-agent-v2 system prompt and task, rendered from the same values as the API task (`claimsTaskValues` in `pipeline/claims/session.ts`), followed by the commands and the JSON Schema of the verdict file, which is the schema of the API path's `submit_verdicts` tool.
+  The brief is the claims-agent-v3 system prompt and task, rendered from the same values as the API task (`claimsTaskValues` in `pipeline/claims/session.ts`), followed by the commands and the JSON Schema of the verdict file, which is the schema of the API path's `submit_verdicts` tool.
   Its prompts are their own version line, `pipeline/prompts/claims-agent-v<n>/`: claims-agent-v1 is claims-v1 with the reading and submission instructions rewritten for these commands, and every judging rule unchanged (a test compares the two from `# Verdicts` on).
-  claims-agent-v2 adds what the quote check ignores and what it enforces (the 300-character gap, quotes under 30 words, PDF line-end hyphens, lost ligatures and page breaks), how `--find` pages its matches, and to read a long page with `--offset` instead of saving it; claims-agent-v1 stays as it was for the results that recorded it, and a session keeps the version it started with.
-- `fetch` reads one of the session's cited URLs (compared normalized; any other URL is refused) with the same fetcher and limits as agent drafting: HTML, plain text, and PDFs by their text layer, printed 20,000 characters at a time, with `--offset` and `--find`.
-  It keeps a reading copy in `pages/`, so reading the next part does not fetch the page again, and logs every fetch and failure in `session.json`; the copy is never used to verify anything.
-  It warns when the page is probably not the cited one, by agent drafting's page check (`pipeline/agent/page-check.ts`: a stub, or a redirect to a login or home page).
+  claims-agent-v2 adds what the quote check ignores and what it enforces (the 300-character gap, quotes under 30 words, PDF line-end hyphens, lost ligatures and page breaks), how `--find` pages its matches, and to read a long page with `--offset` instead of saving it.
+  claims-agent-v3 adds that the fetch command reads http and https as one page, that a "..." does not lower a quote's word count (every part counts), where a PDF's footnotes are, how `--find` takes several terms, where printing starts, to mark a page whose text could not be extracted unreachable, and never to work around a refusal, a bot challenge or a rate limit.
+  Earlier versions stay as they were for the results that recorded them, and a session keeps the version it started with.
+- `fetch` reads one of the session's cited URLs (compared normalized; any other URL is refused) with the same fetcher, limits and printing as agent drafting: HTML, plain text, and PDFs by their text layer, printed 20,000 characters at a time from the main text, with `--offset`, `--find` (repeatable, 5 places per term, `--matches` for more) and the redirect line on the first fetch only.
+  It keeps a reading copy in `pages/`, so reading the next part does not fetch the page again, and logs every fetch in `session.json` and every failure once per URL with a count; the copy is never used to verify anything.
+  It warns when the page is probably not the cited one, by agent drafting's page check (`pipeline/agent/page-check.ts`: a stub, or a redirect to a login page, a home page or another site), and when its text could not be extracted, with the advice to mark the source unreachable if no other copy is cited.
 - `submit` validates the verdict file with the API path's `checkVerdicts`: every unit still due and its sources answered once, a source reported read was fetched with the fetch command in this session, `supported` has no unsupported phrases and the others do, every unsupported phrase is copied from the unit, quotes come from the unit's own read sources, and `source_unreachable` names an unreadable source.
   It verifies the quotes itself: it fetches every page quoted from a source reported read, live from the web at that moment, and matches each quote against that text with the API path's matcher (`normalizeForMatch` and the `QUOTE_MAX_GAP` bound on each gap).
   A quote that is not on the live page, or whose parts are too far apart there, fails its unit, and so does a quote from a page the live fetch cannot read; such a unit becomes "source unreachable" only when the subagent marks the source unreachable and gives that verdict.
@@ -556,14 +593,16 @@ npm run content:claims-agent -- status <session or country>
   The subagent fixes them and submits again; a unit that passed may stay in the file, and a new verdict replaces its saved one only if the new one passes.
   A subagent may also stop with units left not checked, which stay due for the next session.
   A submission is refused when a unit's text or sources changed since `start`, because its verdict would no longer apply.
-  It prints one line per live fetch with the length of the text and whether it is the text of the reading copy, and a summary of how many units were checked, how many passed and were saved, and how many failed.
-  When a quote is not on the live page and the live text differs from the reading copy, the problem says so, with both lengths and the time of the copy, so a page that served the subagent one text and the live fetch another is told apart from a miscopied quote; the reading copy explains a failure and never verifies a quote.
+  It prints one line per live fetch with the length of the text and how it compares with the reading copy, and a summary of how many units were checked, how many passed and were saved, and how many failed.
+  The comparison (`compareTexts`) is the same text, the same main text (only lines of under ten words differ, such as navigation, sidebars, dates or links, which change between two fetches of most pages), or main text that differs.
+  When a quote is not on the live page and the live main text differs from the reading copy, the problem says so, with both lengths and the time of the copy, so a page that served the subagent one text and the live fetch another is told apart from a miscopied quote; when only the furniture differs, the quote is treated as miscopied.
+  The reading copy explains a failure and never verifies a quote.
   Every verdict file is kept in `submissions/<n>.json`, and the session logs each submission's saved units, problems and live fetches (URL, time, length and SHA-256 of the text, or the error).
   `--dry-run` runs the same checks and live fetches, and saves, keeps and logs nothing.
 - `status` lists the units checked and still due (with the last problems), the fetched and unfetched sources, the failed fetches and the submissions; given a country, every session of it.
 
 An agent result is an API result with three differences.
-Its `promptVersion` is `claims-agent-v2` (`claims-agent-v1` on earlier results), and its `effort` is what `start` recorded ("default", the subagent's own, unless given); `model` is the subagent's model (`claude-opus-5-5` by default, `--model` to change).
+Its `promptVersion` is `claims-agent-v3` (an earlier version on earlier results), and its `effort` is what `start` recorded ("default", the subagent's own, unless given); `model` is the subagent's model (`claude-opus-5-5` by default, `--model` to change).
 An extra `verification` field lists, for each source the unit quotes, the URL, the final URL, the time of the live fetch, and the length and SHA-256 of the text its quotes were matched against; it is empty when the verdict quotes nothing.
 `content:review -- show` prints both kinds the same way, adding the prompt version and the live fetch to an agent result, and `approve` gates on them identically: a missing or flagged result blocks approval until the text is revised or the flag accepted with `--accept-claims`.
 

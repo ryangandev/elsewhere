@@ -37,7 +37,8 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
      For a large country, run `npm run content:claims-agent -- start <country>` first and give each session it prints to its own subagent.
      The API claim check, `npm run content:claims -- --drafts`, is kept as a reserve with the same results (roughly $1 to $3 a country, more when a source is a long PDF).
   6. Run `npm run content:paraphrase -- --all` to write search phrasings for the new stories (a few cents per country).
-  7. Review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back, or the `content-drafter` subagent with `npm run content:agent -- start <country> --revisions` to redraft a country's sent-back stories without API credit.
+  7. Review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back, or the `content-drafter` subagent with `npm run content:agent -- start <country> --revisions` to redraft a country's sent-back overview and stories without API credit.
+     `revise <country> --overview --notes "..."` sends back only a country's overview, quick facts, starter questions and scene, keeping its stories.
      Approval needs a current claim check with nothing flagged; after opening a flagged source yourself, `approve --accept-claims "<why>"` records why it is fine.
      Commit `content/en/claims/` together with the reviewed country files.
 
