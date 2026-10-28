@@ -32,7 +32,8 @@ Commands:
     --fresh                 move the existing sessions that overlap the requested scope (the
                             whole country, [story] or --overview) to finished/ first,
                             unfinished ones too, even when nothing is due; sessions of other
-                            parts of the country stay
+                            parts of the country stay, but the whole country sets every
+                            session aside, and any --fresh also one whose units are gone
                             Without it, start moves a finished session of the same name to
                             finished/ (fetch records and submissions stay), and refuses while
                             an unfinished one holds a unit it would hand out.

@@ -656,6 +656,9 @@ npm run content:claims-agent -- status <session or country>
   A session that `start` replaces is never deleted: it moves to `pipeline/.cache/claims-agent/finished/<session>-<time of its last submission, or of its start>` (with `-2`, `-3` after a name already taken), the way `content:agent` archives a finished drafting session, so its reading copies, fetch records and submissions stay for audit.
   That covers a finished session of the same name, an unfinished one that holds no unit this `start` would hand out (its text changed since), and, with `--fresh`, every session of the country that overlaps the requested scope (the whole country, `[story]` or `--overview`), unfinished ones too.
   `--fresh` does this before looking at what is due, so it sets those sessions aside even when nothing is due, and a session of another part of the country stays: `start CHL --overview --fresh` leaves an unfinished `CHL-length` alone.
+  A whole-country `--fresh` sets every session of the country aside, and any `--fresh` also sets aside a session whose units no longer exist in the country file (a story removed, sections dropped), which could not be continued anyway.
+  A session that stays is still checked for holding a unit by key, so `start` refuses while one does.
+  The "plan again" hints of `fetch` and `submit` name the session's own scope (`start CHL length --fresh`, `start CHL --overview --fresh`).
   The archive is not a session: `status` and the overlap check never see it, and nothing reads from it.
   A session that started on prompts older than claims-agent-v3 (`MIN_CLAIMS_AGENT_PROMPT_VERSION`) cannot be continued, because its brief describes the fetch command as it no longer works: `fetch` and `submit` refuse it, and `start` asks for `--fresh` (which sets it aside).
   Each session has `session.json` (the units by ID and key, the sources, model, effort, prompt version, fetches and submissions) and `brief.md`.
