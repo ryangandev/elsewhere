@@ -3,7 +3,15 @@
 // (starter questions, next questions, trail stops) are removed so nothing links to a draft.
 import type { z } from 'zod';
 import type { ContentFile, ContentTree } from './files';
-import { countryPlacePoint, getMapCountry, getPlace, routePoints, type LatLng } from './geo';
+import {
+  countryPlacePoint,
+  getMapCountry,
+  getPlace,
+  isDirection,
+  routePoints,
+  routeWaypoints,
+  type LatLng,
+} from './geo';
 import type { MapScene } from './map-scene';
 import {
   CountryFile,
@@ -198,6 +206,7 @@ export function resolveScene(
         lat,
         lng,
         kind: place.kind,
+        ...(isDirection(place, spec.focusCountryId) ? { direction: true as const } : {}),
         ...(note ? { note } : {}),
       };
     }),
@@ -205,6 +214,7 @@ export function resolveScene(
       id: route.id,
       kind: route.kind,
       points: routePoints(route),
+      waypoints: routeWaypoints(route, spec.focusCountryId),
     })),
   };
 }

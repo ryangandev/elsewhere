@@ -170,6 +170,42 @@ export function routePoints(route: Pick<SceneRouteSpec, 'kind' | 'via'>): LatLng
 }
 
 /**
+ * Whether a place's label point is only a spot in a large open sea: an ocean, sea or gulf from
+ * Natural Earth's marine areas. Straits, channels and canals carry a path, and lakes and rivers
+ * lie on land, so they are never open sea.
+ */
+export function isOpenSea(place: GazetteerPlace): boolean {
+  return place.kind === 'water' && place.surface === 'sea' && !place.path;
+}
+
+/**
+ * Whether a scene about `focusCountryId` names a place only as a direction, so the globe reaches
+ * only a bounded way toward it: an open sea, or a country other than the focus country. Both are
+ * label points somewhere in a large area, often far from the part the scene is about.
+ */
+export function isDirection(place: GazetteerPlace, focusCountryId?: string): boolean {
+  return isOpenSea(place) || (place.kind === 'country' && place.countryId !== focusCountryId);
+}
+
+/**
+ * The points a route is drawn through before the great-circle steps between them: its stops, and
+ * the path points of the passages and rivers a sea or river route follows. Stops that are only a
+ * direction (see `isDirection`) are marked.
+ */
+export function routeWaypoints(
+  route: Pick<SceneRouteSpec, 'kind' | 'via'>,
+  focusCountryId?: string,
+): { lat: number; lng: number; direction?: true }[] {
+  return expandRouteStops(routeStops(route)).map(({ id, point: [lat, lng], passage }) => ({
+    lat: round(lat),
+    lng: round(lng),
+    ...(passage === undefined && isDirection(requirePlace(id), focusCountryId)
+      ? { direction: true as const }
+      : {}),
+  }));
+}
+
+/**
  * Where a route crosses land. Only sea routes are checked: land and river routes are on land
  * by definition, and flows are illustrative arcs.
  */

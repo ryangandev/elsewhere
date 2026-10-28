@@ -27,6 +27,10 @@ const shipping: MapScene = {
         [8, 89],
         [1.2, 103.5],
       ],
+      waypoints: [
+        { lat: 8, lng: 89 },
+        { lat: 1.2, lng: 103.5 },
+      ],
     },
   ],
 };

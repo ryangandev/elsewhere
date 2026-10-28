@@ -280,7 +280,7 @@ export function buildStoryPage(countryId: string, storyId: string): StoryPageVie
 /**
  * A question's scene. Without its own camera it keeps its country's camera, so a question
  * opens on the same view as its overview; only a scene with neither falls back to the globe's
- * framing of the focus country, which dives very close on a small country such as Singapore.
+ * own framing of the focus country and everything the scene shows.
  */
 export function storySceneSpec(story: Story, profile: Country): SceneSpec {
   if (story.scene.camera || !profile.scene.camera) return story.scene;
