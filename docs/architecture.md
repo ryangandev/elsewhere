@@ -125,6 +125,7 @@ What changed from the prototype:
 Content lives in `content/<locale>/`, validated against a zod schema in `src/content/schema.ts`.
 The loaders parse every file on first use, so a file that fails validation fails the build.
 `npm run content:check` and the content tests run the same schema plus the checks a schema cannot express.
+Those checks include the English-only rule (no Han characters outside a country's `nativeName`, no `*Zh` fields) and the ban on index keys (`*Index`, `*Idx`), which also apply to drafts at submission.
 
 ```text
 content/en/countries/<slug>.json   { country: Country, stories: Story[] } for one country

@@ -205,15 +205,27 @@ export function validateContent(input: ContentInput): ContentIssue[] {
     }
   }
 
-  // English only for now (docs/product.md#language): no Chinese text, apart from a country's own
-  // name for itself (nativeName), and no Chinese-language fields.
+  // English only for now (docs/product.md#language): no Han characters, apart from a country's own
+  // name for itself (nativeName), and no Chinese-language fields. Drafts are checked too, so a
+  // Japanese or Korean gloss is sent back as well; the wording says non-English, not Chinese.
   for (const { file, data } of [...input.countryFiles, input.trails, input.placeNotes]) {
     for (const [text, path] of strings(data)) {
       if (HAN.test(text) && path.at(-1) !== 'nativeName') {
-        report(file, formatPath(path), 'Content is English only, but this contains Chinese text');
+        report(
+          file,
+          formatPath(path),
+          "Content is English only, but this contains non-English (Han) text outside a country's native name",
+        );
       }
     }
     for (const [key, path] of keys(data)) {
+      if (HAN.test(key)) {
+        report(
+          file,
+          formatPath(path),
+          `Content is English only, but the key "${key}" contains non-English (Han) text`,
+        );
+      }
       if (CHINESE_KEY.test(key)) {
         report(file, formatPath(path), `Content is English only, but "${key}" is a Chinese field`);
       }

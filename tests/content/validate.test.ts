@@ -66,36 +66,52 @@ describe('English only', () => {
     expect(editedIssues({ singapore: [[['country', 'nativeName'], '新加坡']] })).toEqual([]);
   });
 
-  it('flags Chinese text anywhere else, naming where it is', () => {
+  it('flags Han text anywhere else, naming where it is, including a Japanese gloss', () => {
     expect(
       editedIssues({
-        singapore: [[['stories', 0, 'summary'], '新加坡 is rich.']],
+        singapore: [[['stories', 0, 'summary'], 'Shinkansen (新幹線) is fast.']],
         trails: [[[0, 'description'], 'Water 连接 us.']],
       }),
     ).toEqual([
       expect.objectContaining({
         path: 'stories[0].summary',
-        message: 'Content is English only, but this contains Chinese text',
+        message:
+          "Content is English only, but this contains non-English (Han) text outside a country's native name",
       }),
       expect.objectContaining({
         file: fixtureInput().trails.file,
         path: '[0].description',
-        message: 'Content is English only, but this contains Chinese text',
+        message:
+          "Content is English only, but this contains non-English (Han) text outside a country's native name",
       }),
     ]);
   });
 
-  it('flags Chinese place notes', () => {
+  /** The rule's issues after changing the fixture's place notes. */
+  function placeNoteIssues(change: (notes: Record<string, string>) => Record<string, string>) {
     const input = fixtureInput();
-    const [place] = Object.keys(input.placeNotes.data as object);
-    const issues = validateContent({
-      ...input,
-      placeNotes: {
-        ...input.placeNotes,
-        data: { ...(input.placeNotes.data as object), [place]: '海峡' },
-      },
+    const data = change({ ...(input.placeNotes.data as Record<string, string>) });
+    const issues = validateContent({ ...input, placeNotes: { ...input.placeNotes, data } });
+    return { issues: ruleIssues(issues), file: input.placeNotes.file };
+  }
+
+  it('flags Han text in a place note', () => {
+    const { issues, file } = placeNoteIssues((notes) => {
+      notes[Object.keys(notes)[0]] = '海峡';
+      return notes;
     });
-    expect(issues).toEqual([expect.objectContaining({ file: input.placeNotes.file, path: place })]);
+    expect(issues).toEqual([expect.objectContaining({ file, path: expect.any(String) })]);
+  });
+
+  it('flags Han text in a key, which is not a value', () => {
+    const { issues, file } = placeNoteIssues((notes) => ({ ...notes, 海峡: 'A strait.' }));
+    expect(issues).toEqual([
+      {
+        file,
+        path: '海峡',
+        message: 'Content is English only, but the key "海峡" contains non-English (Han) text',
+      },
+    ]);
   });
 
   it('flags a Chinese-language field next to an English one', () => {
