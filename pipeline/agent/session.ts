@@ -1,12 +1,13 @@
 // An agent drafting session on disk, one directory per country in pipeline/.cache/agent/:
 //
-//   session.json    what is drafted (the whole country, or in a revision session the stories
-//                   review sent back), with which model, prompts and date, every submission and
-//                   every fetch that failed
+//   session.json    what is drafted (the whole country, or in a revision session the overview
+//                   and the stories review sent back), with which model, prompts and date, every
+//                   submission and every fetch that failed (one entry per URL)
 //   brief.md        the complete instructions the subagent follows
 //   evidence/       one record per page read through the fetch command, with its text
 //   submissions/    every draft submitted, numbered, for audit
-//   draft.json      where the subagent writes its draft
+//   draft.json      where the subagent writes its draft; a revision session starts it with the
+//                   parts sent back as drafted
 //
 // A finished session moves to pipeline/.cache/agent/finished/ when a revision session starts in
 // its place, so its evidence and submissions stay for audit.
@@ -24,34 +25,71 @@ import { normalizeUrl } from '../generate/evidence';
 
 export const DEFAULT_SESSIONS_DIR = join(CACHE_DIR, 'agent');
 
-export const AgentSession = z.strictObject({
-  countryId: CountryId,
-  contentDir: z.string().min(1),
-  /** Recorded as the draft's generatedBy. */
-  model: z.string().min(1),
-  promptVersion: z.string().min(1),
-  /** generatedAt and every source's accessedAt. */
-  date: IsoDate,
-  /** An existing draft nobody sent back may be replaced. */
-  regenerate: z.boolean(),
-  startedAt: z.string(),
-  submissions: z.array(
-    z.strictObject({ file: z.string(), submittedAt: z.string(), issues: z.array(z.string()) }),
-  ),
-  /** Pages the fetch command could not read. Never evidence: only a stored record is. */
-  failedFetches: z
-    .array(z.strictObject({ url: z.string(), attemptedAt: z.string(), reason: z.string() }))
-    .default([]),
-  written: z.strictObject({ file: z.string(), writtenAt: z.string() }).optional(),
-  /**
-   * Present in a revision session: the stories review sent back when it started, with their
-   * requests, so a request changed since is caught at submission.
-   */
-  revisions: z
-    .array(z.strictObject({ storyId: StoryId, request: RevisionRequest }))
-    .min(1)
-    .optional(),
+/**
+ * A fetch that failed, one entry per URL: the latest attempt and its reason, and how many attempts
+ * failed, so a page tried again and again does not fill the log.
+ */
+export const FailedFetch = z.strictObject({
+  url: z.string(),
+  /** The latest failed attempt. */
+  attemptedAt: z.string(),
+  reason: z.string(),
+  /** Failed attempts in all; absent in entries logged before it was counted. */
+  attempts: z.number().int().min(1).optional(),
 });
+export type FailedFetch = z.infer<typeof FailedFetch>;
+
+/** Log a failed fetch: a new entry for a URL, or the latest attempt of the URL's entry. */
+export function recordFailedFetch(
+  log: FailedFetch[],
+  failure: { url: string; attemptedAt: string; reason: string },
+): FailedFetch[] {
+  const key = normalizeUrl(failure.url);
+  const previous = log.find((entry) => normalizeUrl(entry.url) === key);
+  const entry = { ...failure, attempts: (previous?.attempts ?? (previous ? 1 : 0)) + 1 };
+  return [...log.filter((other) => other !== previous), entry];
+}
+
+/** A failed fetch as status lists it. */
+export const describeFailedFetch = ({ url, attemptedAt, reason, attempts }: FailedFetch) =>
+  `${url} (${attempts && attempts > 1 ? `${attempts} attempts, the latest ${attemptedAt}` : attemptedAt}): ${reason}`;
+
+export const AgentSession = z
+  .strictObject({
+    countryId: CountryId,
+    contentDir: z.string().min(1),
+    /** Recorded as the draft's generatedBy. */
+    model: z.string().min(1),
+    promptVersion: z.string().min(1),
+    /** generatedAt and every source's accessedAt. */
+    date: IsoDate,
+    /** An existing draft nobody sent back may be replaced. */
+    regenerate: z.boolean(),
+    startedAt: z.string(),
+    submissions: z.array(
+      z.strictObject({ file: z.string(), submittedAt: z.string(), issues: z.array(z.string()) }),
+    ),
+    /** Pages the fetch command could not read. Never evidence: only a stored record is. */
+    failedFetches: z.array(FailedFetch).default([]),
+    written: z.strictObject({ file: z.string(), writtenAt: z.string() }).optional(),
+    /**
+     * Present in a revision session: the stories review sent back when it started, with their
+     * requests, so a request changed since is caught at submission. Empty when only the overview
+     * is sent back.
+     */
+    revisions: z.array(z.strictObject({ storyId: StoryId, request: RevisionRequest })).optional(),
+    /**
+     * In a revision session, the overview's request when review sent back the country part too
+     * (scope "overview"), checked at submission like the stories' requests.
+     */
+    overviewRevision: RevisionRequest.optional(),
+  })
+  .refine((session) => !session.overviewRevision || session.revisions, {
+    message: 'Only a revision session revises the overview',
+  })
+  .refine((session) => !session.revisions || session.revisions.length || session.overviewRevision, {
+    message: 'A revision session revises the overview or at least one story',
+  });
 export type AgentSession = z.infer<typeof AgentSession>;
 
 export const sessionDir = (root: string, countryId: string) => join(root, countryId);
@@ -109,6 +147,12 @@ export const EvidenceRecord = z.strictObject({
   sha256: z.string(),
   /** The page's links, for `fetch --links`. Absent in records stored before links were kept. */
   links: z.array(z.strictObject({ url: z.string(), text: z.string() })).optional(),
+  /**
+   * Where the page's main text starts in `text`, when the page marks it and navigation comes
+   * first; the fetch command prints from there unless given --offset. Not covered by the hash,
+   * since it only chooses where reading starts.
+   */
+  mainOffset: z.number().int().nonnegative().optional(),
   text: z.string(),
 });
 export type EvidenceRecord = z.infer<typeof EvidenceRecord>;
@@ -146,6 +190,7 @@ export function savePageRecord(
     truncated: page.truncated,
     sha256: sha256(page.text),
     links: page.links,
+    ...(page.mainOffset !== undefined ? { mainOffset: page.mainOffset } : {}),
     text: page.text,
   };
   const file = recordPath(folder, page.url);

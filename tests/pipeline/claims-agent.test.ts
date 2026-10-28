@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { CountryFile } from '../../src/content/schema';
 import {
+  compareTexts,
   fetchCommand,
   start,
   status,
@@ -320,8 +321,20 @@ describe('agent claim check sessions', () => {
     expect(text()).toContain('Could not read');
     const dir = sessionDir(root, 'CHL-length');
     expect(readSession(dir, 'CHL-length').failedFetches).toMatchObject([
-      { url: GEOGRAPHY, reason: 'the server answered 404' },
+      { url: GEOGRAPHY, reason: 'the server answered 404', attempts: 1 },
     ]);
+    // Trying the page again keeps one entry for it, with the number of attempts.
+    await fetchCommand(
+      { sessionId: 'CHL-length', url: GEOGRAPHY, refresh: false },
+      deps(failing.stub),
+    );
+    expect(readSession(dir, 'CHL-length').failedFetches).toMatchObject([
+      { url: GEOGRAPHY, attempts: 2 },
+    ]);
+    expect(status({ target: 'CHL-length' }, deps())).toBe(0);
+    expect(text()).toContain(
+      `${GEOGRAPHY} (2 attempts, the latest ${NOW.toISOString()}): the server answered 404`,
+    );
 
     // The URL may differ in ways normalization ignores; the cited URL is what is fetched.
     expect(
@@ -335,6 +348,90 @@ describe('agent claim check sessions', () => {
     expect(readSession(dir, 'CHL-length').fetches).toMatchObject([{ url: GEOGRAPHY }]);
     expect(status({ target: 'CHL' }, deps())).toBe(0);
     expect(text()).toMatch(/2 still to check[\s\S]*Fetched pages: 1 of 1 sources/);
+  });
+});
+
+describe('agent claim check reading', () => {
+  it('searches several terms at once, a few places per term', async () => {
+    const { dir, deps, text } = await lengthSession();
+    expect(dir).toBeTruthy();
+    const { stub } = stubFetch(livePages());
+    expect(
+      await fetchCommand(
+        {
+          sessionId: 'CHL-length',
+          url: GEOGRAPHY,
+          find: ['part one', 'fixture page', 'absent'],
+          refresh: false,
+        },
+        deps(stub),
+      ),
+    ).toBe(0);
+    const printed = text();
+    expect(printed).toMatch(/^## part one\n"part one" appears once in the text\./m);
+    expect(printed).toMatch(
+      /^## fixture page\n"fixture page" appears 5 times in the text; matches 1 to 5\./m,
+    );
+    expect(printed).toMatch(/^## absent\n"absent" does not appear in the text\./m);
+    // Read from the stored copy: the page is not fetched again, and no redirect line repeats.
+    expect(printed).toContain('(reading copy in');
+  });
+});
+
+describe('live pages compared with the reading copy', () => {
+  const lines = (...parts: string[]) => parts.join('\n');
+  const copy = (text: string) => ({
+    text,
+    sha256: sha256(text),
+    fetchedAt: NOW.toISOString(),
+    characters: text.length,
+  });
+  const paragraph = `${SECTION_ONE} ${SECTION_TWO}`;
+
+  it('tells the same text, the same main text and a different main text apart', () => {
+    const read = lines('Menu', 'Updated 5 minutes ago', paragraph, PADDING);
+    expect(compareTexts(read, copy(read))).toMatchObject({ same: true });
+    expect(compareTexts(read, copy(read)).description).toContain(
+      'the same text as the reading copy',
+    );
+    // Only short lines differ: navigation, a timestamp.
+    const furniture = compareTexts(
+      lines('Home', 'Updated 6 minutes ago', paragraph, PADDING),
+      copy(read),
+    );
+    expect(furniture.same).toBe(true);
+    expect(furniture.description).toContain(
+      'the same main text as the reading copy (only short lines such as navigation, sidebars, dates or links differ)',
+    );
+    // A paragraph changed.
+    const edited = compareTexts(
+      lines('Menu', 'Updated 5 minutes ago', `${paragraph} Revised.`, PADDING),
+      copy(read),
+    );
+    expect(edited.same).toBe(false);
+    expect(edited.description).toContain('its main text differs');
+    // Text with no long lines at all is never called the same main text.
+    expect(compareTexts('Short a', copy('Short b')).same).toBe(false);
+  });
+
+  it('does not blame the live fetch for a miscopied quote when only page furniture changed', async () => {
+    const page = (stamp: string): Record<string, Page> => ({
+      ...livePages(),
+      [GEOGRAPHY]: {
+        type: 'text/html; charset=utf-8',
+        body: `<!doctype html><html><body><p>Updated ${stamp}</p><p>${SECTION_ONE} ${SECTION_TWO}</p><p>${PADDING}</p></body></html>`,
+      },
+    });
+    const { dir, deps, text } = await lengthSession(page('5 minutes ago'));
+    writeVerdicts(dir, [
+      supported('length-section-1', SECTION_ONE),
+      supported('length-section-2', 'Placeholder text about length, part three'),
+    ]);
+    const live = stubFetch(page('6 minutes ago'));
+    expect(await submit({ sessionId: 'CHL-length' }, deps(live.stub))).toBe(1);
+    const output = text();
+    expect(output).toContain('the same main text as the reading copy');
+    expect(output).not.toContain('The live page is not the text you read');
   });
 });
 
@@ -441,7 +538,7 @@ describe('agent claim check submissions', () => {
     );
     // What the live fetch returned is told apart from the copy the quote was read from.
     const liveText = htmlToText(html(SECTION_ONE));
-    const comparison = `${liveText.length} characters, not the text of the reading copy fetched ${NOW.toISOString()} (${forged.length} characters)`;
+    const comparison = `${liveText.length} characters, not the text of the reading copy fetched ${NOW.toISOString()} (${forged.length} characters): its main text differs`;
     expect(output).toContain(`Fetched live to verify quotes: ${GEOGRAPHY} (${comparison})`);
     expect(output).toContain(
       `The live page is not the text you read: ${comparison}. If the quote is in your reading copy, the live fetch returned something else; submit again, or fetch with --refresh to see what the page returns now.`,

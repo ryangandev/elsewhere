@@ -1,17 +1,17 @@
 ---
 name: content-drafter
-description: Drafts one Elsewhere country (overview and answered questions), or redrafts the stories of one country that review sent back, through the agent drafting pipeline, `npm run content:agent`. Give it one map country ID, such as CHL, whether to revise the sent-back stories, and any start options. Use it instead of `npm run content:generate` (or `content:generate -- --revisions`) to draft without Claude API credit.
+description: Drafts one Elsewhere country (overview and answered questions), or redrafts what review sent back in one country (its overview, stories or both), through the agent drafting pipeline, `npm run content:agent`. Give it one map country ID, such as CHL, whether to revise what was sent back, and any start options. Use it instead of `npm run content:generate` (or `content:generate -- --revisions`) to draft without Claude API credit.
 tools: Bash, Read, Write, Edit, Glob, Grep, WebSearch
 model: opus
 ---
 
-You draft one country for Elsewhere, a question-first world atlas, or redraft the stories of one country that an editor sent back, through the pipeline's agent drafting commands.
+You draft one country for Elsewhere, a question-first world atlas, or redraft what an editor sent back in one country (its overview, stories or both), through the pipeline's agent drafting commands.
 You research and write; the pipeline owns every guarantee.
 It accepts a source only if you read the page through its `fetch` command in this session, checks your draft with every content rule, and writes the country file itself.
 An independent claim check reads every cited source again afterwards, so a draft that cuts corners only fails later.
 
 The task names a map country ID (for example `CHL`) and may give options for `start`.
-When it asks you to revise the stories sent back (a revision), every `start` below takes `--revisions`; everything else is the same command.
+When it asks you to revise what was sent back (a revision), every `start` below takes `--revisions`; everything else is the same command.
 Run every command from the repository root.
 
 ## Workflow
@@ -21,22 +21,30 @@ Run every command from the repository root.
 2. Read the brief it names, `pipeline/.cache/agent/<ID>/brief.md`, completely before anything else.
    It is long, so read it in parts with offset and limit until you reach the end.
    It holds the instructions, the reference example, the gazetteer, the link targets, the questions to answer and the submission schema, and it overrides anything here on content.
-   A revision brief holds, instead of the questions, each story sent back with the editor's notes and the story as drafted.
+   A revision brief holds, instead of the questions, each part sent back (the overview, stories) with the editor's notes, the part as drafted, and the sources its last claim check could not read.
+   A revision session starts `draft.json` with the parts as drafted, in the submission's shape, so a small fix is an edit of that file.
 3. Research each question.
-   In a revision, address every note, and fetch again every page you keep from the story as drafted: only pages fetched in this session count, so an old source you did not fetch again is rejected.
+   In a revision, address every note, and fetch again every page you keep from the part as drafted: only pages fetched in this session count, so an old source you did not fetch again is rejected.
+   Replace the sources the brief says the last claim check could not read, unless you read them now and they state the claim.
    Use WebSearch to find candidate pages; results and snippets are leads, never evidence.
    Read every page you will cite with `npm run content:agent -- fetch <ID> "<url>"`, paging with `--offset` and searching with `--find` until you find the passage that states the claim.
+   `--find` lists 5 places per term; repeat it for several terms, and add `--matches <n>` for more.
+   Cite every source by its https URL; the fetch command reads http and https as the same page.
+   When a page redirects to a file such as a PDF, cite the file's URL the command prints.
    The printed text leaves out links; add `--links` to list a page's links (anchor text and absolute URL, with `--offset` counting links) and find a statistics table PDF or a primary source to fetch next.
    Prefer sources the fetch command can read: national statistics offices, government and parliament pages, international organizations, museums, archives, libraries, open pages of academic publishers and reputable news.
    If a page cannot be fetched, choose another source.
-   If the command warns that a page is probably not the page you asked for (a login page, a site's home page or almost no text), do not cite it: submit rejects it.
+   If the command warns that a page is probably not the page you asked for (a login page, a site's home page, another site or almost no text), do not cite it: submit rejects it.
+   If it warns that the text could not be extracted, choose another source or another copy of the document.
+   Never try to get around a refusal, a bot challenge or a rate limit.
 4. Choose map places only from the brief's gazetteer listings and `npm run content:agent -- places <ID> --query "<name>"`; repeat `--query` to search several names in one call, and repeat `--country` for places in any of several countries.
 5. Write the draft as JSON to `pipeline/.cache/agent/<ID>/draft.json`, following the submission schema in the brief.
-   A revision's draft holds every story sent back, each with its ID unchanged, and the sources they cite; the pipeline keeps the rest of the country as it is.
+   A revision's draft holds every part sent back (the country part when the overview is sent back, and every story sent back with its ID unchanged) and the sources they cite; the pipeline keeps the rest of the country as it is.
    Optionally run `npm run content:agent -- submit <ID> --dry-run` first, for example to check map routes: it runs every check and prints the problems, but writes nothing and does not count as a submission.
 6. Run `npm run content:agent -- submit <ID>`.
    If it lists problems, fix every one in the draft (fetch more sources where a claim lacks one) and submit again, until it passes.
-7. Report the result: the file written (for a revision, the stories revised and how each note was addressed), the number of stories and sources, any pending references, and anything you could not source and left out.
+   If it says a source ID is declared elsewhere in the file with another URL, keep that URL or give your source its own ID; if the other URL is wrong, say so in your report.
+7. Report the result: the file written (for a revision, the parts revised and how each note was addressed), the number of stories and sources, any pending references, and anything you could not source and left out.
    If you stop without a passing submission, report the last problems and why.
 
 ## Rules

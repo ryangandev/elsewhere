@@ -1,11 +1,13 @@
 // npm run content:agent -- <command> <country> [options]
 // The commands a Claude Code drafting subagent (.claude/agents/content-drafter.md) runs, to draft
-// a country or to redraft the stories review sent back. See docs/architecture.md#agent-drafting.
+// a country or to redraft what review sent back (the overview, stories). See
+// docs/architecture.md#agent-drafting.
 import type { ParseArgsConfig } from 'node:util';
 import { parseArgsOnce } from '../cli-args';
 import { ignoreClosedOutput } from '../closed-output';
 import { DEFAULT_CONTENT_DIR, DEFAULT_MODEL, today } from '../config';
 import { fetchCommand, places, start, status, submit, type AgentDeps } from './commands';
+import { DEFAULT_FIND_MATCHES, MAX_FIND_MATCHES } from './reading';
 
 const USAGE = `Usage: npm run content:agent -- <command> <country> [options]
 
@@ -15,21 +17,23 @@ Commands:
     --model <id>          recorded as generatedBy (default ${DEFAULT_MODEL})
     --date YYYY-MM-DD     generatedAt and accessedAt (default today)
     --regenerate          the draft may replace an existing draft nobody sent back
-    --revisions           redraft the stories review sent back instead of the whole country;
-                          a finished session moves to finished/ first
+    --revisions           redraft what review sent back (the overview, stories) instead of
+                          the whole country; a finished session moves to finished/ first
     --fresh               discard an existing session first
   fetch <country> <url>   read a page on this computer, keep it as evidence, print a part
-    --offset <n>          print the part starting at character n
-    --find <words>        list where the words appear instead (20 at a time; with --offset,
-                          those from character n on)
+    --offset <n>          print the part starting at character n (without it, a page that
+                          marks its main text is printed from there)
+    --find <words>        list where the words appear instead; repeat it for several (with
+                          --offset, those from character n on)
+    --matches <n>         places listed per --find term (default ${DEFAULT_FIND_MATCHES}, at most ${MAX_FIND_MATCHES})
     --links               list the page's links (text | URL) instead; --offset counts links
     --refresh             fetch again even when the page is stored
   places <country>        search the gazetteer
     --query <name>        part of a place name; repeat it to search several names at once
     --country <id>        only places in this map country; repeat it for places in any of several
     --near <place id>     sort by distance from this place
-  submit <country> [file] check the draft or the revised stories (default draft.json in the
-                          session) and write them
+  submit <country> [file] check the draft or the revision (default draft.json in the session)
+                          and write it
     --dry-run             run the same checks but write and record nothing
   status <country>        what the session has fetched and submitted
 `;
@@ -46,8 +50,9 @@ const OPTIONS: Record<string, Options> = {
     fresh: { type: 'boolean', default: false },
   },
   fetch: {
-    offset: { type: 'string', default: '0' },
-    find: { type: 'string' },
+    offset: { type: 'string' },
+    find: { type: 'string', multiple: true },
+    matches: { type: 'string' },
     links: { type: 'boolean', default: false },
     refresh: { type: 'boolean', default: false },
   },
@@ -107,14 +112,18 @@ async function main(): Promise<number> {
       );
     }
     case 'fetch': {
-      const offset = Number(string('offset'));
-      if (!Number.isInteger(offset)) throw new Error('--offset is a whole number of characters');
+      const offset = string('offset') === undefined ? undefined : Number(string('offset'));
+      if (offset !== undefined && !Number.isInteger(offset)) {
+        throw new Error('--offset is a whole number of characters');
+      }
+      const matches = string('matches') === undefined ? undefined : Number(string('matches'));
       return fetchCommand(
         {
           countryId,
           url: argument,
           offset,
-          find: string('find'),
+          find: values.find as string[] | undefined,
+          matches,
           links: values.links === true,
           refresh: values.refresh === true,
         },

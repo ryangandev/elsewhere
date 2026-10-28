@@ -19,11 +19,19 @@ import {
   describeRecord,
   fetchFailure,
   fetchForReading,
-  printChunk,
-  printMatches,
+  findMatches,
+  printPart,
+  shellQuote,
+  unreadableWarning,
 } from '../agent/reading';
 import { notTheRequestedPage } from '../agent/page-check';
-import { evidenceIntact, findPageRecord, savePageRecord } from '../agent/session';
+import {
+  describeFailedFetch,
+  evidenceIntact,
+  findPageRecord,
+  recordFailedFetch,
+  savePageRecord,
+} from '../agent/session';
 import type { FetchedPage } from '../claims/local-fetch';
 import { claimsJobs, jobUnits } from '../claims/plan';
 import {
@@ -209,10 +217,15 @@ export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
 export type FetchOptions = {
   sessionId: string;
   url: string;
-  /** First character to print, or with `find` to look from. */
-  offset: number;
-  /** Instead of a chunk, list where these words appear. */
-  find?: string;
+  /**
+   * First character to print, or with `find` to look from. Without it the print starts at the
+   * page's main text when the page marks one, and a search looks from the start.
+   */
+  offset?: number;
+  /** Instead of a chunk, list where each of these words appears. */
+  find?: string[];
+  /** With `find`, places listed per term (default 5). */
+  matches?: number;
   /** Fetch again even when a reading copy is stored. */
   refresh: boolean;
 };
@@ -226,6 +239,11 @@ export async function fetchCommand(options: FetchOptions, deps: ClaimsAgentDeps)
   const { root, now } = context(deps);
   const dir = sessionDir(root, options.sessionId);
   const session = readSession(dir, options.sessionId);
+  const matches = findMatches(options.matches);
+  if (typeof matches === 'string') {
+    deps.out(matches);
+    return 1;
+  }
   const source = session.sources.find(
     (entry) => normalizeUrl(entry.url) === normalizeUrl(options.url),
   );
@@ -251,7 +269,11 @@ export async function fetchCommand(options: FetchOptions, deps: ClaimsAgentDeps)
       stored = savePageRecord(pagesDir(dir), await fetchForReading(source.url, deps), now());
     } catch (error) {
       const reason = fetchFailure(error);
-      session.failedFetches.push({ url: source.url, attemptedAt: now(), reason });
+      session.failedFetches = recordFailedFetch(session.failedFetches, {
+        url: source.url,
+        attemptedAt: now(),
+        reason,
+      });
       writeSession(dir, session);
       deps.out(
         `Could not read ${source.url}: ${reason}. If it cannot be read at all, mark ${source.id} unreachable with this reason.`,
@@ -271,25 +293,31 @@ export async function fetchCommand(options: FetchOptions, deps: ClaimsAgentDeps)
     ];
     writeSession(dir, session);
     deps.out(`${source.url} (fetched; reading copy in ${stored.file})`);
+    // Said once, when the page is fetched, not again for every part read from the copy.
+    if (stored.record.finalUrl !== stored.record.requestedUrl) {
+      deps.out(`Redirected to ${stored.record.finalUrl}.`);
+    }
   }
   const { record } = stored;
   deps.out(describeRecord(record));
-  if (record.finalUrl !== record.requestedUrl) deps.out(`Redirected to ${record.finalUrl}.`);
   const notCited = notTheRequestedPage(record);
   if (notCited) {
     deps.out(
       `WARNING: this is probably not the cited page: ${notCited}. A quote from it fails at submit. Try --refresh once; if the cited page still cannot be read, mark ${source.id} unreachable with this reason.`,
     );
   }
-  const read = (offset: number | string) =>
-    command(`fetch ${options.sessionId} "${options.url}" --offset ${offset}`);
-  const more = (from: number) =>
-    command(
-      `fetch ${options.sessionId} "${options.url}" --find "${options.find}" --offset ${from}`,
+  const unreadable = unreadableWarning(record);
+  if (unreadable) {
+    deps.out(
+      `${unreadable.replace(/; choose another source or another copy of the document\.$/, '.')} If no other copy is cited, mark ${source.id} unreachable with this reason.`,
     );
-  return options.find
-    ? printMatches(record, options.find, options.offset, read('<n>'), more, deps.out)
-    : printChunk(record, options.offset, read, deps.out);
+  }
+  return printPart(
+    record,
+    { offset: options.offset, find: options.find, matches },
+    (args) => command(`fetch ${options.sessionId} ${shellQuote(options.url)}${args}`),
+    deps.out,
+  );
 }
 
 type LivePage = { fetchedAt: string; page?: FetchedPage; error?: string };
@@ -325,20 +353,65 @@ async function fetchLive(
   return pages;
 }
 
-/** How a live page compares with the reading copy of the same URL, for a person or a subagent. */
+/**
+ * How a live page compares with the reading copy of the same URL, for a person or a subagent.
+ * `same` is whether their main text is the same, so a failed quote is not blamed on the live fetch.
+ */
 type LiveComparison = { same: boolean; description: string };
 
-function compareWithReadingCopy(page: FetchedPage, dir: string, url: string): LiveComparison {
-  const characters = `${page.text.length.toLocaleString('en-US')} characters`;
-  const copy = findPageRecord(pagesDir(dir), url)?.record;
-  if (!copy) return { same: false, description: `${characters}; there is no reading copy` };
-  if (copy.sha256 === sha256(page.text)) {
+/** A line counts as main text from this many words; menus, dates and link lists are shorter. */
+const MAIN_TEXT_WORDS = 10;
+
+/**
+ * The lines of a page's main text, sorted: lines of at least ten words, with runs of spaces as one.
+ * Navigation, sidebars, timestamps, counters and link lists are short lines and change from fetch
+ * to fetch, so two fetches of an unchanged page have the same main text even when their whole
+ * text differs.
+ */
+export function mainTextLines(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter((line) => line.split(' ').length >= MAIN_TEXT_WORDS)
+    .sort();
+}
+
+/** Compare a live page with the reading copy: identical, the same main text, or different. */
+export function compareTexts(
+  live: string,
+  copy: { text: string; sha256: string; fetchedAt: string; characters: number },
+): LiveComparison {
+  const characters = `${live.length.toLocaleString('en-US')} characters`;
+  if (copy.sha256 === sha256(live)) {
     return { same: true, description: `${characters}, the same text as the reading copy` };
+  }
+  const liveLines = mainTextLines(live);
+  const copyLines = mainTextLines(copy.text);
+  if (
+    liveLines.length &&
+    liveLines.length === copyLines.length &&
+    liveLines.every((line, index) => line === copyLines[index])
+  ) {
+    return {
+      same: true,
+      description: `${characters}, the same main text as the reading copy (only short lines such as navigation, sidebars, dates or links differ)`,
+    };
   }
   return {
     same: false,
-    description: `${characters}, not the text of the reading copy fetched ${copy.fetchedAt} (${copy.characters.toLocaleString('en-US')} characters)`,
+    description: `${characters}, not the text of the reading copy fetched ${copy.fetchedAt} (${copy.characters.toLocaleString('en-US')} characters): its main text differs`,
   };
+}
+
+function compareWithReadingCopy(page: FetchedPage, dir: string, url: string): LiveComparison {
+  const copy = findPageRecord(pagesDir(dir), url)?.record;
+  if (!copy) {
+    return {
+      same: false,
+      description: `${page.text.length.toLocaleString('en-US')} characters; there is no reading copy`,
+    };
+  }
+  return compareTexts(page.text, copy);
 }
 
 export type SubmitOptions = {
@@ -599,9 +672,7 @@ function describeSession(
   );
   for (const source of unread) deps.out(`  not fetched yet: ${source.id} ${source.url}`);
   deps.out(`Failed fetches: ${session.failedFetches.length || 'none'}`);
-  for (const { url, attemptedAt, reason } of session.failedFetches) {
-    deps.out(`  ${url} (${attemptedAt}): ${reason}`);
-  }
+  for (const failure of session.failedFetches) deps.out(`  ${describeFailedFetch(failure)}`);
   if (!last) {
     deps.out('Submissions: none yet.');
     return;
