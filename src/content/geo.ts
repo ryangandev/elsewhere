@@ -16,7 +16,7 @@ import {
   type RouteStop,
   type SeaRouteCheckOptions,
 } from './geometry';
-import { GazetteerPlace, MapCountry, type SceneRouteSpec } from './schema';
+import { GazetteerPlace, MapCountry, type RouteKind, type SceneRouteSpec } from './schema';
 
 export * from './geometry';
 
@@ -134,23 +134,37 @@ export function countryPlacePoint(place: GazetteerPlace, center: LatLng): LatLng
   return best;
 }
 
-/** The stops of a route, with the paths of straits, channels, canals and rivers. */
-export function routeStops(route: Pick<SceneRouteSpec, 'via'>): RouteStop[] {
+/**
+ * Route kinds that follow a place's path: a ship's course through a strait, channel or canal,
+ * and a river's course. Land routes and flows are illustrative arcs, not courses, so they pass
+ * through every place's label point, a strait or river as much as a city.
+ */
+const FOLLOWS_PATHS: ReadonlySet<RouteKind> = new Set(['sea', 'river']);
+
+/**
+ * The stops of a route. In a sea or river route, straits, channels, canals and rivers carry
+ * their paths.
+ */
+export function routeStops(route: Pick<SceneRouteSpec, 'kind' | 'via'>): RouteStop[] {
+  const followsPaths = FOLLOWS_PATHS.has(route.kind);
   return route.via.map((id) => {
     const place = requirePlace(id);
     return {
       id,
       point: [place.lat, place.lng],
       surface: place.surface,
-      ...(place.path ? { path: place.path } : {}),
+      ...(followsPaths && place.path ? { path: place.path } : {}),
     };
   });
 }
 
 const round = (value: number) => Math.round(value * 1e4) / 1e4;
 
-/** The polyline a route is drawn with: great circles through its stops, as [lat, lng] points. */
-export function routePoints(route: Pick<SceneRouteSpec, 'via'>): LatLng[] {
+/**
+ * The polyline a route is drawn with: great circles through its stops, as [lat, lng] points,
+ * along the paths of the passages and rivers a sea or river route names.
+ */
+export function routePoints(route: Pick<SceneRouteSpec, 'kind' | 'via'>): LatLng[] {
   const waypoints = expandRouteStops(routeStops(route)).map((waypoint) => waypoint.point);
   return routePolyline(waypoints, ROUTE_STEP_KM).map(([lat, lng]) => [round(lat), round(lng)]);
 }

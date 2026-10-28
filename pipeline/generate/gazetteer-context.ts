@@ -24,9 +24,9 @@ function describe(place: GazetteerPlace): string {
   const kind =
     place.kind === 'water'
       ? isRiver(place)
-        ? 'river (a route follows its course, from or to the point nearest a city beside it)'
+        ? 'river (a sea or river route follows its course, from or to the point nearest a city beside it)'
         : place.path
-          ? 'passage (a route follows it end to end)'
+          ? 'passage (a sea or river route follows it end to end)'
           : place.surface === 'land'
             ? 'lake'
             : 'sea'

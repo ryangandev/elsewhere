@@ -95,8 +95,9 @@ export const SceneRouteSpec = z.strictObject({
    */
   kind: RouteKind,
   /**
-   * Gazetteer places the route passes, in order. Consecutive places are joined by great circles;
-   * a strait, channel or canal with a passage path, and a river, are followed along their length.
+   * Gazetteer places the route passes, in order. Consecutive places are joined by great circles.
+   * A sea or river route follows a strait, channel or canal with a passage path, and a river,
+   * along their length; land routes and flows pass through every place's label point.
    */
   via: z.array(PlaceId).min(2),
 });

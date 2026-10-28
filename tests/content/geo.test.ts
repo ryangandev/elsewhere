@@ -15,6 +15,7 @@ import {
   listPlaces,
   placeCoordinates,
   routePoints,
+  routePolyline,
 } from '../../src/content/geo';
 import { findPlaces, sharedListing } from '../../pipeline/generate/gazetteer-context';
 import { CountryFile, type SceneRouteSpec } from '../../src/content/schema';
@@ -104,7 +105,7 @@ describe('gazetteer', () => {
 
 describe('routes', () => {
   it('follow great circles in short steps', () => {
-    const points = routePoints({ via: ['kuantan', 'kota-kinabalu'] });
+    const points = routePoints({ kind: 'sea', via: ['kuantan', 'kota-kinabalu'] });
     expect(points[0]).toEqual(placeCoordinates('kuantan'));
     expect(points.at(-1)).toEqual(placeCoordinates('kota-kinabalu'));
     for (let index = 1; index < points.length; index += 1) {
@@ -113,7 +114,7 @@ describe('routes', () => {
   });
 
   it('pass through every point of a strait passage', () => {
-    const points = routePoints({ via: ['sea-of-marmara', 'bosporus', 'black-sea'] });
+    const points = routePoints({ kind: 'sea', via: ['sea-of-marmara', 'bosporus', 'black-sea'] });
     for (const [lat, lng] of getPlace('bosporus')!.path!) {
       expect(points).toContainEqual([lat, lng]);
     }
@@ -312,11 +313,11 @@ describe('routes', () => {
     // Istanbul is on the Bosporus: the route stops there, short of the Black Sea end.
     const path = getPlace('bosporus')!.path!;
     const blackSeaEnd = path.at(-1)!;
-    const points = routePoints({ via: ['sea-of-marmara', 'bosporus', 'istanbul'] });
+    const points = routePoints({ kind: 'sea', via: ['sea-of-marmara', 'bosporus', 'istanbul'] });
     expect(points.at(-1)).toEqual(placeCoordinates('istanbul'));
     expect(points).not.toContainEqual(blackSeaEnd);
     // A route from the port joins the passage at the same point and goes on through it.
-    const outbound = routePoints({ via: ['istanbul', 'bosporus', 'black-sea'] });
+    const outbound = routePoints({ kind: 'sea', via: ['istanbul', 'bosporus', 'black-sea'] });
     expect(outbound).toContainEqual(blackSeaEnd);
     expect(outbound).not.toContainEqual(path[0]);
   });
@@ -433,7 +434,7 @@ describe('routes', () => {
     // Before, this route was two great circles: Alps to Cologne (the Rhine's label point) to the
     // middle of the North Sea.
     const rhine = getPlace('rhine-river')!.path!;
-    const points = routePoints({ via: ['alps', 'rhine-river', 'north-sea'] });
+    const points = routePoints({ kind: 'river', via: ['alps', 'rhine-river', 'north-sea'] });
     expect(points[0]).toEqual(placeCoordinates('alps'));
     expect(points.at(-1)).toEqual(placeCoordinates('north-sea'));
     // The Alps are beside the river, so the route joins it at the nearest point and follows it
@@ -459,7 +460,7 @@ describe('routes', () => {
   it('join and leave a river at the cities beside it', () => {
     // Rotterdam is on the Rhine delta: a route from it joins the river nearby and goes upstream.
     const rhine = getPlace('rhine-river')!.path!;
-    const upstream = routePoints({ via: ['rotterdam', 'rhine-river'] });
+    const upstream = routePoints({ kind: 'river', via: ['rotterdam', 'rhine-river'] });
     expect(upstream[0]).toEqual(placeCoordinates('rotterdam'));
     expect(distanceKm(upstream[0], upstream[1])).toBeLessThan(50);
     const source = [rhine[0], rhine.at(-1)!].find((end) => distanceKm(end, placeCoordinates('rotterdam')) > 500)!;
@@ -467,7 +468,7 @@ describe('routes', () => {
 
     // The Nile from Lake Victoria to Cairo, through Lake Kyoga, the Sudd and Khartoum.
     const nile = routePoints({
-
+      kind: 'river',
       via: [
         'lake-victoria',
         'victoria-nile-river',
@@ -485,15 +486,36 @@ describe('routes', () => {
 
     // The Blue Nile from Lake Tana, where it begins, to Khartoum, where it ends.
     const blueNile = getPlace('blue-nile-river')!.path!;
-    const route = routePoints({ via: ['lake-tana', 'blue-nile-river', 'khartoum'] });
+    const route = routePoints({ kind: 'river', via: ['lake-tana', 'blue-nile-river', 'khartoum'] });
     const tanaEnd = [blueNile[0], blueNile.at(-1)!].find((end) => distanceKm(end, placeCoordinates('lake-tana')) < 50);
     expect(route[1]).toEqual(tanaEnd);
     expect(route.at(-1)).toEqual(placeCoordinates('khartoum'));
   });
 
+  it('draw land routes and flows through label points, not along paths', () => {
+    // Land routes and flows are illustrative arcs: a land route that names a river crosses it at
+    // its label point instead of following its course, and so does a flow through a strait.
+    const pointToPoint = (via: string[]) =>
+      routePolyline(via.map(placeCoordinates), 50).map(([lat, lng]) => [
+        Math.round(lat * 1e4) / 1e4,
+        Math.round(lng * 1e4) / 1e4,
+      ]);
+    const overland = ['ural-mountains', 'ob-river', 'lena-river', 'sea-of-okhotsk'];
+    expect(routePoints({ kind: 'land', via: overland })).toEqual(pointToPoint(overland));
+    const gulfStream = ['caribbean-sea', 'florida-strait', 'north-atlantic-ocean'];
+    expect(getPlace('florida-strait')!.path!.length).toBeGreaterThanOrEqual(2);
+    expect(routePoints({ kind: 'flow', via: gulfStream })).toEqual(pointToPoint(gulfStream));
+
+    // Sea and river routes through the same places keep following the paths.
+    const sea = routePoints({ kind: 'sea', via: gulfStream });
+    for (const [lat, lng] of getPlace('florida-strait')!.path!) expect(sea).toContainEqual([lat, lng]);
+    const river = routePoints({ kind: 'river', via: ['lena-river', 'sea-of-okhotsk'] });
+    for (const [lat, lng] of getPlace('lena-river')!.path!) expect(river).toContainEqual([lat, lng]);
+  });
+
   it('tell drafters which water bodies are rivers, passages and lakes', () => {
     const listing = sharedListing();
-    expect(listing).toContain('rhine-river | Rhine River | river (a route follows its course');
+    expect(listing).toContain('rhine-river | Rhine River | river (a sea or river route follows its course');
     expect(listing).toContain('blue-nile-river | Blue Nile River | river (');
     expect(listing).toContain('suez-canal | Suez Canal | passage (');
     expect(listing).toContain('strait-of-dover | Strait of Dover | passage (');
