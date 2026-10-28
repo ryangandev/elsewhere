@@ -50,7 +50,12 @@ import {
 } from '../claims/units';
 import { checkVerdicts, SubmitVerdicts, type VerdictResult } from '../claims/verdicts';
 import { normalizeUrl } from '../generate/evidence';
-import { CURRENT_CLAIMS_AGENT_PROMPT_VERSION, loadClaimsAgentPrompts } from '../prompts';
+import {
+  CURRENT_CLAIMS_AGENT_PROMPT_VERSION,
+  MIN_CLAIMS_AGENT_PROMPT_VERSION,
+  promptVersionNumber,
+  loadClaimsAgentPrompts,
+} from '../prompts';
 import { loadCountry } from '../review/actions';
 import { renderBrief, renderRepair } from './brief';
 import {
@@ -120,6 +125,20 @@ export type StartOptions = {
  * once from one reading of the claims file, so parts never overlap however their subagents
  * finish; a unit an unfinished session still holds is never handed to another one.
  */
+/**
+ * Why a session may not be continued, or undefined: it started on prompts older than
+ * MIN_CLAIMS_AGENT_PROMPT_VERSION, whose brief describes the fetch command as it no longer works.
+ */
+function outdatedSession(session: ClaimsAgentSession): string | undefined {
+  if (
+    promptVersionNumber(session.promptVersion) >=
+    promptVersionNumber(MIN_CLAIMS_AGENT_PROMPT_VERSION)
+  ) {
+    return undefined;
+  }
+  return `Session ${session.sessionId} started on the ${session.promptVersion} prompts, whose brief describes the fetch command as it no longer works. Discard it and plan again with: ${command(`start ${session.countryId} --fresh`)}`;
+}
+
 export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
   const { root, now } = context(deps);
   const file = loadCountry(options.contentDir, options.country);
@@ -158,10 +177,13 @@ export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
       dueUnits(session).some((unit) => wanted.has(unit.key)),
     );
     if (holding.length) {
+      const outdated = holding.filter(({ session }) => outdatedSession(session));
       deps.out(
         [
           `Unfinished sessions already hold some of these units: ${holding.map(({ id }) => id).join(', ')}.`,
-          'Continue them (a new subagent can pick up a session where the last one stopped), or pass --fresh to discard every session of this country and plan again.',
+          outdated.length
+            ? `${outdated.map(({ id }) => id).join(', ')} started on older prompts, whose brief describes the fetch command as it no longer works, so pass --fresh to discard every session of this country and plan again.`
+            : 'Continue them (a new subagent can pick up a session where the last one stopped), or pass --fresh to discard every session of this country and plan again.',
         ].join('\n'),
       );
       return 1;
@@ -239,6 +261,11 @@ export async function fetchCommand(options: FetchOptions, deps: ClaimsAgentDeps)
   const { root, now } = context(deps);
   const dir = sessionDir(root, options.sessionId);
   const session = readSession(dir, options.sessionId);
+  const outdated = outdatedSession(session);
+  if (outdated) {
+    deps.out(outdated);
+    return 1;
+  }
   const matches = findMatches(options.matches);
   if (typeof matches === 'string') {
     deps.out(matches);
@@ -447,6 +474,11 @@ export async function submit(options: SubmitOptions, deps: ClaimsAgentDeps): Pro
   const { root, now } = context(deps);
   const dir = sessionDir(root, options.sessionId);
   const session = readSession(dir, options.sessionId);
+  const outdated = outdatedSession(session);
+  if (outdated) {
+    deps.out(outdated);
+    return 1;
+  }
   if (!dueUnits(session).length) {
     deps.out('Every unit of this session has a saved verdict; there is nothing to submit.');
     return 0;

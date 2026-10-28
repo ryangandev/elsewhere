@@ -39,15 +39,51 @@ const RESOLVER_HOSTS = new Set([
 ]);
 
 /**
- * The site a host belongs to, as far as a redirect is concerned: its last two labels, or three
- * under a country code with a short second level ("knbs.or.ke", "ons.gov.uk", "bbc.co.uk"), so
- * "www.ons.gov.uk" and "data.ons.gov.uk" are one site and "pilates.example" another.
+ * Second-level labels that country code registries use as public suffixes ("gov.uk", "co.ke",
+ * "gob.mx"), so the site is the label before them. Any other label under a country code is the
+ * site itself ("ine.es", "bcn.cl", "cbs.nl"), whatever its length.
+ */
+const SECOND_LEVEL_SUFFIXES = new Set([
+  'ac',
+  'co',
+  'com',
+  'edu',
+  'go',
+  'gob',
+  'gouv',
+  'gov',
+  'govt',
+  'gub',
+  'gv',
+  'info',
+  'int',
+  'ltd',
+  'mil',
+  'ne',
+  'net',
+  'nic',
+  'nom',
+  'or',
+  'org',
+  'plc',
+  'sch',
+]);
+
+/**
+ * The site a host belongs to, as far as a redirect is concerned: its last two labels without a
+ * leading "www.", or three under a country code whose second level is a registry suffix
+ * ("knbs.or.ke", "ons.gov.uk", "bbc.co.uk"). So "www.ons.gov.uk" and "data.ons.gov.uk" are one
+ * site, "ine.es" and "www.ine.es" one, and "pilates.example" another.
  */
 export function siteOf(hostname: string): string {
-  const labels = hostname.toLowerCase().replace(/\.$/, '').split('.');
+  const labels = hostname
+    .toLowerCase()
+    .replace(/\.$/, '')
+    .replace(/^www\./, '')
+    .split('.');
   if (labels.length <= 2) return labels.join('.');
   const [second, top] = labels.slice(-2);
-  const keep = top.length === 2 && second.length <= 3 ? 3 : 2;
+  const keep = top.length === 2 && SECOND_LEVEL_SUFFIXES.has(second) ? 3 : 2;
   return labels.slice(-keep).join('.');
 }
 

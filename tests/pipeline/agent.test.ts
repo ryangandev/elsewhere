@@ -18,6 +18,7 @@ import {
   MIN_PAGE_CHARACTERS,
   notTheRequestedPage,
   redirectKind,
+  siteOf,
   unreadableText,
 } from '../../pipeline/agent/page-check';
 import {
@@ -994,6 +995,51 @@ describe('pages that are not the requested page', () => {
     }
   });
 
+  it('tells sites apart by their registrable name', () => {
+    // One site: a leading www, or another host under a registry's second level.
+    for (const [a, b] of [
+      ['ine.es', 'www.ine.es'],
+      ['www.bcn.cl', 'bcn.cl'],
+      ['www.cbs.nl', 'longreads.cbs.nl'],
+      ['www.ons.gov.uk', 'data.ons.gov.uk'],
+      ['www.knbs.or.ke', 'knbs.or.ke'],
+      ['www.nation.co.ke', 'epaper.nation.co.ke'],
+      ['www.inegi.org.mx', 'inegi.org.mx'],
+      ['www.inegi.gob.mx', 'inegi.gob.mx'],
+      ['www.gov.uk', 'gov.uk'],
+    ]) {
+      expect(siteOf(a), `${a} and ${b}`).toBe(siteOf(b));
+    }
+    expect(siteOf('www.ine.es')).toBe('ine.es');
+    expect(siteOf('data.ons.gov.uk')).toBe('ons.gov.uk');
+    expect(siteOf('epaper.nation.co.ke')).toBe('nation.co.ke');
+    expect(siteOf('www.inegi.gob.mx')).toBe('inegi.gob.mx');
+    expect(siteOf('www.gov.uk')).toBe('gov.uk');
+    // Different sites, under a registry's second level or not.
+    for (const [a, b] of [
+      ['www.ons.gov.uk', 'www.gchq.gov.uk'],
+      ['www.ons.gov.uk', 'www.gov.uk'],
+      ['www.gob.mx', 'datos.gob.mx'],
+      ['knbs.or.ke', 'kippra.or.ke'],
+      ['ine.es', 'bde.es'],
+      ['www.commonwealthgovernance.org', 'www.pilates-studio.example'],
+    ]) {
+      expect(siteOf(a), `${a} and ${b}`).not.toBe(siteOf(b));
+    }
+    // A redirect between hosts of one site is the page asked for.
+    const check = (requestedUrl: string, finalUrl: string) =>
+      notTheRequestedPage({ requestedUrl, finalUrl, text: 'x'.repeat(5000) });
+    expect(
+      check('https://ine.es/dyngs/INEbase/x.htm', 'https://www.ine.es/dyngs/INEbase/x.htm'),
+    ).toBeUndefined();
+    expect(
+      check('https://www.bcn.cl/leychile/navegar?id=1', 'https://bcn.cl/leychile/navegar?id=1'),
+    ).toBeUndefined();
+    expect(
+      check('https://www.cbs.nl/en-gb/longread/x', 'https://longreads.cbs.nl/x'),
+    ).toBeUndefined();
+  });
+
   it('tells what a redirect means for the URL to cite', () => {
     const kind = (requestedUrl: string, finalUrl: string, contentType = 'text/html') =>
       redirectKind({ requestedUrl, finalUrl, contentType, text: 'Text.' });
@@ -1691,6 +1737,97 @@ describe('agent revision session', () => {
     },
     SUBMIT_TIMEOUT_MS,
   );
+
+  it(
+    'refuses parts submitted as drafted, since they address none of the notes',
+    async () => {
+      const { deps, output, sendBack, sendOverviewBack, reviseStart, readCited, editDraft } =
+        overviewSetup();
+      sendOverviewBack();
+      sendBack();
+      expect(reviseStart()).toBe(0);
+      await readCited();
+      output();
+      // The starting draft holds both parts as drafted.
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      let printed = output();
+      expect(printed).toContain(
+        "country: the country part is the same as drafted, so the editor's notes on the overview are not addressed; revise it as the notes ask",
+      );
+      expect(printed).toContain(
+        `stories[0]: "andes" is the same as drafted, so the editor's notes on it are not addressed; revise it as the notes ask`,
+      );
+      // Reordering the sources changes nothing that the notes are about.
+      editDraft((draft) => {
+        draft.country!.overview.summary = 'Revised fixture overview that names every neighbour.';
+        draft.sources.reverse();
+      });
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(1);
+      printed = output();
+      expect(printed).not.toContain('the country part is the same as drafted');
+      expect(printed).toContain('"andes" is the same as drafted');
+      editDraft((draft) => {
+        draft.stories[0].summary = REVISED_SUMMARY;
+      });
+      expect(submit({ countryId: 'CHL' }, deps)).toBe(0);
+    },
+    SUBMIT_TIMEOUT_MS,
+  );
+
+  it('points start without --revisions to a revision when only parts are sent back', () => {
+    const { contentDir, deps, output, sendBack, sendOverviewBack } = overviewSetup();
+    const draftingStart = () =>
+      start(
+        {
+          countryId: 'CHL',
+          contentDir,
+          model: DEFAULT_MODEL,
+          date: RUN_DATE,
+          regenerate: false,
+          fresh: false,
+        },
+        deps,
+      );
+    const file = countryFilePath(contentDir, 'chile');
+    sendOverviewBack();
+    expect(draftingStart()).toBe(1);
+    expect(output()).toBe(
+      `${file} is a draft. Review sent back the overview, not the whole country; redraft it in place with: npm run content:agent -- start CHL --revisions`,
+    );
+    sendBack();
+    expect(draftingStart()).toBe(1);
+    expect(output()).toBe(
+      `${file} is a draft. Review sent back the overview and the story "andes", not the whole country; redraft them in place with: npm run content:agent -- start CHL --revisions`,
+    );
+  });
+
+  it('refuses to continue a revision session started on prompts older than agent-v3', () => {
+    const { contentDir, dir, deps, output, sendBack, reviseStart } = revisionSetup();
+    sendBack();
+    expect(reviseStart()).toBe(0);
+    // An unfinished session as agent-v2 started it.
+    writeSession(dir, { ...readSession(dir, 'CHL'), promptVersion: 'agent-v2' });
+    output();
+    expect(reviseStart()).toBe(1);
+    expect(output()).toContain(
+      `The unfinished revision session for Chile in ${dir} started on the agent-v2 prompts, and its brief can no longer be rebuilt as that version wrote it: it would show the parts and describe the fetch command as agent-v3 does. Discard it and start again with: npm run content:agent -- start CHL --revisions --fresh`,
+    );
+    expect(
+      start(
+        {
+          countryId: 'CHL',
+          contentDir,
+          model: DEFAULT_MODEL,
+          date: RUN_DATE,
+          regenerate: false,
+          fresh: true,
+          revisions: true,
+        },
+        deps,
+      ),
+    ).toBe(0);
+    expect(readSession(dir, 'CHL').promptVersion).toBe(CURRENT_AGENT_PROMPT_VERSION);
+  });
 
   it(
     'revises the overview and a story together, written together or not at all',

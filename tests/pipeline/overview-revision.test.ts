@@ -5,16 +5,22 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CountryFile } from '../../src/content/schema';
 import { defaultClaimsDir, readClaims } from '../../pipeline/claims/store';
+import { BATCH_CUSTOM_ID, DEFAULT_CONTENT_DIR } from '../../pipeline/config';
 import {
   countryFilePath,
   parsedCountryFiles,
   readCountryFile,
   writeCountryFile,
 } from '../../pipeline/content-tree';
-import { assembleCountry, toDraftCountry, toDraftSources } from '../../pipeline/generate/assemble';
+import {
+  assembleCountry,
+  toDraftCountry,
+  toDraftSources,
+  toDraftStory,
+} from '../../pipeline/generate/assemble';
 import { CountryDraft } from '../../pipeline/generate/draft-schema';
-import { ReplayClient } from '../../pipeline/generate/model-client';
-import { generate } from '../../pipeline/generate/run';
+import { ReplayClient, type ModelClient } from '../../pipeline/generate/model-client';
+import { generate, jobTag, type Job } from '../../pipeline/generate/run';
 import { checkRevisions } from '../../pipeline/generate/tasks';
 import { approve, requestRevision, ReviewError } from '../../pipeline/review/actions';
 import { countrySummary, listing } from '../../pipeline/review/summary';
@@ -155,6 +161,119 @@ describe('sending the overview back alone', () => {
 });
 
 describe('the API redraft of an overview', () => {
+  it('tags every job with a valid batch custom ID that no other job shares', () => {
+    const jobs: Job[] = [];
+    for (const file of [
+      ...parsedCountryFiles(DEFAULT_CONTENT_DIR).values(),
+      readCountryFile(chileTree().contentDir, 'chile')!,
+    ]) {
+      const countryId = file.country.id;
+      jobs.push({ kind: 'country', countryId }, { kind: 'overview', countryId });
+      for (const story of file.stories) jobs.push({ kind: 'story', countryId, storyId: story.id });
+    }
+    // The longest IDs the schema allows in a tag's place.
+    jobs.push({ kind: 'story', countryId: 'XXX', storyId: 'a'.repeat(60) });
+    const tags = jobs.map(jobTag);
+    expect(tags).toContain('CHL_overview');
+    for (const tag of tags) expect(tag, tag).toMatch(BATCH_CUSTOM_ID);
+    expect(new Set(tags).size).toBe(tags.length);
+    // A story tag joins the country and story IDs with "-", and neither ID has an underscore.
+    expect(
+      tags.filter((tag) => tag.includes('_')).every((tag) => /^[A-Z]{3}_overview$/.test(tag)),
+    ).toBe(true);
+  });
+
+  it(
+    'redrafts an overview in batch mode',
+    async () => {
+      const { contentDir, review, file } = chileTree();
+      requestRevision({ ...review, country: 'CHL', overview: true, notes: NOTES });
+      const run = await generate({
+        client: new ReplayClient(REPLAY_DIR),
+        context: runContext(contentDir),
+        jobs: [{ kind: 'overview', countryId: 'CHL' }],
+        mode: 'batch',
+        regenerate: false,
+        force: false,
+        resume: false,
+        log: () => {},
+        cacheDir: tempDir(),
+      });
+      expect(run.results).toMatchObject([{ tag: 'CHL_overview', outcome: 'written' }]);
+      expect(JSON.parse(readFileSync(file, 'utf8')).country.overview.summary).toBe(
+        revisedOverview().country.overview.summary,
+      );
+    },
+    REDRAFT_TIMEOUT_MS,
+  );
+
+  it(
+    'does not write a redraft whose request changed or widened during the run',
+    async () => {
+      const cases: { change: (contentDir: string) => void; reason: string }[] = [
+        {
+          change: (contentDir) =>
+            requestRevision({
+              contentDir,
+              country: 'CHL',
+              overview: true,
+              notes: 'Shorter, please.',
+              by: 'Tester',
+              date: RUN_DATE,
+            }),
+          reason: 'the overview of CHL was sent back again with other notes',
+        },
+        {
+          change: (contentDir) =>
+            requestRevision({
+              contentDir,
+              country: 'CHL',
+              notes: 'Start over.',
+              by: 'Tester',
+              date: RUN_DATE,
+            }),
+          reason: 'the whole of CHL is sent back now, not only its overview',
+        },
+      ];
+      for (const { change, reason } of cases) {
+        const { contentDir, review, file } = chileTree();
+        requestRevision({ ...review, country: 'CHL', overview: true, notes: NOTES });
+        const replay = new ReplayClient(REPLAY_DIR);
+        // The editor changes the request while the conversation runs.
+        const client: ModelClient = {
+          description: replay.description,
+          create: async (request) => {
+            change(contentDir);
+            return replay.create(request);
+          },
+          runBatch: (requests, options) => replay.runBatch(requests, options),
+        };
+        const before = readFileSync(file, 'utf8');
+        const run = await generate({
+          client,
+          context: runContext(contentDir),
+          jobs: [{ kind: 'overview', countryId: 'CHL' }],
+          mode: 'sync',
+          regenerate: false,
+          force: false,
+          resume: false,
+          log: () => {},
+          cacheDir: tempDir(),
+        });
+        expect(run.results).toMatchObject([{ tag: 'CHL_overview', outcome: 'failed' }]);
+        expect(run.results[0].detail).toContain(
+          `${reason} since this job started, so the redraft was not written; run npm run content:generate -- --revisions again for the current request`,
+        );
+        // Only the request changed; the redraft never reached the file.
+        const after = readCountryFile(contentDir, 'chile')!;
+        expect(after.country.overview.summary).toBe(
+          CountryFile.parse(JSON.parse(before)).country.overview.summary,
+        );
+      }
+    },
+    REDRAFT_TIMEOUT_MS,
+  );
+
   it(
     'redrafts the country part in its own conversation and keeps every story byte for byte',
     async () => {
@@ -175,7 +294,7 @@ describe('the API redraft of an overview', () => {
         log: (line) => log.push(line),
         cacheDir: tempDir(),
       });
-      expect(run.results).toMatchObject([{ tag: 'CHL.overview', outcome: 'written' }]);
+      expect(run.results).toMatchObject([{ tag: 'CHL_overview', outcome: 'written' }]);
 
       // The task gives the notes and the country part as drafted, in the submission's shape.
       const prompt = JSON.stringify(client.requests[0]);
@@ -270,5 +389,33 @@ describe('the API redraft of an overview', () => {
       'country: the overview is sent back; revise it and submit the country part',
       'stories[0]: no story is sent back, so leave the stories out',
     ]);
+  });
+
+  it('refuses a part submitted as drafted, whatever its provenance or source order', () => {
+    const { contentDir, review } = chileTree();
+    requestRevision({ ...review, country: 'CHL', overview: true, notes: NOTES });
+    requestRevision({ ...review, country: 'CHL', storyId: 'andes', notes: 'Shorter.' });
+    const existing = readCountryFile(contentDir, 'chile')!;
+    const andes = existing.stories.find((story) => story.id === 'andes')!;
+    const sources = toDraftSources([...existing.country.sources, ...andes.sources]).reverse();
+    const evidence = new Set(sources.map((source) => source.url.replace(/^https:\/\//, '')));
+    const result = checkRevisions(
+      runContext(contentDir),
+      existing,
+      { overview: true, storyIds: ['andes'] },
+      {
+        country: { path: 'country', country: toDraftCountry(existing.country) },
+        stories: [{ path: 'stories[0]', story: toDraftStory(andes) }],
+        sources,
+      },
+      { model: 'claude-opus-5-5', evidence },
+    );
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.issues).toEqual(
+      expect.arrayContaining([
+        "country: the country part is the same as drafted, so the editor's notes on the overview are not addressed; revise it as the notes ask",
+        `stories[0]: "andes" is the same as drafted, so the editor's notes on it are not addressed; revise it as the notes ask`,
+      ]),
+    );
   });
 });

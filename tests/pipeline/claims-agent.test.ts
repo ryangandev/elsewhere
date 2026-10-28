@@ -24,6 +24,7 @@ import {
   sessionDir,
   submissionsDir,
   verdictFile,
+  writeSession,
 } from '../../pipeline/claims-agent/session';
 import { SERVER_ERROR_RETRIES_MS } from '../../pipeline/agent/reading';
 import { findPageRecord } from '../../pipeline/agent/session';
@@ -769,6 +770,32 @@ describe('agent claim check submissions', () => {
     expect(await submit({ sessionId: 'CHL-length', dryRun: true }, deps(live.stub))).toBe(1);
     expect(existsSync(claimsFilePath(claimsDir, 'chile'))).toBe(false);
     expect(readFileSync(join(dir, 'session.json'), 'utf8')).toBe(before);
+  });
+
+  it('refuses to continue a session started on prompts older than claims-agent-v3', async () => {
+    const { dir, deps, root, startOptions, text } = await lengthSession();
+    // A session as claims-agent-v2 wrote it, whose brief describes --find as listing 20 places.
+    writeSession(dir, { ...readSession(dir, 'CHL-length'), promptVersion: 'claims-agent-v2' });
+    const refusal =
+      'Session CHL-length started on the claims-agent-v2 prompts, whose brief describes the fetch command as it no longer works. Discard it and plan again with: npm run content:claims-agent -- start CHL --fresh';
+    expect(
+      await fetchCommand(
+        { sessionId: 'CHL-length', url: GEOGRAPHY, refresh: false },
+        deps(stubFetch(livePages()).stub),
+      ),
+    ).toBe(1);
+    expect(text()).toBe(refusal);
+    writeVerdicts(dir, [supported('length-section-1', SECTION_ONE)]);
+    expect(await submit({ sessionId: 'CHL-length' }, deps(stubFetch(livePages()).stub))).toBe(1);
+    expect(text()).toBe(refusal);
+    expect(start(startOptions({ storyId: 'length' }), deps())).toBe(1);
+    expect(text()).toContain(
+      'CHL-length started on older prompts, whose brief describes the fetch command as it no longer works, so pass --fresh',
+    );
+    expect(start(startOptions({ storyId: 'length', fresh: true }), deps())).toBe(0);
+    expect(readSession(sessionDir(root, 'CHL-length'), 'CHL-length').promptVersion).toBe(
+      'claims-agent-v3',
+    );
   });
 
   it('refuses a submission once the checked text has changed', async () => {

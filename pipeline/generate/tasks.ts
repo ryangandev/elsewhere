@@ -10,7 +10,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages';
 import { z } from 'zod';
 import type { LandIndex } from '../../src/content/geometry';
-import type { Country, CountryFile, Story } from '../../src/content/schema';
+import type { Country, CountryFile, Source, Story } from '../../src/content/schema';
 import { REFERENCE_COUNTRY_FILE, type Effort, type GenerationLimits } from '../config';
 import { parsedCountryFiles, requireMapCountry } from '../content-tree';
 import { render, type PromptSet } from '../prompts';
@@ -567,12 +567,55 @@ export function checkRevisions(
   const problems = issues.filter(
     (issue) => ![...clashing].some((start) => issue.startsWith(`sources: ${start}`)),
   );
+  // A part that comes back as it was drafted answers none of the editor's notes. Provenance,
+  // paraphrases and when each source was read are not part of what the notes are about.
+  if (
+    submission.country &&
+    sameAsDrafted(
+      { country: toDraftCountry(file.country), sources: file.country.sources },
+      { country: toDraftCountry(existing.country), sources: existing.country.sources },
+    )
+  ) {
+    problems.push(
+      `${submission.country.path}: the country part is the same as drafted, so the editor's notes on the overview are not addressed; revise it as the notes ask`,
+    );
+  }
+  for (const { path, story } of submission.stories) {
+    const revised = file.stories.find((entry) => entry.id === story.id)!;
+    const drafted = existing.stories.find((entry) => entry.id === story.id)!;
+    if (
+      sameAsDrafted(
+        { story: toDraftStory(revised), sources: revised.sources },
+        { story: toDraftStory(drafted), sources: drafted.sources },
+      )
+    ) {
+      problems.push(
+        `${path}: "${story.id}" is the same as drafted, so the editor's notes on it are not addressed; revise it as the notes ask`,
+      );
+    }
+  }
   for (const { source, other } of clashes) {
     problems.push(
       `sources: "${source.id}" is declared by ${other.where} with ${other.url}, which this revision does not change, and this submission declares it with ${source.url}. Cite ${other.url} here (read it in this task first), or give the other URL its own source ID; to correct the URL everywhere, say so in your report, so the editor sends ${other.where} back too and both are revised together.`,
     );
   }
   return problems.length ? { ok: false, issues: [...new Set(problems)] } : { ok: true, file };
+}
+
+/**
+ * Whether a revised part says the same as the part as drafted: the same text and scene in the
+ * draft shape, and the same sources in any order, whenever each was read.
+ */
+function sameAsDrafted<Part extends object>(
+  revised: Part & { sources: Source[] },
+  drafted: Part & { sources: Source[] },
+): boolean {
+  const shape = ({ sources, ...part }: Part & { sources: Source[] }) =>
+    JSON.stringify({
+      ...part,
+      sources: toDraftSources(sources).sort((a, b) => a.id.localeCompare(b.id)),
+    });
+  return shape(revised) === shape(drafted);
 }
 
 /** Redraft one story that review sent back, following the reviewer's notes. */
@@ -667,7 +710,9 @@ export function overviewSession(context: RunContext, existing: CountryFile): Ses
 }
 
 /**
- * The tag of an overview revision job: its recording directory and batch custom ID. A dot never
- * appears in a story ID, so it cannot meet a story revision's tag.
+ * The tag of an overview revision job: its recording directory and batch custom ID, which the
+ * Batches API limits to letters, digits, "_" and "-" (BATCH_CUSTOM_ID in pipeline/config.ts). A
+ * story revision's tag is the country ID, "-" and the story ID, and neither ID has an underscore,
+ * so the two never meet.
  */
-export const overviewJobTag = (countryId: string) => `${countryId}.overview`;
+export const overviewJobTag = (countryId: string) => `${countryId}_overview`;

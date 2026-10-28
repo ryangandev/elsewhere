@@ -107,6 +107,18 @@ export function loadAgentRevisionPrompts(
   };
 }
 
+/** The number of a prompt version on its line: 2 for "agent-v2", 3 for "claims-agent-v3". */
+export const promptVersionNumber = (version: string) =>
+  Number(/-v(\d+)$/.exec(version)?.[1] ?? /^v(\d+)$/.exec(version)?.[1] ?? 0);
+
+/**
+ * The oldest prompt version an unfinished agent revision session may continue on. The revision
+ * brief of an agent-v3 session shows each part in the submission's shape, lists the sources its
+ * last claim check could not read, and describes the fetch command as it works now; rebuilding
+ * the brief of an older session would give text that differs from what its version recorded.
+ */
+export const MIN_AGENT_REVISION_PROMPT_VERSION = 'agent-v3';
+
 export const CURRENT_CLAIMS_PROMPT_VERSION = 'claims-v1';
 
 const CLAIMS_NAMES = ['system', 'task', 'repair', 'nudge'] as const;
@@ -134,6 +146,13 @@ export function loadClaimsPrompts(
  * takes several terms, and where a page's main text starts.
  */
 export const CURRENT_CLAIMS_AGENT_PROMPT_VERSION = 'claims-agent-v3';
+
+/**
+ * The oldest prompt version an unfinished agent claim check session may continue on: earlier
+ * briefs describe the fetch command as it no longer works (--find listing 20 places at a time,
+ * printing from the start of a page, no footnote section in a PDF's text).
+ */
+export const MIN_CLAIMS_AGENT_PROMPT_VERSION = 'claims-agent-v3';
 
 const CLAIMS_AGENT_NAMES = ['system', 'task', 'repair'] as const;
 export type ClaimsAgentPromptSet = { version: string } & Record<

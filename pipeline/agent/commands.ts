@@ -11,6 +11,8 @@ import type { CountryFile } from '../../src/content/schema';
 import { findPendingReferences } from '../../src/content/validate';
 import {
   CURRENT_AGENT_PROMPT_VERSION,
+  MIN_AGENT_REVISION_PROMPT_VERSION,
+  promptVersionNumber,
   loadAgentPrompts,
   loadAgentRevisionPrompts,
 } from '../prompts';
@@ -118,10 +120,34 @@ function conflictMessage(
   conflict: 'reviewed' | 'draft',
   contentDir: string,
   country: { id: string; slug: string },
+  existing: CountryFile | undefined,
 ): string {
   const file = countryFilePath(contentDir, country.slug);
-  return conflict === 'reviewed'
-    ? `${file} contains reviewed content, which agent drafting never replaces; send it back with content:review revise first.`
+  // Review may have sent back the overview or stories, which a revision session redrafts in place.
+  const sentBack: SentBack = {
+    overview: existing !== undefined && overviewRevision(existing) !== undefined,
+    storyIds: (existing?.stories ?? []).flatMap((story) =>
+      story.provenance.revision ? [story.id] : [],
+    ),
+  };
+  const { storyIds } = sentBack;
+  const stories = storyIds.length
+    ? `the ${storyIds.length === 1 ? 'story' : 'stories'} ${quoted(storyIds)}`
+    : '';
+  const parts = sentBack.overview
+    ? stories
+      ? `the overview and ${stories}`
+      : 'the overview'
+    : stories;
+  const count = storyIds.length + (sentBack.overview ? 1 : 0);
+  const revise = parts
+    ? `Review sent back ${parts}, not the whole country; redraft ${count === 1 ? 'it' : 'them'} in place with: ${command(`start ${country.id} --revisions`)}`
+    : undefined;
+  if (conflict === 'reviewed') {
+    return `${file} contains reviewed content, which agent drafting never replaces. ${revise ?? 'Send it back with content:review revise first.'}`;
+  }
+  return revise
+    ? `${file} is a draft. ${revise}`
     : `${file} is a draft nobody sent back. To replace it, start again with: ${command(`start ${country.id} --fresh --regenerate`)}`;
 }
 
@@ -152,7 +178,7 @@ export function start(options: StartOptions, deps: AgentDeps): number {
   const existing = readCountryFile(options.contentDir, country.slug);
   const conflict = replaceConflict(existing, { regenerate: options.regenerate, force: false });
   if (conflict) {
-    deps.out(conflictMessage(conflict, options.contentDir, country));
+    deps.out(conflictMessage(conflict, options.contentDir, country, existing));
     return 1;
   }
   if (options.fresh) rmSync(dir, { recursive: true, force: true });
@@ -275,6 +301,16 @@ function startRevisions(options: StartOptions, deps: AgentDeps): number {
   if (previous?.written) {
     deps.out(`Moved the finished session to ${archiveSession(root, previous)}.`);
     previous = undefined;
+  }
+  if (
+    previous &&
+    promptVersionNumber(previous.promptVersion) <
+      promptVersionNumber(MIN_AGENT_REVISION_PROMPT_VERSION)
+  ) {
+    deps.out(
+      `The unfinished revision session for ${country.name} in ${dir} started on the ${previous.promptVersion} prompts, and its brief can no longer be rebuilt as that version wrote it: it would show the parts and describe the fetch command as ${MIN_AGENT_REVISION_PROMPT_VERSION} does. Discard it and start again with: ${command(`start ${country.id} --revisions --fresh`)}`,
+    );
+    return 1;
   }
 
   const revisions = existing.stories.flatMap((story) =>
@@ -581,7 +617,7 @@ export function submit(options: SubmitOptions, deps: AgentDeps): number {
   } else {
     const conflict = replaceConflict(existing, { regenerate: session.regenerate, force: false });
     if (conflict) {
-      deps.out(conflictMessage(conflict, session.contentDir, country));
+      deps.out(conflictMessage(conflict, session.contentDir, country, existing));
       return 1;
     }
   }

@@ -4,7 +4,7 @@
 // appears in a web search result of the same conversation, as the pipeline requires.
 // The claims-CHL fixture checks the drafted Chile overview and its "length" story against their
 // sources in one conversation: pages fetched with web_fetch (or fetch_page when web_fetch fails),
-// then verdicts through submit_verdicts. The CHL.overview fixture redrafts the Chile country part
+// then verdicts through submit_verdicts. The CHL_overview fixture redrafts the Chile country part
 // that review sent back alone, citing a new page for one item.
 //
 //   node --import tsx tests/pipeline/fixtures/build-replay.ts
@@ -593,7 +593,7 @@ export function replayFixtures(): Record<string, unknown[]> {
       }),
     ],
     // Last, so the IDs of the fixtures above stay as they were.
-    'CHL.overview': [
+    CHL_overview: [
       message(
         [
           ...webSearch('fixture chile overview revision', [

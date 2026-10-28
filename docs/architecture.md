@@ -333,8 +333,10 @@ Coverage grows in batches: a pilot batch to tune prompts and the review bar, the
    `list` shows what each country has sent back (the whole country or the overview, and how many stories), `show` says whether a country's request is for the whole country or the overview alone, and `approve` refuses while either waits.
    There are two ways to redraft what is sent back.
    `content:generate -- --revisions` redrafts everything sent back through the API: a story keeps its ID and the rest of the file, with the notes and the old story in the prompt.
-   An overview sent back alone is its own conversation, tagged `<country>.overview`, with the `revise-overview` task: the notes, the country part as drafted in the submission's shape (`{ country, sources }`), and the country's stories, whose IDs its starter questions may use.
+   An overview sent back alone is its own conversation, tagged `<country>_overview` (a tag is a batch custom ID, which allows only letters, digits, `_` and `-`, and no country or story ID has an underscore, so it never meets a story's `<country>-<story>`), with the `revise-overview` task: the notes, the country part as drafted in the submission's shape (`{ country, sources }`), and the country's stories, whose IDs its starter questions may use.
    It submits through `submit_overview`, is checked by `checkRevisions` in `pipeline/generate/tasks.ts` (the function agent revision sessions use too), and the write reads the file again and replaces only the country part, so every story stays byte for byte as it was.
+   Each revision job records the request it answers when it starts (saved with the job in a batch run), and its redraft is written only while the file still has that exact request: one sent back again with other notes, widened from the overview to the whole country, or withdrawn fails the job with that reason and leaves the file as it is.
+   A revised part that says the same as the part as drafted (ignoring provenance, paraphrases, the order of sources and when they were read) is refused, since it addresses none of the notes.
    Each API conversation is checked against the file as it was when the run started, so an overview and a story of one country redrafted in the same run are each checked alone, and `content:verify` checks the merged file.
    For the same reason the API path cannot move a source ID that the overview and a story share to a corrected URL; an agent revision session that revises both parts can.
    v3 gained `revise-overview.md` without a new version: a template only overview revisions use changes no text a recorded v3 draft was made from.
@@ -492,7 +494,7 @@ npm run content:agent -- status CHL
   A failed fetch is only a note: it is never evidence, and a cited page still needs a stored record.
   Some URLs answer 200 with a page that is not the one requested, such as a script stub or a redirect to a login page, a site's home page or another site.
   A page is flagged when its text is under 300 characters (the stub that prompted the check was 209, and a login form is about 100 to 250, while a page worth citing has thousands and even a short government notice with its navigation reaches 400 or more), when it redirected to a site's home page (`/`, `/index.html` or a language root such as `/en`) from a deeper path, when it redirected to a login, sign-in, single sign-on or consent path or host (`/user/sign-in`, `idp.nature.com`) from a page that is not one, or when it redirected to another site.
-  A site is a host's last two labels, or three under a country code with a short second level, so `data.ons.gov.uk` and `www.ons.gov.uk` are one site; a redirect from a DOI or handle resolver (`doi.org`, `hdl.handle.net` and a few others) to the publisher is expected and not flagged.
+  A site is a host's last two labels after any leading `www.`, or three under a country code whose second level is a registry suffix (`gov`, `co`, `gob`, `or`, `org`, `ac` and similar), so `data.ons.gov.uk` and `www.ons.gov.uk` are one site, and so are `ine.es` and `www.ine.es` or `www.cbs.nl` and `longreads.cbs.nl`; a redirect from a DOI or handle resolver (`doi.org`, `hdl.handle.net` and a few others) to the publisher is expected and not flagged.
   The cross-site rule came from a Kenya draft whose Commonwealth governance URL redirected to a pilates studio; a page that really moved to another site is fetched and cited by its new URL, which then has no redirect.
   `fetch` prints a warning for a flagged page but still stores it, `status` marks it as not citable, and `submit` rejects a source that cites it with the reason.
   The flag is computed from the stored record each time, never saved, so the warning and the rejection agree (`pipeline/agent/page-check.ts`).
@@ -531,6 +533,7 @@ It is a mode of `start` rather than a command of its own because everything afte
   A finished session there (a drafting session that wrote the country, or an earlier revision) is moved to `pipeline/.cache/agent/finished/<country>-<time it was written>/`, keeping its evidence and submissions for audit while the new session starts with no evidence.
   An unfinished drafting session is left alone and `start --revisions` refuses until it is finished or discarded with `--fresh`; `start` without the flag likewise refuses while an unfinished revision session is there.
   Running `start --revisions` again continues an unfinished revision session with its evidence and prompt version, and rebuilds the brief from what is sent back now.
+  It refuses to continue a session that started on prompts older than agent-v3 (`MIN_AGENT_REVISION_PROMPT_VERSION`) and points to `--fresh`: the rebuilt brief would show the parts and describe the fetch command as agent-v3 does while the session records the older version.
 - `session.json` records the overview's revision request when the overview is sent back, and the stories and their requests (notes, who and when).
   The brief is the shared system prompt, reference example, gazetteer and link targets of every brief, then the revision task: `revise-story.md` for stories alone, or `revise-overview.md` when the overview is sent back, with or without stories.
   For each part it gives what the API path's revision tasks give: the editor's notes and the part as drafted (a story without its paraphrases and the request), in the submission's shape, `{ country, sources }` or `{ story, sources }`, so it can be copied as the starting draft.
@@ -544,6 +547,7 @@ It is a mode of `start` rather than a command of its own because everything afte
   A source ID means one URL in a file, so a revised part that reuses an ID a kept part declares with another URL is refused with both places and both URLs, and told to keep the file's URL or give its source its own ID; when the overview and the story that share an ID are revised together, both may switch it to a corrected URL.
   A revised source whose URL this session read as the same page as the kept part's (one redirected to the other on the same host) keeps the file's URL instead of being refused.
   It refuses, without recording a submission, when a part's revision request changed since `start` (it was redrafted another way, sent back with new notes, the overview was sent back after `start`, or the whole country is sent back now), so the subagent never answers notes the editor replaced.
+  Like the API path, it refuses a part that says the same as drafted, which the starting `draft.json` does until it is edited.
 - A passing submission is written by the same writer as the API path: the file is read again, only the revised parts change, in their places, and the rest of the file is byte for byte as it was.
   Each revised part gets new provenance as on the API path, which clears its revision request: `generatedBy` is the session's model, `promptVersion` the session's (`agent-v3`), status `draft`.
   Like an API revision, a revised story has no paraphrases, so `content:paraphrase -- <country>` writes them again.
@@ -553,7 +557,7 @@ It is a mode of `start` rather than a command of its own because everything afte
 agent-v2 gained `revise-story.md` with revision sessions, and agent-v3 has `revise-overview.md` from the start.
 Adding a template that only revision sessions use changes no text that a drafting brief or a recorded draft was made from, so revise-story did not need a new version: every agent-v2 drafting brief renders as before, and a revision records `agent-v2` with the exact text that produced it.
 agent-v1 has no revision template, and a revision session always starts on the current version.
-An unfinished agent-v2 revision session cannot take an overview sent back after it started, since agent-v2 has no revise-overview template; `start --revisions --fresh` starts it again on agent-v3.
+`start` without `--revisions` on a country whose overview or stories alone are sent back says what is sent back and points to `start --revisions`.
 
 ### Agent claim check
 
@@ -575,6 +579,7 @@ npm run content:claims-agent -- status <session or country>
   It packs them into sessions of at most `--sources-per-session` cited sources (10 by default), exactly as the API path packs conversations, and creates them all at once, one directory each in `pipeline/.cache/claims-agent/<session>/`, named like `CHL`, `CHL-length` or `CHL-part2`.
   Planning every part from one reading of the claims file is what keeps parts apart: if each subagent planned its own part, a result saved in between would shift the packing.
   It refuses while an unfinished session of the country holds a unit it would hand out; such a session can be continued by another subagent, or discarded with `--fresh`.
+  A session that started on prompts older than claims-agent-v3 (`MIN_CLAIMS_AGENT_PROMPT_VERSION`) cannot be continued, because its brief describes the fetch command as it no longer works: `fetch` and `submit` refuse it, and `start` asks for `--fresh`.
   Each session has `session.json` (the units by ID and key, the sources, model, effort, prompt version, fetches and submissions) and `brief.md`.
   The brief is the claims-agent-v3 system prompt and task, rendered from the same values as the API task (`claimsTaskValues` in `pipeline/claims/session.ts`), followed by the commands and the JSON Schema of the verdict file, which is the schema of the API path's `submit_verdicts` tool.
   Its prompts are their own version line, `pipeline/prompts/claims-agent-v<n>/`: claims-agent-v1 is claims-v1 with the reading and submission instructions rewritten for these commands, and every judging rule unchanged (a test compares the two from `# Verdicts` on).

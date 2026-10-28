@@ -7,6 +7,7 @@ import type {
   BetaMessage,
   MessageCreateParamsNonStreaming,
 } from '@anthropic-ai/sdk/resources/beta/messages';
+import { BATCH_CUSTOM_ID } from '../config';
 import { writeJson } from '../content-tree';
 
 /** One Messages API request, without streaming or batch-only options. */
@@ -36,6 +37,16 @@ export interface ModelClient {
   create(request: TaggedRequest): Promise<BetaMessage>;
   /** Run requests through the Message Batches API; results keyed by tag. */
   runBatch(requests: TaggedRequest[], options?: BatchOptions): Promise<Map<string, BatchOutcome>>;
+}
+
+/** Refuse tags the Batches API would reject as custom IDs, before anything is sent. */
+export function checkBatchTags(requests: TaggedRequest[]): void {
+  const invalid = requests.filter(({ tag }) => !BATCH_CUSTOM_ID.test(tag)).map(({ tag }) => tag);
+  if (invalid.length) {
+    throw new Error(
+      `Batch custom IDs must match ${BATCH_CUSTOM_ID}; these tags do not: ${invalid.join(', ')}`,
+    );
+  }
 }
 
 export class MissingApiKeyError extends Error {
@@ -101,6 +112,7 @@ export class AnthropicModelClient implements ModelClient {
   ): Promise<Map<string, BatchOutcome>> {
     let batchId = resumeBatchId;
     if (!batchId) {
+      checkBatchTags(requests);
       const batch = await this.client.beta.messages.batches.create({
         requests: requests.map(({ tag, request }) => ({ custom_id: tag, params: request })),
       });
@@ -211,6 +223,7 @@ export class ReplayClient implements ModelClient {
   }
 
   async runBatch(requests: TaggedRequest[], options?: BatchOptions) {
+    checkBatchTags(requests);
     options?.onSubmitted?.('replay');
     const outcomes = new Map<string, BatchOutcome>();
     for (const request of requests) {

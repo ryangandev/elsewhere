@@ -3,7 +3,9 @@
 // collects the round in flight, then finishes each conversation one request at a time.
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import Anthropic from '@anthropic-ai/sdk';
+import type { CountryFile, RevisionRequest } from '../../src/content/schema';
 import { CACHE_DIR, type Effort } from '../config';
 import {
   readCountryFile,
@@ -27,12 +29,14 @@ import { emptyUsage, formatUsage, sumUsage, type Usage } from './usage';
 
 /**
  * A country drafted whole, one story review sent back, or the country part of a country whose
- * overview review sent back alone.
+ * overview review sent back alone. A revision job records the request it started from when it
+ * starts (`request`), so a request the editor changes or widens during the run is caught before
+ * the redraft is written; a batch run saves it with the job.
  */
 export type Job =
   | { kind: 'country'; countryId: string }
-  | { kind: 'overview'; countryId: string }
-  | { kind: 'story'; countryId: string; storyId: string };
+  | { kind: 'overview'; countryId: string; request?: RevisionRequest }
+  | { kind: 'story'; countryId: string; storyId: string; request?: RevisionRequest };
 
 export const jobTag = (job: Job) =>
   job.kind === 'country'
@@ -106,6 +110,34 @@ function skipReason(job: Job, options: GenerateOptions): string | undefined {
   }
 }
 
+/** The revision request a revision job answers, as the content file has it now. */
+function currentRequest(job: Job, file: CountryFile | undefined): RevisionRequest | undefined {
+  if (!file || job.kind === 'country') return undefined;
+  if (job.kind === 'overview') return file.country.provenance.revision;
+  return file.stories.find((story) => story.id === job.storyId)?.provenance.revision;
+}
+
+/**
+ * Why a finished revision may not be written: the request it answered is no longer the one in
+ * the file. The editor may have sent the part back again with other notes, sent back the whole
+ * country instead of the overview, or withdrawn the request by redrafting it another way.
+ */
+function requestChanged(job: Job, file: CountryFile): string | undefined {
+  if (job.kind === 'country' || !job.request) return undefined;
+  const now = currentRequest(job, file);
+  if (isDeepStrictEqual(now, job.request)) return undefined;
+  const part =
+    job.kind === 'overview'
+      ? `the overview of ${job.countryId}`
+      : `${job.countryId}/${job.storyId}`;
+  const what = !now
+    ? `${part} is no longer sent back`
+    : job.kind === 'overview' && !now.scope
+      ? `the whole of ${job.countryId} is sent back now, not only its overview`
+      : `${part} was sent back again with other notes`;
+  return `${what} since this job started, so the redraft was not written; run npm run content:generate -- --revisions again for the current request`;
+}
+
 function setupFor(job: Job, context: RunContext): SessionSetup {
   const slug = requireMapCountry(job.countryId).slug;
   const existing = readCountryFile(context.contentDir, slug);
@@ -149,30 +181,47 @@ function finish(session: DraftSession, job: Job, options: GenerateOptions): JobR
   if (state.status === 'done') {
     let file = state.file;
     // Re-read the file for a revision: another revision in the same run may have changed it since,
-    // and only the revised part is replaced.
-    if (job.kind === 'story') {
-      const current = readCountryFile(contentDir, file.country.slug)!;
+    // and only the revised part is replaced, and only while the request it answered still stands.
+    const current =
+      job.kind === 'country' ? undefined : readCountryFile(contentDir, file.country.slug)!;
+    const changed = current && requestChanged(job, current);
+    if (changed) return failed(session, options, changed, state.file);
+    if (current && job.kind === 'story') {
       file = replaceStory(
         current,
         file.stories.find((story) => story.id === job.storyId)!,
       );
-    } else if (job.kind === 'overview') {
-      const current = readCountryFile(contentDir, file.country.slug)!;
+    } else if (current && job.kind === 'overview') {
       file = replaceCountryPart(current, file.country);
     }
     const path = writeCountryFile(contentDir, file);
     return { ...base, outcome: 'written', detail: `${path} (${state.model})` };
   }
-  const reason = state.status === 'failed' ? state.reason : 'did not finish';
+  return failed(
+    session,
+    options,
+    state.status === 'failed' ? state.reason : 'did not finish',
+    state.status === 'failed' ? state.lastDraft : undefined,
+  );
+}
+
+/** Record why a session's draft was not written, with its log and last draft for inspection. */
+function failed(
+  session: DraftSession,
+  options: GenerateOptions,
+  reason: string,
+  lastDraft: unknown,
+): JobResult {
   const dir = failedDir(options.cacheDir ?? CACHE_DIR);
   mkdirSync(dir, { recursive: true });
   const failedFile = join(dir, `${session.tag}.json`);
-  writeJson(failedFile, {
-    reason,
-    log: session.log,
-    lastDraft: state.status === 'failed' ? state.lastDraft : undefined,
-  });
-  return { ...base, outcome: 'failed', detail: `${reason} (last draft in ${failedFile})` };
+  writeJson(failedFile, { reason, log: session.log, lastDraft });
+  return {
+    tag: session.tag,
+    usage: session.usage,
+    outcome: 'failed',
+    detail: `${reason} (last draft in ${failedFile})`,
+  };
 }
 
 function report(result: JobResult, options: GenerateOptions): void {
@@ -327,6 +376,14 @@ async function runBatch(jobs: Job[], options: GenerateOptions): Promise<JobResul
   return state.results;
 }
 
+/** A revision job with the request it starts from, read from the content file now. */
+function withRequest(job: Job, options: GenerateOptions): Job {
+  if (job.kind === 'country') return job;
+  const slug = requireMapCountry(job.countryId).slug;
+  const request = currentRequest(job, readCountryFile(options.context.contentDir, slug));
+  return { ...job, request };
+}
+
 export type RunSummary = { results: JobResult[]; usage: Usage };
 
 export async function generate(options: GenerateOptions): Promise<RunSummary> {
@@ -345,7 +402,7 @@ export async function generate(options: GenerateOptions): Promise<RunSummary> {
       report(result, options);
       results.push(result);
     } else {
-      runnable.push(job);
+      runnable.push(withRequest(job, options));
     }
   }
   if (runnable.length || resuming) {
