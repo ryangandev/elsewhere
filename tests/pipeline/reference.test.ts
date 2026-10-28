@@ -45,20 +45,26 @@ describe('the reference example in drafting prompts', () => {
     // The mock is in effect: the live Singapore file reads as reopened and redrafted.
     expect(readFileSync(SINGAPORE, 'utf8')).toContain('An unreviewed redraft.');
 
-    const v3 = sharedSystemText(loadPrompts('v3'));
-    const agentV3 = sharedSystemText(
-      loadAgentPrompts('agent-v3'),
-      'the submission schema in the task',
+    // What the frozen reference protects: the system prompt and the reference example. The shared
+    // gazetteer after them follows data/geo, which changes on its own.
+    const beforeGazetteer = (text: string) => {
+      const end = text.indexOf('\n\n# Shared gazetteer\n\n');
+      expect(end).toBeGreaterThan(0);
+      return text.slice(0, end);
+    };
+    const v3 = beforeGazetteer(sharedSystemText(loadPrompts('v3')));
+    const agentV3 = beforeGazetteer(
+      sharedSystemText(loadAgentPrompts('agent-v3'), 'the submission schema in the task'),
     );
     for (const text of [v3, agentV3]) {
       expect(text).toContain('"status": "reviewed"');
       expect(text).not.toMatch(/An unreviewed redraft|reopened|"revision"/);
     }
-    // The text each version rendered before the reference was frozen; changing it means a new
-    // prompt version.
-    expect(sha256(v3)).toBe('fe4530ba4bf1545c00e28317182d441371dee2a1311cfcc5e3a214f79cdc50db');
+    // The system prompt and reference each version rendered before the reference was frozen;
+    // changing them means a new prompt version.
+    expect(sha256(v3)).toBe('845a469ff6f3190ffa55fb9229637faa3c2222fec0f35d0277bcc3210d469d9b');
     expect(sha256(agentV3)).toBe(
-      '753e3390e4e33b8986fba93342204229a15bb7f3a4e17b982519edc1d60975a1',
+      '879ec747a985d3add10f2c6b2b63d4f563574c54a005bd8f7325f164aaa17972',
     );
   });
 
