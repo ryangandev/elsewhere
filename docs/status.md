@@ -11,7 +11,8 @@ The globe workstream (step 4) replaced the prototype globe with the controller i
 The content workstream (step 3) added the schema, the English edition in `content/en/` (files are discovered, not registered), and the gazetteer with sea passages.
 Pages read only `content/en/` through server-only loaders, hand the shell serializable view models, and the browser loads two build-time indexes instead of content modules.
 URLs use readable slugs; prototype query URLs get permanent redirects from `vercel.json`.
-The content pipeline workstream (step 5) added generation, verification, claim check and review commands in `pipeline/`, agent drafting, which drafts a country in a Claude Code subagent with the same checks, and the agent claim check, which checks claims in a subagent and verifies every quote against a live fetch; no content has been committed from them yet.
+The content pipeline workstream (step 5) added generation, verification, claim check and review commands in `pipeline/`, agent drafting, which drafts a country in a Claude Code subagent with the same checks, and the agent claim check, which checks claims in a subagent and verifies every quote against a live fetch.
+No pipeline content is committed yet: the pilot batch and the redrafted hand-converted countries wait for Ryan's review in the main checkout (see Waiting on Ryan).
 The question-first experience (step 6) made the home a question input with suggested questions from `content/en/home.json`, shared with Cmd K.
 Search also matches paraphrases of each question, written offline by `npm run content:paraphrase`, so a question in a reader's own words finds its story; every story has them.
 Step 7 has started: Playwright e2e tests cover the core loop on desktop and phone, and a visual polish pass covered every surface at 1440, 1024 and 390 pixels wide.
@@ -26,22 +27,19 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
 
 ## Waiting on Ryan
 
-- The pilot batch is ready to run once there is an API key for planning and search phrasings; drafting and claim checks can run in Claude Code subagents instead.
-  See [Content pipeline](architecture.md#content-pipeline).
-  1. Fill in `ANTHROPIC_API_KEY` in `.env.local` at the repository root (a git-ignored copy of `.env.example`); it is never printed.
-  2. Check the country list and reasons in `pipeline/batches/pilot.json`.
-  3. Run `npm run content:generate -- --batch pilot --plan-only`, then read and edit `pipeline/batches/pilot.plan.json` (about $1).
-  4. Run `npm run content:generate -- --batch pilot` (about $9 a country at `max` effort, measured on the pilot, less at the default `high`; add `--mode batch` for roughly half the token cost and a slower run).
-     Or draft without API credit: ask Claude Code to run the `content-drafter` subagent for each country in the batch, which drafts through `npm run content:agent` from the same plan; see [Agent drafting](architecture.md#agent-drafting).
-  5. Run `npm run content:verify`, then check the drafted text against its sources: ask Claude Code to run the `claim-checker` subagent for each country, which checks through `npm run content:claims-agent` and saves only verdicts whose quotes are on the live pages; see [Agent claim check](architecture.md#agent-claim-check).
-     For a large country, run `npm run content:claims-agent -- start <country>` first and give each session it prints to its own subagent.
-     `start <country> --overview` checks only the overview units and `start <country> <story>` only one story; add `--recheck` to check units that already have a result.
-     The API claim check, `npm run content:claims -- --drafts`, is kept as a reserve with the same results (roughly $1 to $3 a country, more when a source is a long PDF).
-  6. Run `npm run content:paraphrase -- --all` to write search phrasings for the new stories (a few cents per country).
-  7. Review each country with `npm run content:review -- show <country>`, followed by `approve` or `revise --notes "..."`, and `npm run content:generate -- --revisions` for what you sent back, or the `content-drafter` subagent with `npm run content:agent -- start <country> --revisions` to redraft a country's sent-back overview and stories without API credit.
+- Review the pilot batch and the redrafted hand-converted countries, which are drafted but not committed.
+  On 2026-10-27 and 28 the 20 pilot countries (109 questions) were drafted with the `content-drafter` subagent, and the ten hand-converted countries were reopened and redrafted the same way (30 questions).
+  Every unit of all 30 countries has a current claim check with nothing flagged, and every story has search phrasings.
+  They sit uncommitted in `content/en/countries/` and `content/en/claims/` of the main checkout, so production still serves the committed hand-converted text.
+  Sources the orchestrator judged borderline are listed in its report to Ryan rather than here.
+  1. Review each country with `npm run content:review -- show <country>`, followed by `approve` (with `--all` for the overview and every story) or `revise --notes "..."`.
+     Redraft what you sent back with the `content-drafter` subagent and `npm run content:agent -- start <country> --revisions`, then claim-check it again with the `claim-checker` subagent.
      `revise <country> --overview --notes "..."` sends back only a country's overview, quick facts, starter questions and scene, keeping its stories.
      Approval needs a current claim check with nothing flagged; after opening a flagged source yourself, `approve --accept-claims "<why>"` records why it is fine.
-     Commit `content/en/claims/` together with the reviewed country files.
+  2. Approve at least one story before committing: with every story a draft, `npm run build` fails because the story route has no pages to generate.
+     `npm run content:check` also fails until three of the home suggestions (SGP/shipping, FRA/overseas, USA/dollar, MYS/electronics) are approved.
+  3. Run `npm run redirects:build`, then commit `vercel.json`, `content/en/countries/` and `content/en/claims/` together.
+  The full process for later batches is in [Content pipeline](architecture.md#content-pipeline), [Agent drafting](architecture.md#agent-drafting) and [Agent claim check](architecture.md#agent-claim-check).
 
 - Deployment: the repository is ready for Vercel; only the project itself is missing.
   The site needs no environment variables: content is generated offline and committed, so the API key never goes to Vercel or CI.
@@ -55,12 +53,8 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
 
 ## Known content pipeline issues
 
-- The claim check flags most of the hand-converted text it has seen (2026-10-26, a scratch copy of `content/en`, nothing changed).
-  Singapore: 12 of 14 units flagged.
-  The "Capital" and "Currency" quick facts cite only `nlb-singapore-history`, which states neither; "housing" in "Build what the world needs" is the one part of that step neither source states; "Move up the value chain" cites an MND written answer whose text only appears with scripts, so it cannot be read; both shipping sections ask more of the MPA page than it says.
-  Japan: 11 of 13 units flagged, including the "Capital" and "Language" quick facts and "The less visible strengths", which the statistics handbook does not state.
-  Most flags are true facts cited to a page that does not say them, so the fix is usually a better source rather than different text.
-  The other eight hand-converted countries have not been checked; run `npm run content:claims -- --all` before they are treated like pipeline-reviewed content.
+- The committed hand-converted text fails the claim check (2026-10-26: Singapore 12 of 14 units flagged, Japan 11 of 13), mostly true facts cited to pages that do not state them.
+  The uncommitted redrafts waiting for review replace it with text whose every unit is supported.
   To fix a hand-converted country, `npm run content:review -- reopen <country> --all --notes "..."` turns its reviewed overview and stories back into drafts sent back for revision (or `reopen <country> <story>` and `--overview` for single parts), and the `content-drafter` subagent redrafts them with `npm run content:agent -- start <country> --revisions`, keeping each story's ID and any wording a fetched source states; see the Review step of [Content pipeline](architecture.md#content-pipeline).
   A reopened overview takes its whole country out of production builds until it is approved again, so reopen a country when its redraft can follow.
   After reopening or approving in a country the prototype had questions in (the commands say so), run `npm run redirects:build` and commit `vercel.json`, so prototype URLs point only at published pages.
