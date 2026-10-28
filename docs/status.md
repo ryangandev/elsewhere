@@ -60,6 +60,8 @@ Product direction and target architecture were settled on 2026-10-26; see [produ
   Japan: 11 of 13 units flagged, including the "Capital" and "Language" quick facts and "The less visible strengths", which the statistics handbook does not state.
   Most flags are true facts cited to a page that does not say them, so the fix is usually a better source rather than different text.
   The other eight hand-converted countries have not been checked; run `npm run content:claims -- --all` before they are treated like pipeline-reviewed content.
+  To fix a hand-converted country, `npm run content:review -- reopen <country> --all --notes "..."` turns its reviewed overview and stories back into drafts sent back for revision (or `reopen <country> <story>` and `--overview` for single parts), and the `content-drafter` subagent redrafts them with `npm run content:agent -- start <country> --revisions`, keeping each story's ID and any wording a fetched source states; see the Review step of [Content pipeline](architecture.md#content-pipeline).
+  A reopened overview takes its whole country out of production builds until it is approved again, so reopen a country when its redraft can follow.
 - Claim check follow-ups:
   `--mode batch` has no `--resume`, so a round in flight is lost when a run stops (results already saved stay, and the next run checks only what is still due).
   The server-side fetch's size cap does not apply to PDFs, so a long statistics PDF costs its full length on every read (Japan's 475k-token handbook is about $2.40 a read); consider a local text extract or a page range for large PDFs.
