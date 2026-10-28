@@ -744,7 +744,7 @@ How a scene is applied:
   Working on unit vectors keeps it right across the antimeridian.
   When a resize changes the globe area's narrower side by a tenth or more, the scene is framed again, unless the reader has moved the camera since; reset then returns to the new view.
   The globe area already sits beside the reading panel, so the fill only has to keep the outermost places and their labels clear of the view's edges and the map note at the bottom.
-  A focused place is reached from the story's own view, its explicit `camera` or else its focus country's view, at three quarters of that altitude and between 0.12 and 0.7.
+  A focused place is reached from the story's own view, its explicit `camera`, else its focus country's view, else home (a scene with no focus country, or one missing from the map data), at three quarters of that altitude and between 0.12 and 0.7.
   The framed view does not enter into it, so a close-up is as close as it was before scenes were framed.
   Reset returns to the scene's view without the focused place.
 - Country names are created once and updated in place.

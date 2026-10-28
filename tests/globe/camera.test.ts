@@ -114,6 +114,22 @@ describe('camera framing', () => {
     expect(sceneTarget(france, countries).altitude).toBeCloseTo(countryAltitude(0.0137) * 0.75);
   });
 
+  it('closes in on a focused place from home when the scene has no camera or focus country', () => {
+    const colombo = place('colombo', 6.93, 79.85);
+    const focused = scene({ places: [colombo], focusPlaceId: 'colombo' });
+    // Home is 1.95 high, and three quarters of that is clamped to 0.7.
+    expect(sceneTarget(focused, countries)).toEqual({
+      lat: colombo.lat,
+      lng: colombo.lng,
+      altitude: 0.7,
+    });
+    // A focus country missing from the map data falls back to home the same way.
+    const unknown = scene({ ...focused, focusCountryId: 'XXX' });
+    expect(sceneTarget(unknown, countries).altitude).toBe(0.7);
+    const home = { lat: 0, lng: 0, altitude: 0.4 };
+    expect(sceneTarget(focused, countries, home).altitude).toBeCloseTo(0.3);
+  });
+
   it('never zooms out when it focuses a place', () => {
     const focused = scene({
       focusCountryId: 'SGP',
