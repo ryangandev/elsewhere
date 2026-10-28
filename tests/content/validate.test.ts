@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { StoryRef, TrailStop } from '../../src/content/schema';
-import { validateContent } from '../../src/content/validate';
+import { validateContent, type ContentIssue } from '../../src/content/validate';
 import {
   HAND_CONVERTED_CONTENT_DIR,
   contentInput,
@@ -9,25 +9,13 @@ import {
   liveContentInput,
 } from './load';
 
-// The only tests here that read content/en. They go red when production content is invalid, and
-// for no other reason: they assert nothing about how many countries it has or what is reviewed.
+// The only test here that reads content/en, and the one live content gate: every rule lives in
+// validateContent, so `npm run content:check` and this test cannot disagree. It goes red when
+// production content is invalid, and for no other reason: it asserts nothing about how many
+// countries it has or what is reviewed. The rules themselves are tested on the fixtures below.
 describe('production content', () => {
   it('passes every schema, integrity, gazetteer and sea-route check', () => {
     expect(validateContent({ ...liveContentInput(), land: landIndex() })).toEqual([]);
-  });
-
-  it('is English only, apart from native country names', () => {
-    const { countryFiles, trails, placeNotes } = liveContentInput();
-    const text = JSON.stringify([countryFiles, trails, placeNotes], (key, value) =>
-      key === 'nativeName' ? undefined : value,
-    );
-    expect(text).not.toMatch(/\p{Script=Han}/u);
-    expect(text).not.toMatch(/"[A-Za-z]*Zh"\s*:/);
-  });
-
-  it('never uses index keys', () => {
-    const { countryFiles, trails } = liveContentInput();
-    expect(JSON.stringify([countryFiles, trails])).not.toMatch(/"[A-Za-z]*(?:Index|Idx)"\s*:/);
   });
 });
 
@@ -41,6 +29,101 @@ describe('fixture content', () => {
   it('keeps the frozen hand-converted tree valid under the current schema and rules', () => {
     const input = contentInput(HAND_CONVERTED_CONTENT_DIR);
     expect(validateContent({ ...input, land: landIndex() })).toEqual([]);
+  });
+});
+
+// A key the schema does not know is also an issue; these tests look at the rule under test only.
+const ruleIssues = (issues: ContentIssue[]) =>
+  issues.filter((issue) => /English only|is an index/.test(issue.message));
+
+describe('English only', () => {
+  /** Validation messages after `edit` changes the Singapore file (and the trails) of the fixture. */
+  function edited(edit: (singapore: Record<string, any>, trails: Record<string, any>[]) => void) {
+    const input = fixtureInput();
+    const trails = structuredClone(input.trails.data) as Record<string, any>[];
+    const countryFiles = input.countryFiles.map((entry) => {
+      if (!entry.file.endsWith('/singapore.json')) return entry;
+      const data = structuredClone(entry.data) as Record<string, any>;
+      edit(data, trails);
+      return { ...entry, data };
+    });
+    return ruleIssues(
+      validateContent({ ...input, countryFiles, trails: { ...input.trails, data: trails } }),
+    );
+  }
+
+  it('allows a country its own name for itself', () => {
+    expect(edited((singapore) => (singapore.country.nativeName = '新加坡')).length).toBe(0);
+  });
+
+  it('flags Chinese text anywhere else, naming where it is', () => {
+    const issues = edited((singapore, trails) => {
+      singapore.stories[0].summary = '新加坡 is rich.';
+      trails[0].description = 'Water 连接 us.';
+    });
+    expect(issues).toEqual([
+      expect.objectContaining({
+        path: 'stories[0].summary',
+        message: 'Content is English only, but this contains Chinese text',
+      }),
+      expect.objectContaining({
+        file: fixtureInput().trails.file,
+        path: '[0].description',
+        message: 'Content is English only, but this contains Chinese text',
+      }),
+    ]);
+  });
+
+  it('flags Chinese place notes', () => {
+    const input = fixtureInput();
+    const [place] = Object.keys(input.placeNotes.data as object);
+    const issues = validateContent({
+      ...input,
+      placeNotes: {
+        ...input.placeNotes,
+        data: { ...(input.placeNotes.data as object), [place]: '海峡' },
+      },
+    });
+    expect(issues).toEqual([expect.objectContaining({ file: input.placeNotes.file, path: place })]);
+  });
+
+  it('flags a Chinese-language field next to an English one', () => {
+    const issues = edited((singapore) => (singapore.stories[0].questionZh = 'Why?'));
+    expect(issues).toEqual([
+      expect.objectContaining({
+        path: 'stories[0].questionZh',
+        message: 'Content is English only, but "questionZh" is a Chinese field',
+      }),
+    ]);
+  });
+});
+
+describe('index keys', () => {
+  it('are flagged anywhere in a country file or a trail, since content refers to IDs', () => {
+    const input = fixtureInput();
+    const trails = structuredClone(input.trails.data) as Record<string, any>[];
+    trails[0].stops[0].topicIndex = 0;
+    const countryFiles = input.countryFiles.map((entry) => {
+      if (!entry.file.endsWith('/singapore.json')) return entry;
+      const data = structuredClone(entry.data) as Record<string, any>;
+      data.stories[0].next[0].storyIdx = 1;
+      return { ...entry, data };
+    });
+    expect(
+      ruleIssues(
+        validateContent({ ...input, countryFiles, trails: { ...input.trails, data: trails } }),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        path: 'stories[0].next[0].storyIdx',
+        message: '"storyIdx" is an index; refer to stories and countries by ID',
+      }),
+      expect.objectContaining({
+        file: input.trails.file,
+        path: '[0].stops[0].topicIndex',
+        message: '"topicIndex" is an index; refer to stories and countries by ID',
+      }),
+    ]);
   });
 });
 
