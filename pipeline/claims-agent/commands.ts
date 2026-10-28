@@ -133,11 +133,6 @@ export type StartOptions = {
 };
 
 /**
- * Create one session per part of the due units and write each brief. Every part is planned at
- * once from one reading of the claims file, so parts never overlap however their subagents
- * finish; a unit an unfinished session still holds is never handed to another one.
- */
-/**
  * The `start` command that plans a session's scope again, from its label ("CHL", "CHL/length",
  * "CHL/overview", with ", part 1 of 2" after a split): a session of one story or of the overview
  * is not restarted with a whole-country `--fresh`, which would set the rest of the country aside.
@@ -162,6 +157,11 @@ function outdatedSession(session: ClaimsAgentSession): string | undefined {
   return `Session ${session.sessionId} started on the ${session.promptVersion} prompts, whose brief describes the fetch command as it no longer works. Set it aside and plan again with: ${restartCommand(session)}`;
 }
 
+/**
+ * Create one session per part of the due units and write each brief. Every part is planned at
+ * once from one reading of the claims file, so parts never overlap however their subagents
+ * finish; a unit an unfinished session still holds is never handed to another one.
+ */
 export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
   const { root, now } = context(deps);
   const file = loadCountry(options.contentDir, options.country);
