@@ -77,9 +77,64 @@ describe('HTML text', () => {
     expect(htmlToText('<template><p>Hidden</p><p>Shown, as before</p>')).toContain('Shown');
   });
 
+  it('follows the browser through a script that holds "<!--" and a nested "<script"', () => {
+    // After "<!--" a "<script" opens a nested script, whose "</script" does not end the element;
+    // only a "</script" after the nesting has closed does. The text between is script, not page.
+    const legacy = `<script><!-- document.write("<script>x</script>"); var desc = "Kenya has 47 counties"; --></script><p>after</p>`;
+    expect(htmlToText(legacy)).toBe('after');
+    // Without "<!--" a "<script" in a script is only text, and the first "</script" ends it.
+    expect(htmlToText(`<script>var a = "<script>";</script><p>after</p>`)).toBe('after');
+    expect(htmlToText(`<script>var a = "<script>x</script><p>after</p>`)).toBe('after');
+    // The comment closes at "-->", so the next "</script" ends the element, whatever case it is in.
+    expect(htmlToText(`<script><!-- var a = 1; --></SCRIPT><p>after</p>`)).toBe('after');
+    expect(htmlToText(`<script><!-- <script> --> var a = 1; </script><p>after</p>`)).toBe('after');
+    // A nested script that is closed and then more script before the real end.
+    expect(
+      htmlToText(`<script><!-- <script></script> var b = "Hidden"; --></script><p>after</p>`),
+    ).toBe('after');
+    // `<!-->` ends the escape at once, so the first "</script" after it ends the script.
+    expect(htmlToText(`<script><!--> var a = 1; </script><p>after</p>`)).toBe('after');
+    // An unterminated nested script takes the rest of the page, as in a browser.
+    expect(htmlToText(`<script><!-- <script> </script><p>Hidden</p>`)).toBe('');
+  });
+
+  it('ends a comment as a browser does, including the abrupt ends', () => {
+    expect(htmlToText('<p>a</p><!-- c --><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><!--><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><!---><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><!-- c --!><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><!-- c -- d --><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><!-- never ends <p>b</p>')).toBe('a');
+  });
+
+  it('drops bogus end tags and comments instead of leaving them as markup', () => {
+    // A browser ignores "</>" and reads "</ p>" as a comment that runs to the next ">".
+    expect(htmlToText('<p>a</p></><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p></ p><p>b</p>')).toBe('a\nb');
+    expect(htmlToText('<p>a</p></3 x>b')).toBe('a\nb');
+    expect(htmlToText('<p>a</p><![CDATA[ x ]]><?php y ?>b')).not.toMatch(/[<>]/);
+    expect(htmlToText('a </ p> b')).toBe('a b');
+    // Nothing "<"-led is left that a reader would not see as text.
+    expect(htmlToText('<p>3 < 5 and a </ b</p>')).not.toMatch(/<[a-z/!?]/i);
+  });
+
+  it('ends an element at an end tag that has attributes or a slash', () => {
+    expect(htmlToText(`<script>var a = "Hidden";</script type="x"><p>after</p>`)).toBe('after');
+    expect(htmlToText(`<script>var a = "Hidden";</script/><p>after</p>`)).toBe('after');
+    expect(htmlToText(`<style>.a{}</style media=print><p>after</p>`)).toBe('after');
+    expect(htmlToText(`<noscript>Hidden</noscript foo><p>after</p>`)).toBe('after');
+    // "</scripts>" is a different end tag and does not end the script.
+    expect(htmlToText(`<script>var a = 1;</scripts><p>Hidden</p></script><p>after</p>`)).toBe(
+      'after',
+    );
+  });
+
   it('takes time in proportion to the size of a page made of broken tags', () => {
     // 40,000 repeats is 160 KB; a pattern that restarted at every "<a" took seconds.
     const broken = [
+      '<script><!--<script>'.repeat(10_000),
+      '</ p'.repeat(40_000),
+      '<!--!'.repeat(30_000),
       '<a "'.repeat(40_000),
       "<a x='".repeat(30_000),
       '<!--'.repeat(40_000),

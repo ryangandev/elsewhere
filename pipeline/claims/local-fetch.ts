@@ -86,6 +86,114 @@ function scanTag(html: string, from: number, collect = false): Tag | undefined {
   return undefined;
 }
 
+/** Whether `char` ends a tag name: whitespace, "/" or ">". */
+const endsName = (char: string | undefined) => isSpace(char) || char === '/' || char === '>';
+
+/**
+ * Where the end tag that starts at `lt` (`</name`, then whitespace, "/" or ">") ends, or undefined
+ * when the text there is not an end tag of `name`. Like any tag it may have attributes
+ * (`</script type="x">`). Returns -1 when the tag never ends, which a browser reads to the end of
+ * the document.
+ */
+function endTagAt(html: string, lt: number, name: string): number | undefined {
+  if (html[lt] !== '<' || html[lt + 1] !== '/') return undefined;
+  const nameEnd = lt + 2 + name.length;
+  if (html.slice(lt + 2, nameEnd).toLowerCase() !== name || !endsName(html[nameEnd])) {
+    return undefined;
+  }
+  return scanTag(html, nameEnd)?.end ?? -1;
+}
+
+/**
+ * Where the content of a style, noscript, svg, template or head element ends (just after its end
+ * tag), or -1: the first end tag of that name, which may have attributes.
+ */
+function rawElementEnd(html: string, from: number, name: string): number {
+  const start = new RegExp(`</${name}(?=[\\s/>])`, 'gi');
+  start.lastIndex = from;
+  const found = start.exec(html);
+  return found ? (endTagAt(html, found.index, name) ?? -1) : -1;
+}
+
+/**
+ * Where the content of a script element ends (just after its end tag), or -1, following the
+ * browser's script data states. A script may hold `<!--`, and while it does a `<script` inside it
+ * opens a nested script whose `</script` does not end the element; only a `</script` outside that
+ * nesting does, and `-->` closes the comment. So `<script><!-- document.write("<script>x</script>")
+ * ; var a = 1; --></script>` is one element, as the browser reads it. One pass.
+ */
+function scriptEnd(html: string, from: number): number {
+  const length = html.length;
+  let state: 'data' | 'escaped' | 'double' = 'data';
+  let dashes = 0;
+  let i = from;
+  const word = (start: number) => {
+    let end = start;
+    while (end < length && /[a-zA-Z]/.test(html[end])) end += 1;
+    return end;
+  };
+  while (i < length) {
+    const char = html[i];
+    if (char === '-' && state !== 'data') {
+      dashes += 1;
+      i += 1;
+      continue;
+    }
+    if (char === '>' && state !== 'data' && dashes >= 2) {
+      state = 'data';
+      dashes = 0;
+      i += 1;
+      continue;
+    }
+    if (char !== '<') {
+      dashes = 0;
+      i += 1;
+      continue;
+    }
+    dashes = 0;
+    if (html[i + 1] === '/') {
+      const end = state === 'double' ? undefined : endTagAt(html, i, 'script');
+      if (end !== undefined) return end;
+      if (state === 'double') {
+        const nameEnd = word(i + 2);
+        if (html.slice(i + 2, nameEnd).toLowerCase() === 'script' && endsName(html[nameEnd])) {
+          state = 'escaped';
+        }
+        i = nameEnd;
+      } else {
+        i += 2;
+      }
+    } else if (state === 'data' && html.startsWith('!--', i + 1)) {
+      state = 'escaped';
+      dashes = 2;
+      i += 4;
+    } else if (state === 'escaped' && /[a-zA-Z]/.test(html[i + 1] ?? '')) {
+      const nameEnd = word(i + 1);
+      if (html.slice(i + 1, nameEnd).toLowerCase() === 'script' && endsName(html[nameEnd])) {
+        state = 'double';
+      }
+      i = nameEnd;
+    } else {
+      i += 1;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Where a comment that starts at `lt` (`<!--`) ends, just after its end, or -1. A browser ends a
+ * comment at `-->` or `--!>`, and at once for the abrupt `<!-->` and `<!--->`.
+ */
+function commentEnd(html: string, lt: number): number {
+  const from = lt + 4;
+  if (html[from] === '>') return from + 1;
+  if (html.startsWith('->', from)) return from + 2;
+  const end = /--!?>/g;
+  end.lastIndex = from;
+  const found = end.exec(html);
+  return found ? found.index + found[0].length : -1;
+}
+
 /** Elements whose start and end tags each break the text into lines. */
 const BLOCK_ELEMENTS = new Set([
   'p',
@@ -117,12 +225,17 @@ const HIDDEN_ELEMENTS = new Set(['script', 'style', 'noscript', 'svg', 'template
  * a space (except inside <pre>), so a paragraph the source wraps over many lines is one line, and a
  * table row whose cells the source puts on separate lines is one row. Character references are decoded
  * once, as a browser does, with every named reference HTML defines ("&eacute;" is "é"); text a
- * page escaped twice ("&amp;eacute;") shows as "&eacute;", as it does in a browser. Tags are
- * tokenized as a browser does (see scanTag), so no tag is left in the text and the content of a
- * script, style, noscript, svg, template or head element never is: it is skipped whole to its end
- * tag, and an unterminated script or style takes the rest of the document, as in a browser. A
- * comment, declaration or processing instruction is dropped. Text that a page escaped (`&lt;`)
- * and shows as visible text stays, since a reader sees it.
+ * page escaped twice ("&amp;eacute;") shows as "&eacute;", as it does in a browser.
+ *
+ * Tags and comments are read by the browser's own rules where they matter for what is shown (see
+ * scanTag, commentEnd and scriptEnd): a quote opens an attribute value only after "=", comments end
+ * at `-->`, `--!>`, `<!-->` and `<!--->`, a bogus end tag (`</ p>`) is a comment and `</>` is
+ * nothing, and a script, style, noscript, svg, template or head element is skipped whole to its
+ * end tag, however the end tag is written, with the nesting a script allows after `<!--`. An
+ * unterminated script or style takes the rest of the document. A tag the page never closes is not
+ * text either. This is not a full HTML parser: it does not build a tree, so it does not repair
+ * misnested elements, and text a page escaped (`&lt;`) shows as the text it spells, since a
+ * reader sees it.
  */
 export function htmlToText(html: string): string {
   let text = '';
@@ -140,12 +253,28 @@ export function htmlToText(html: string): string {
       break;
     }
     text += shown(html.slice(at, lt));
-    if (html.startsWith('<!--', lt) || html[lt + 1] === '!' || html[lt + 1] === '?') {
-      const comment = html.startsWith('<!--', lt);
-      const close = comment ? html.indexOf('-->', lt + 4) : html.indexOf('>', lt);
+    if (html.startsWith('<!--', lt)) {
+      const close = commentEnd(html, lt);
       if (close === -1) break;
       text += ' ';
-      at = close + (comment ? 3 : 1);
+      at = close;
+      continue;
+    }
+    // A declaration, a processing instruction, and an end tag that does not start with a letter
+    // (`</ p>`) are bogus comments, which run to the next ">"; `</>` is ignored.
+    const bogus =
+      html[lt + 1] === '!' ||
+      html[lt + 1] === '?' ||
+      (html[lt + 1] === '/' && html[lt + 2] !== undefined && !/[a-zA-Z]/.test(html[lt + 2]));
+    if (bogus) {
+      if (html.startsWith('</>', lt)) {
+        at = lt + 3;
+        continue;
+      }
+      const close = html.indexOf('>', lt);
+      if (close === -1) break;
+      text += ' ';
+      at = close + 1;
       continue;
     }
     tagName.lastIndex = lt;
@@ -162,12 +291,10 @@ export function htmlToText(html: string): string {
     const name = named[2].toLowerCase();
     if (name === 'pre') preformatted = Math.max(0, preformatted + (closing ? -1 : 1));
     if (!closing && HIDDEN_ELEMENTS.has(name) && !unterminated.has(name)) {
-      const end = new RegExp(`</${name}\\s*>`, 'gi');
-      end.lastIndex = at;
-      const found = end.exec(html);
-      if (found) {
+      const end = name === 'script' ? scriptEnd(html, at) : rawElementEnd(html, at, name);
+      if (end !== -1) {
         text += ' ';
-        at = found.index + found[0].length;
+        at = end;
         continue;
       }
       if (name === 'script' || name === 'style') break;
