@@ -35,6 +35,10 @@ export const DATASETS = {
     file: 'ne_10m_admin_1_states_provinces.geojson',
     url: `${NATURAL_EARTH_BASE}/ne_10m_admin_1_states_provinces.geojson`,
   },
+  lakes: {
+    file: 'ne_10m_lakes.geojson',
+    url: `${NATURAL_EARTH_BASE}/ne_10m_lakes.geojson`,
+  },
 };
 
 export function cachePath(name) {

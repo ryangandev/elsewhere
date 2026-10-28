@@ -304,7 +304,7 @@ export const GazetteerPlace = z.strictObject({
     .optional(),
   /** Map identity for country entries; containing country for populated places. */
   countryId: CountryId.optional(),
-  source: z.enum(['countries', 'marine', 'rivers', 'regions', 'admin1', 'places', 'override']),
+  source: z.enum(['countries', 'marine', 'rivers', 'regions', 'admin1', 'lakes', 'places', 'override']),
   /** Natural Earth feature ID, where the dataset has one. */
   neId: z.number().int().optional(),
 });

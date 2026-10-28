@@ -20,8 +20,10 @@ import {
   fetchFailure,
   fetchForReading,
   findMatches,
+  isNetworkCut,
   printPart,
   shellQuote,
+  menuOnlyWarning,
   unreadableWarning,
 } from '../agent/reading';
 import { notTheRequestedPage } from '../agent/page-check';
@@ -48,7 +50,13 @@ import {
   type ClaimScope,
   type ClaimUnit,
 } from '../claims/units';
-import { checkVerdicts, SubmitVerdicts, type VerdictResult } from '../claims/verdicts';
+import {
+  checkVerdicts,
+  QUOTE_MAX_WORDS,
+  quoteWords,
+  SubmitVerdicts,
+  type VerdictResult,
+} from '../claims/verdicts';
 import { normalizeUrl } from '../generate/evidence';
 import {
   CURRENT_CLAIMS_AGENT_PROMPT_VERSION,
@@ -303,7 +311,9 @@ export async function fetchCommand(options: FetchOptions, deps: ClaimsAgentDeps)
       });
       writeSession(dir, session);
       deps.out(
-        `Could not read ${source.url}: ${reason}. If it cannot be read at all, mark ${source.id} unreachable with this reason.`,
+        isNetworkCut(error)
+          ? `Could not read ${source.url}: ${reason}. Run the same command again in a minute. Do not mark ${source.id} unreachable for a network cut: the page itself is not the problem.`
+          : `Could not read ${source.url}: ${reason}. If it cannot be read at all, mark ${source.id} unreachable with this reason.`,
       );
       return 1;
     }
@@ -339,6 +349,8 @@ export async function fetchCommand(options: FetchOptions, deps: ClaimsAgentDeps)
       `${unreadable.replace(/; choose another source or another copy of the document\.$/, '.')} If no other copy is cited, mark ${source.id} unreachable with this reason.`,
     );
   }
+  const menuOnly = menuOnlyWarning(record);
+  if (menuOnly) deps.out(menuOnly);
   return printPart(
     record,
     { offset: options.offset, find: options.find, matches },
@@ -347,7 +359,13 @@ export async function fetchCommand(options: FetchOptions, deps: ClaimsAgentDeps)
   );
 }
 
-type LivePage = { fetchedAt: string; page?: FetchedPage; error?: string };
+type LivePage = {
+  fetchedAt: string;
+  page?: FetchedPage;
+  error?: string;
+  /** The connection was cut while the page downloaded, on every attempt; the page is not at fault. */
+  cut?: boolean;
+};
 
 /** Fetch every URL live, a few at a time, by normalized URL. Never reads a stored copy. */
 async function fetchLive(
@@ -372,7 +390,11 @@ async function fetchLive(
             : { fetchedAt, page },
         );
       } catch (error) {
-        pages.set(normalizeUrl(url), { fetchedAt, error: fetchFailure(error) });
+        pages.set(normalizeUrl(url), {
+          fetchedAt,
+          error: fetchFailure(error),
+          ...(isNetworkCut(error) ? { cut: true } : {}),
+        });
       }
     }
   };
@@ -462,6 +484,43 @@ function currentUnits(
   const changed = session.units.filter((unit) => !byKey.has(unit.key));
   if (changed.length) return { changed: changed.map((unit) => unit.label) };
   return { units: session.units.map((unit) => ({ ...byKey.get(unit.key)!, id: unit.id })) };
+}
+
+/** Quotes this many words under the limit or more are listed with their word count by a dry run. */
+const QUOTE_LENGTH_MARGIN = 3;
+
+/**
+ * The lines a dry run prints for quotes that are over the word limit or within three words of it,
+ * counted by the function the check uses, so nobody counts by hand. Empty when no quote is near.
+ */
+export function quoteLengthLines(
+  verdicts: { unitId: string; evidence: { sourceId: string; quote: string }[] }[],
+  unitIds: Set<string>,
+): string[] {
+  const lines: string[] = [];
+  for (const { unitId, evidence } of verdicts) {
+    if (!unitIds.has(unitId)) continue;
+    for (const { sourceId, quote } of evidence) {
+      const words = quoteWords(quote);
+      if (words < QUOTE_MAX_WORDS - QUOTE_LENGTH_MARGIN) continue;
+      const shown = quote.length > 60 ? `${quote.slice(0, 57)}...` : quote;
+      lines.push(
+        `  ${unitId} (${sourceId}): ${plural(words, 'word')}, ${
+          words > QUOTE_MAX_WORDS
+            ? `${plural(words - QUOTE_MAX_WORDS, 'word')} over the limit`
+            : words === QUOTE_MAX_WORDS
+              ? 'at the limit'
+              : `${plural(QUOTE_MAX_WORDS - words, 'word')} under the limit`
+        }: "${shown}"`,
+      );
+    }
+  }
+  return lines.length
+    ? [
+        `Quote lengths (a quote may have at most ${QUOTE_MAX_WORDS} words), the long ones:`,
+        ...lines,
+      ]
+    : [];
 }
 
 /**
@@ -570,7 +629,10 @@ export async function submit(options: SubmitOptions, deps: ClaimsAgentDeps): Pro
         fetchedWith: 'with the fetch command in this session',
         textFrom: 'the page as fetched live at submission from',
         missingText: (url) => {
-          const failed = live.get(normalizeUrl(url))?.error;
+          const { error: failed, cut } = live.get(normalizeUrl(url)) ?? {};
+          if (cut) {
+            return `the live fetch of ${url} at submission failed (${failed}). A network cut says nothing about the quote or the page: submit again in a minute, and do not mark the source unreachable for it.`;
+          }
           return `the live fetch of ${url} at submission failed (${failed ?? 'not fetched'}), and a quote counts only when it is on the live page. Fetch the page again to see whether it loads; if it cannot be read, mark the source unreachable with the reason and judge the unit without it.`;
         },
         textNote: (url) => {
@@ -616,6 +678,10 @@ export async function submit(options: SubmitOptions, deps: ClaimsAgentDeps): Pro
 
   if (options.dryRun) {
     deps.out('Dry run: nothing is saved or recorded.');
+    if (parsed.success) {
+      const checkedIds = new Set(checked.map((unit) => unit.id));
+      for (const line of quoteLengthLines(parsed.data.verdicts, checkedIds)) deps.out(line);
+    }
   } else {
     if (savedIds.length) recordChecks(session.claimsDir, country, checks);
     session.passed = passed;

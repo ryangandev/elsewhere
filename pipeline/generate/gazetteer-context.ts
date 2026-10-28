@@ -21,9 +21,11 @@ function describe(place: GazetteerPlace): string {
     place.kind === 'water'
       ? place.path
         ? 'passage (a route follows it end to end)'
-        : place.surface === 'land'
-          ? 'river'
-          : 'sea'
+        : place.source === 'lakes'
+          ? 'lake'
+          : place.surface === 'land'
+            ? 'river'
+            : 'sea'
       : place.kind === 'country'
         ? `country ${place.countryId}`
         : place.kind === 'place'
