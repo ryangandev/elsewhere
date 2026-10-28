@@ -4,7 +4,7 @@
 // (content:claims-agent fetch) share it, and the claim check's live verification fetches with the
 // same limits.
 import { fetchPage, NetworkCutError, type FetchedPage } from '../claims/local-fetch';
-import { unreadableText } from './page-check';
+import { menuOnlyText, unreadableText } from './page-check';
 import type { EvidenceRecord } from './session';
 
 /**
@@ -83,6 +83,20 @@ export function unreadableWarning(record: Pick<EvidenceRecord, 'text'>): string 
   const reason = unreadableText(record.text);
   return reason
     ? `WARNING: the text could not be extracted from this page: ${reason}. Searches and quotes will not find what the page says; choose another source or another copy of the document.`
+    : undefined;
+}
+
+/**
+ * The warning printed with an HTML page whose text looks like only menus and footer, or undefined.
+ * It is a guess from the text and only a warning: nothing refuses the page, and a quote that is on
+ * the live page still verifies.
+ */
+export function menuOnlyWarning(
+  record: Pick<EvidenceRecord, 'text' | 'contentType'>,
+): string | undefined {
+  const reason = menuOnlyText(record);
+  return reason
+    ? `WARNING: this page may be only its menus and footer: ${reason}. If the text you need is not here, a quote of it cannot be verified; try another source or another copy of the page. If it is here, go on: this is a guess and does not stop you from citing the page.`
     : undefined;
 }
 

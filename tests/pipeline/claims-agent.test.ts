@@ -767,7 +767,7 @@ describe('agent claim check submissions', () => {
     expect(text()).toContain('Do not mark fixture-geography unreachable for a network cut');
   });
 
-  it('refuses a page of only menus and footer in the fetch command and at submission', async () => {
+  it('warns about a page of only menus and footer in the fetch command, and still verifies a quote on it', async () => {
     const menu = Array.from(
       { length: 26 },
       (_, index) => `<li>Menu item ${String.fromCharCode(65 + index)}</li>`,
@@ -786,15 +786,18 @@ describe('agent claim check submissions', () => {
         deps(stubFetch(menuOnly).stub),
       ),
     ).toBe(0);
-    expect(text()).toContain(
-      'WARNING: this is probably not the cited page: almost all of its text is short navigation lines',
-    );
+    const warned = text();
+    expect(warned).toContain('WARNING: this page may be only its menus and footer');
+    expect(warned).toContain('almost all of its text is short navigation lines');
+    expect(warned).not.toContain('probably not the cited page');
+    // The guess never blocks verification: a quote that is on the live page passes, as it would
+    // for any short page the guess is wrong about.
     writeVerdicts(dir, [supported('length-section-1', 'Menu item C')]);
-    expect(await submit({ sessionId: 'CHL-length' }, deps(stubFetch(menuOnly).stub))).toBe(1);
-    expect(text()).toContain(
-      `the live fetch of ${GEOGRAPHY} at submission failed (it is probably not the cited page: almost all of its text is short navigation lines`,
-    );
-    expect(existsSync(claimsFilePath(claimsDir, 'chile'))).toBe(false);
+    await submit({ sessionId: 'CHL-length' }, deps(stubFetch(menuOnly).stub));
+    const submitted = text();
+    expect(submitted).not.toContain('Live fetch failed');
+    expect(submitted).toContain('Units checked: 2. 1 passed and is saved');
+    expect(existsSync(claimsFilePath(claimsDir, 'chile'))).toBe(true);
   });
 
   it('--dry-run prints the word count of each quote that is over the limit or within 3 words of it', async () => {

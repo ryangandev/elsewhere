@@ -42,6 +42,58 @@ describe('HTML text', () => {
     expect(htmlToText('<p>3 < 5 and 7 > 2</p>')).toBe('3 < 5 and 7 > 2');
   });
 
+  it('tokenizes tags as a browser does: a quote opens a value only after "="', () => {
+    // An apostrophe in an unquoted value, or a quote in an attribute name, is not a quoted value.
+    expect(htmlToText("<a href=/x title=Don't>Link</a> after")).toBe('Link after');
+    expect(htmlToText('<div data-x"y>Text</div><p>More</p>')).toBe('Text\nMore');
+    expect(htmlToText('<p class=it\'s id="a>b">Shown</p>')).toBe('Shown');
+    expect(extractLinks("<a href=/x title=Don't>Link</a>", 'https://site.example/p')).toEqual([
+      { url: 'https://site.example/x', text: 'Link' },
+    ]);
+    // An attribute named inside another's quoted value is not that attribute.
+    expect(
+      extractLinks(`<a title='x href="/wrong"' href="/right">Go</a>`, 'https://site.example/p'),
+    ).toEqual([{ url: 'https://site.example/right', text: 'Go' }]);
+  });
+
+  it('never shows the content of a script, style or other hidden element', () => {
+    // The apostrophe is part of an unquoted value, so the tag ends at ">" and the script is hidden.
+    expect(htmlToText(`<script data-x=it's>var t = "Hidden";</script><p>Visible</p>`)).toBe(
+      'Visible',
+    );
+    expect(htmlToText(`<style media=it's>.a{content:"Hidden"}</style><p>Visible</p>`)).toBe(
+      'Visible',
+    );
+    expect(htmlToText('<noscript data-x"y>Hidden</noscript><p>Visible</p>')).toBe('Visible');
+    expect(htmlToText('<SCRIPT>var a = "<p>Hidden</p>";</SCRIPT ><p>Visible</p>')).toBe('Visible');
+    expect(htmlToText('<script src="a.js"></script><p>Visible</p>')).toBe('Visible');
+    // An unclosed quote swallows the rest of the document into the tag, as in a browser, so the
+    // script's text is not shown either.
+    expect(htmlToText(`<p>Visible</p><script src='a.js>var t = "Hidden";</script>`)).toBe(
+      'Visible',
+    );
+    // A script that never ends takes the rest of the page; other hidden elements do not.
+    expect(htmlToText('<p>Visible</p><script>var t = "Hidden";<p>Hidden too</p>')).toBe('Visible');
+    expect(htmlToText('<template><p>Hidden</p><p>Shown, as before</p>')).toContain('Shown');
+  });
+
+  it('takes time in proportion to the size of a page made of broken tags', () => {
+    // 40,000 repeats is 160 KB; a pattern that restarted at every "<a" took seconds.
+    const broken = [
+      '<a "'.repeat(40_000),
+      "<a x='".repeat(30_000),
+      '<!--'.repeat(40_000),
+      '<template>'.repeat(20_000),
+      '<a href="/x">'.repeat(15_000),
+    ];
+    const started = performance.now();
+    for (const html of broken) {
+      htmlToText(html);
+      extractLinks(html, 'https://site.example/p');
+    }
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
   it('keeps a link whose attribute holds ">", with its text', () => {
     const html = '<a title="a > b" href="/x">Linked page</a>';
     expect(extractLinks(html, 'https://site.example/p')).toEqual([

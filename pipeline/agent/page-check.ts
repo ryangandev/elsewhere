@@ -126,64 +126,65 @@ export function notTheRequestedPage(
   if (record.text.length < MIN_PAGE_CHARACTERS) {
     return `its text is only ${record.text.length} characters, too short to be the page (probably a script stub, an error or a login form)`;
   }
-  const menu = menuOnlyText(record);
-  if (menu) return menu;
   return undefined;
 }
 
-/** A line of this many words or more is a sentence or a paragraph; menus, footers and links are shorter. */
-export const PARAGRAPH_WORDS = 10;
-/**
- * A page needs this many characters of paragraphs (about a short paragraph of three lines), and
- * a page whose paragraph-length lines hold less than 5% of its text is only menus, however many.
- * One footer sentence is under the first, and a mega-menu's few real lines are under the second.
- */
-const MIN_PARAGRAPH_CHARACTERS = 200;
-const MIN_PARAGRAPH_SHARE = 0.05;
+/** A line of this many words or more is prose: a sentence, or part of a paragraph. */
+export const PROSE_WORDS = 6;
+/** A page needs this many characters of content lines, and this share of its text in them. */
+const MIN_CONTENT_CHARACTERS = 300;
+const MIN_CONTENT_SHARE = 0.1;
 /** Menus and footers are many lines; fewer lines than this is not a page of navigation. */
 const MIN_MENU_LINES = 8;
-/** Text where more than this share of the words hold a digit is data (a table), not a menu. */
-const MAX_DATA_SHARE = 0.25;
+
+/** Scripts that write without spaces: every two characters count as a word. */
+const UNSPACED_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}]/gu;
+
+/** The words of a line: spaced words, and for Chinese, Japanese and Thai, two characters a word. */
+function wordsOf(line: string): number {
+  const unspaced = line.match(UNSPACED_SCRIPT)?.length ?? 0;
+  const spaced = line
+    .replace(UNSPACED_SCRIPT, ' ')
+    .split(/\s+/)
+    .filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
+  return spaced + Math.ceil(unspaced / 2);
+}
+
+/**
+ * Whether a line of a page's text is content and not navigation: prose of at least six words (a
+ * line of links is cut at its "|" separators and counts by its longest part, and a paragraph that
+ * the page's source wraps over several lines still has lines of six words or more), a row of
+ * figures or a dated line (a digit and at least two words), or a "label: value" line of a fact
+ * sheet. Menu entries are one to four words, with no digit and no colon.
+ */
+function isContentLine(line: string): boolean {
+  const longest = Math.max(...line.split(/\s[|•·]\s/).map(wordsOf));
+  if (longest >= PROSE_WORDS) return true;
+  if (/\p{N}/u.test(line) && (wordsOf(line) >= 2 || line.startsWith('|'))) return true;
+  return /^[^:|]{1,60}:\s*[\p{L}\p{N}]/u.test(line);
+}
 
 /**
  * Why an HTML page is probably only its menus and footer, or undefined. Some sites build their
  * answer text with scripts (mnd.gov.sg did), and the fetch gets the navigation, the footer and
- * little else, long enough to pass the length check. A page's text is one block per line, and a
- * page with content has paragraph-length lines: lines of at least ten words (a line of links cut
- * at its "|" separators counts by its longest part) that hold at least 200 characters and at least
- * 5% of the text together, which a footer's one-line notice does not. A page of fewer than eight
- * lines is not tested. A table of figures has short lines too, so text where a quarter of the
- * words hold a digit is left alone, and so are PDFs and plain text, whose lines are cut by the
- * page's width.
+ * little else, long enough to pass the length check. A page with content has at least 300
+ * characters, and at least a tenth of its text, in content lines (see isContentLine). A page of
+ * fewer than eight lines is not tested, and neither are PDFs and plain text, whose lines are cut
+ * by the page's width. This is only a guess from the text, so it is a warning that the fetch
+ * commands print and never a reason to refuse a page: a short page of facts, a table among menus
+ * or a language the guess does not know may still be the page.
  */
 export function menuOnlyText(record: { text: string; contentType?: string }): string | undefined {
   if (record.contentType !== undefined && !/html/i.test(record.contentType)) return undefined;
   if (record.text.startsWith('[Page 1]')) return undefined;
   const lines = record.text.split('\n').filter((line) => line.trim());
   if (lines.length < MIN_MENU_LINES) return undefined;
-  const words = lines.flatMap((line) => line.split(/\s+/).filter(Boolean));
-  if (words.filter((word) => /\p{N}/u.test(word)).length > words.length * MAX_DATA_SHARE) {
+  const content = lines.filter(isContentLine).reduce((total, line) => total + line.length, 0);
+  if (content >= MIN_CONTENT_CHARACTERS && content >= record.text.length * MIN_CONTENT_SHARE) {
     return undefined;
   }
-  // A line of links is cut at its separators ("Contact us | Terms of use | Privacy"), and a
-  // paragraph is the longest run of words between them.
-  const wordsOf = (line: string) =>
-    Math.max(
-      ...line
-        .split(/\s[|\u2022\u00b7]\s/)
-        .map((part) => part.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length),
-    );
-  const longest = Math.max(0, ...lines.map(wordsOf));
-  const paragraphs = lines
-    .filter((line) => wordsOf(line) >= PARAGRAPH_WORDS)
-    .reduce((total, line) => total + line.length, 0);
-  if (
-    paragraphs >= MIN_PARAGRAPH_CHARACTERS &&
-    paragraphs >= record.text.length * MIN_PARAGRAPH_SHARE
-  ) {
-    return undefined;
-  }
-  return `almost all of its text is short navigation lines (${lines.length} lines, the longest has ${longest} words), so it is probably only the site's menus and footer, with the answer text built by scripts that are not run here`;
+  const longest = Math.max(...lines.map(wordsOf));
+  return `almost all of its text is short navigation lines (${lines.length} lines, the longest has ${longest === 1 ? '1 word' : `${longest} words`}), so it is probably only the site's menus and footer, with the answer text built by scripts that are not run here`;
 }
 
 /** Words of a path, for telling whether a redirect stayed on the same subject. */

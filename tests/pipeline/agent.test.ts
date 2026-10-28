@@ -14,9 +14,11 @@ import {
   type AgentDeps,
 } from '../../pipeline/agent/commands';
 import { AGENT_EVIDENCE_RULE } from '../../pipeline/agent/brief';
-import { BODY_CUT_RETRIES_MS } from '../../pipeline/agent/reading';
+import { BODY_CUT_RETRIES_MS, menuOnlyWarning } from '../../pipeline/agent/reading';
+import { htmlToText } from '../../pipeline/claims/local-fetch';
 import {
   MIN_PAGE_CHARACTERS,
+  menuOnlyText,
   notTheRequestedPage,
   redirectKind,
   siteOf,
@@ -516,8 +518,9 @@ describe('agent fetch command', () => {
     );
 
     expect(await read('https://example.org/article')).toBe(0);
-    expect(output()).toContain(
-      "Redirected to https://www.example.org/article/; either URL may be cited. In a revision, a source ID that a part you are not revising also declares keeps that part's URL, whichever you cite; submit prints a notice when that happens. To cite the other URL, give it its own source ID.",
+    // A plain drafting session has no shared source IDs to warn about.
+    expect(output()).toMatch(
+      /^Redirected to https:\/\/www\.example\.org\/article\/; either URL may be cited\.$/m,
     );
     expect(await read('https://example.org/article', { find: 'copper' })).toBe(0);
     expect(output()).not.toContain('Redirected');
@@ -1050,58 +1053,163 @@ describe('pages that are not the requested page', () => {
     }
   });
 
-  it('recognises a page of only menus and footer, and leaves short real pages alone', () => {
-    const check = (text: string, contentType = 'text/html') =>
-      notTheRequestedPage({
-        requestedUrl: 'https://www.mnd.example/news/story',
-        finalUrl: 'https://www.mnd.example/news/story',
-        contentType,
-        text,
-      });
+  describe('a page of only menus and footer', () => {
+    const menuLines = Array.from(
+      { length: 30 },
+      (_, index) => `Menu entry ${String.fromCharCode(65 + index)}`,
+    );
     const menu = [
       'Skip to main content',
-      ...Array.from({ length: 30 }, (_, index) => `Menu entry ${String.fromCharCode(65 + index)}`),
+      ...menuLines,
       'Contact us | Feedback | Report vulnerability | Privacy statement | Terms of use',
       'Last updated 12 Oct 2026',
     ].join('\n');
-    const refused = check(menu);
-    expect(refused).toContain('almost all of its text is short navigation lines (33 lines');
-    // A footer sentence of ten words or more does not make a page.
-    expect(
-      check(`${menu}\nBest viewed with a recent browser at a resolution of 1024 by 768 pixels.`),
-    ).toContain('short navigation lines');
-
-    // A short page with a few real paragraphs, and a navigation menu around it, is a page.
+    const menuHtml = `<ul>${menuLines.map((line) => `<li><a href="/x">${line}</a></li>`).join('\n')}</ul>`;
     const paragraph = (topic: string) =>
       `The ${topic} was reviewed by the committee, which found that the programme met its targets for the year and recommended that it continue.`;
-    const shortPage = [
-      ...menu.split('\n').slice(0, 12),
-      'Programme review',
-      paragraph('housing programme'),
-      paragraph('transport programme'),
-      paragraph('water programme'),
-    ].join('\n');
-    expect(shortPage.length).toBeLessThan(900);
-    expect(check(shortPage)).toBeUndefined();
-    const twoThousand = [
-      ...menu.split('\n').slice(0, 12),
-      ...['housing', 'transport', 'water', 'energy', 'health', 'schools'].map(paragraph),
-      'Share this page',
-    ].join('\n');
-    expect(twoThousand.length).toBeGreaterThan(900);
-    expect(check(twoThousand)).toBeUndefined();
+    /** The text of an HTML page, as the fetch stores it. */
+    const textOf = (body: string) => htmlToText(`<html><body>${menuHtml}${body}</body></html>`);
+    const find = (text: string, contentType = 'text/html') => menuOnlyText({ text, contentType });
 
-    // A table of figures is made of short lines, and a table is data.
-    const table = Array.from(
-      { length: 40 },
-      (_, index) =>
-        `Region ${String.fromCharCode(65 + (index % 26))} | ${1000 + index} | ${index}.5%`,
-    ).join('\n');
-    expect(check(table)).toBeUndefined();
-    // PDFs and plain text are cut into lines by the page's width, so they are not tested.
-    expect(check(menu, 'application/pdf')).toBeUndefined();
-    expect(check(menu, 'text/plain')).toBeUndefined();
-    expect(check(`[Page 1]\n${menu}`, 'text/html')).toBeUndefined();
+    it('is flagged, and a footer sentence does not make it a page', () => {
+      expect(find(menu)).toContain('almost all of its text is short navigation lines (33 lines');
+      expect(
+        find(`${menu}\nBest viewed with a recent browser at a resolution of 1024 by 768 pixels.`),
+      ).toContain('short navigation lines');
+      // The grammar of a count of one.
+      expect(find(Array.from({ length: 9 }, () => 'Menu').join('\n'))).toContain(
+        'the longest has 1 word)',
+      );
+    });
+
+    it('is never a reason to refuse a page: only a warning, with the text left alone', async () => {
+      const requested = 'https://www.mnd.example/news/story';
+      const record = { requestedUrl: requested, finalUrl: requested, contentType: 'text/html' };
+      expect(notTheRequestedPage({ ...record, text: menu })).toBeUndefined();
+      expect(menuOnlyWarning({ ...record, text: menu })).toContain(
+        'WARNING: this page may be only its menus and footer',
+      );
+      const pageUrl = 'https://example.org/menus';
+      const body = `<html><body>${menuHtml}</body></html>`;
+      const { dir, begin, read, output } = setup({
+        pages: { [pageUrl]: { type: 'text/html', body } },
+      });
+      begin();
+      output();
+      expect(await read(pageUrl)).toBe(0);
+      expect(output()).toContain('WARNING: this page may be only its menus and footer');
+      // Stored, so it can still be cited.
+      expect(loadEvidence(dir).records.map(({ record: stored }) => stored.requestedUrl)).toContain(
+        pageUrl,
+      );
+    });
+
+    it('leaves short pages with a few real paragraphs alone', () => {
+      const short = [
+        ...menu.split('\n').slice(0, 12),
+        'Programme review',
+        paragraph('housing programme'),
+        paragraph('transport programme'),
+        paragraph('water programme'),
+      ].join('\n');
+      expect(short.length).toBeLessThan(900);
+      expect(find(short)).toBeUndefined();
+      const longer = [
+        ...menu.split('\n').slice(0, 12),
+        ...['housing', 'transport', 'water', 'energy', 'health', 'schools'].map(paragraph),
+        'Share this page',
+      ].join('\n');
+      expect(longer.length).toBeGreaterThan(900);
+      expect(find(longer)).toBeUndefined();
+    });
+
+    it('leaves a paragraph the source wraps over many lines alone', () => {
+      // upenn-kenya-geography: the HTML source breaks lines inside its paragraphs. A browser shows
+      // those breaks as spaces, and so does htmlToText, so each paragraph is one line of text.
+      const wrapped = (topic: string) =>
+        paragraph(topic)
+          .replace(/(\S+\s+\S+\s+\S+\s+\S+\s+)/g, '$1\n')
+          .trim();
+      const html = ['housing', 'transport', 'water']
+        .map((topic) => `<p>${wrapped(`${topic} programme`)}</p>`)
+        .join('\n');
+      expect(html.split('\n').length).toBeGreaterThan(6);
+      const text = textOf(html);
+      expect(text.split('\n')).toContain(paragraph('housing programme'));
+      expect(find(text)).toBeUndefined();
+      // A stored copy made when line breaks of the source were kept still reads as a page: each
+      // wrapped line has six words or more.
+      const wideWrapped = (topic: string) =>
+        paragraph(topic)
+          .replace(/((?:\S+\s+){7})/g, '$1\n')
+          .trim();
+      const old = [
+        ...menu.split('\n').slice(0, 14),
+        wideWrapped('housing programme'),
+        wideWrapped('transport programme'),
+        wideWrapped('water programme'),
+      ].join('\n');
+      expect(find(old)).toBeUndefined();
+    });
+
+    it('leaves a key-value fact sheet alone', () => {
+      // argentina-embassy-basic-data: short "label: value" lines among menus.
+      const facts = [
+        'Official name: Argentine Republic',
+        'Capital: Buenos Aires',
+        'Area: 2,780,400 km2',
+        'Population: 46 million',
+        'Languages: Spanish',
+        'Currency: Argentine peso',
+        'Head of state: the President',
+        'Time zone: UTC-3',
+        'Dialling code: +54',
+        'Religion: mostly Roman Catholic',
+        'Government: federal presidential republic',
+        'National day: 25 May',
+        'Main exports: soybeans, maize, beef and wheat',
+        'Neighbours: Chile, Bolivia, Paraguay, Brazil and Uruguay',
+      ];
+      const html = `<dl>${facts.map((fact) => `<div>${fact}</div>`).join('\n')}</dl>`;
+      expect(find(textOf(html))).toBeUndefined();
+    });
+
+    it('leaves a table among menus alone', () => {
+      // whakatau-milestones and destatis-population-2025: figures in cells the source puts on
+      // lines of their own, under a long menu.
+      const rows = Array.from(
+        { length: 25 },
+        (_, index) =>
+          `<tr>\n<td>\nMilestone ${String.fromCharCode(65 + index)}\n</td>\n<td>\n${2000 + index}\n</td>\n</tr>`,
+      ).join('\n');
+      const text = textOf(`<table>\n${rows}\n</table>`);
+      expect(text).toContain('| Milestone A | 2000');
+      expect(find(text)).toBeUndefined();
+      // Cells that a stored copy has on lines of their own are figures too.
+      const old = [...menu.split('\n'), ...Array.from({ length: 150 }, (_, i) => `| ${3000 + i}`)];
+      expect(find(old.join('\n'))).toBeUndefined();
+    });
+
+    it('leaves Chinese, Japanese and Thai text alone, which has no spaces', () => {
+      const chinese =
+        '智利是南美洲西部的一个狭长国家，北接秘鲁，东邻玻利维亚和阿根廷，西临太平洋，首都是圣地亚哥。';
+      const japanese =
+        'チリは南アメリカの西岸に沿って南北に細長く延びる国で、首都はサンティアゴであり、人口の多くは中央部に住んでいる。';
+      for (const text of [chinese, japanese]) {
+        const body = Array.from({ length: 10 }, () => `<p>${text}</p>`).join('\n');
+        expect(find(textOf(body))).toBeUndefined();
+      }
+      // And a menu in Chinese is still a menu.
+      const chineseMenu = Array.from({ length: 30 }, (_, index) => `菜单${index}项`).join('\n');
+      expect(find(chineseMenu)).toContain('short navigation lines');
+    });
+
+    it('is not tested on PDFs, plain text, or a page of fewer than eight lines', () => {
+      expect(find(menu, 'application/pdf')).toBeUndefined();
+      expect(find(menu, 'text/plain')).toBeUndefined();
+      expect(find(`[Page 1]\n${menu}`)).toBeUndefined();
+      expect(find(menu.split('\n').slice(0, 7).join('\n'))).toBeUndefined();
+    });
   });
 
   it('tells sites apart by their registrable name', () => {
@@ -2073,7 +2181,10 @@ describe('agent revision session', () => {
 
       // A URL that redirected to the file's URL on the same site names the same page.
       await fetchCommand({ countryId: 'CHL', url: moved, refresh: false }, withPages);
-      output();
+      // A revision session says that a shared source ID keeps the existing URL.
+      expect(output()).toContain(
+        "In this revision, a source ID that a part you are not revising also declares keeps that part's URL, whichever you cite; submit prints a notice when that happens.",
+      );
       writeDraft({ ...revisedAndes(), sources: [{ ...geography(), url: moved }] });
       // A dry run and the submission both say the change of URL did not land, and which one stays.
       const notice = `NOTICE: Source "fixture-geography" is declared by the overview, which this revision does not change, with ${geography().url}; this submission declares it with ${moved}, the same page after a redirect. The file keeps ${geography().url} (the URL of the overview wins), so your change to ${moved} did not land.`;

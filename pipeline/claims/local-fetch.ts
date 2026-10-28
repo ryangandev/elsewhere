@@ -24,44 +24,162 @@ const MAX_CHARACTERS = 160_000;
 const MAX_BYTES = 20_000_000;
 const TIMEOUT_MS = 20_000;
 
+const isSpace = (char: string | undefined) =>
+  char === ' ' || char === '\n' || char === '\t' || char === '\r' || char === '\f';
+
+/** A tag as a browser reads it: where it ends, and its attributes by lower-case name (first wins). */
+type Tag = { end: number; attributes: Map<string, string> };
+
 /**
- * The attributes of an HTML tag, up to its closing ">". A quoted value may hold a ">" (HTML allows
- * it), so quoted values are matched whole. pib.gov.in keeps a copy of the release's HTML, escaped
- * except for its ">" characters, in the value of a hidden input; ending the tag at the first ">"
- * left the rest of that value in the text, where the character references became markup.
+ * Read the attributes of a tag whose name ends at `from`, up to its closing ">", the way a browser
+ * tokenizes them. A quote opens a value only right after "=" (an attribute name may hold quotes,
+ * `data-x"y`, and an unquoted value may hold them, `title=Don't`), and a quoted value may hold
+ * ">", which is how pib.gov.in keeps an escaped copy of each release in a hidden input. Undefined
+ * when the tag never ends: a browser reads the rest of the document as that tag, and so does this.
+ * One pass over the tag, so a long run of broken tags costs time in proportion to its length.
+ * Attribute values are collected, and decoded, only when `collect` is set.
  */
-const ATTRIBUTES = String.raw`(?:"[^"]*"|'[^']*'|[^"'>])*`;
+function scanTag(html: string, from: number, collect = false): Tag | undefined {
+  const attributes = new Map<string, string>();
+  const length = html.length;
+  let i = from;
+  while (i < length) {
+    const char = html[i];
+    if (char === '>') return { end: i + 1, attributes };
+    if (char === '/' || isSpace(char)) {
+      i += 1;
+      continue;
+    }
+    const nameStart = i;
+    i += 1;
+    while (
+      i < length &&
+      !isSpace(html[i]) &&
+      html[i] !== '/' &&
+      html[i] !== '>' &&
+      html[i] !== '='
+    ) {
+      i += 1;
+    }
+    const name = html.slice(nameStart, i).toLowerCase();
+    let at = i;
+    while (isSpace(html[at])) at += 1;
+    let value = '';
+    if (html[at] === '=') {
+      at += 1;
+      while (isSpace(html[at])) at += 1;
+      const quote = html[at];
+      if (quote === '"' || quote === "'") {
+        const close = html.indexOf(quote, at + 1);
+        if (close === -1) return undefined;
+        value = html.slice(at + 1, close);
+        i = close + 1;
+      } else {
+        const start = at;
+        while (at < length && !isSpace(html[at]) && html[at] !== '>') at += 1;
+        value = html.slice(start, at);
+        i = at;
+      }
+    }
+    if (collect && !attributes.has(name)) attributes.set(name, decodeHTMLAttribute(value));
+  }
+  return undefined;
+}
 
-/** A tag whose name matches `name` (a regular expression source), with any attributes. */
-const tagPattern = (name: string) => new RegExp(`<${name}${ATTRIBUTES}>`, 'gi');
+/** Elements whose start and end tags each break the text into lines. */
+const BLOCK_ELEMENTS = new Set([
+  'p',
+  'div',
+  'section',
+  'article',
+  'main',
+  'header',
+  'footer',
+  'li',
+  'ul',
+  'ol',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'tr',
+  'table',
+  'blockquote',
+]);
+/** Elements whose content is never shown as text: scripts, styles, markup that is not rendered. */
+const HIDDEN_ELEMENTS = new Set(['script', 'style', 'noscript', 'svg', 'template', 'head']);
 
 /**
- * The visible text of an HTML document, one block per line. Character references are decoded
+ * The visible text of an HTML document, one block per line: a line break comes from a block
+ * element, a <br> or a row, never from a line break in the page's source, which a browser shows as
+ * a space (except inside <pre>), so a paragraph the source wraps over many lines is one line, and a
+ * table row whose cells the source puts on separate lines is one row. Character references are decoded
  * once, as a browser does, with every named reference HTML defines ("&eacute;" is "é"); text a
- * page escaped twice ("&amp;eacute;") shows as "&eacute;", as it does in a browser. No tag is left
- * in the text: tags end where a browser ends them, and comments, declarations and processing
- * instructions are dropped.
+ * page escaped twice ("&amp;eacute;") shows as "&eacute;", as it does in a browser. Tags are
+ * tokenized as a browser does (see scanTag), so no tag is left in the text and the content of a
+ * script, style, noscript, svg, template or head element never is: it is skipped whole to its end
+ * tag, and an unterminated script or style takes the rest of the document, as in a browser. A
+ * comment, declaration or processing instruction is dropped. Text that a page escaped (`&lt;`)
+ * and shows as visible text stays, since a reader sees it.
  */
 export function htmlToText(html: string): string {
-  const text = html
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(
-      new RegExp(
-        String.raw`<(script|style|noscript|svg|template|head)\b${ATTRIBUTES}>[\s\S]*?</\1\s*>`,
-        'gi',
-      ),
-      ' ',
-    )
-    .replace(tagPattern(String.raw`(?:br|hr)\b`), '\n')
-    .replace(
-      tagPattern(
-        String.raw`/?(?:p|div|section|article|main|header|footer|li|ul|ol|h[1-6]|tr|table|blockquote)\b`,
-      ),
-      '\n',
-    )
-    .replace(tagPattern(String.raw`(?:td|th)\b`), ' | ')
-    .replace(tagPattern(String.raw`/?[a-zA-Z][^\s>/]*`), ' ')
-    .replace(/<[!?][^>]*>/g, ' ');
+  let text = '';
+  let at = 0;
+  // Hidden elements with no end tag after some point have none after any later point.
+  const unterminated = new Set<string>();
+  // Inside <pre> a line break is a line break; anywhere else it is a space, as in a browser.
+  let preformatted = 0;
+  const shown = (segment: string) => (preformatted ? segment : segment.replace(/\s+/g, ' '));
+  const tagName = /<(\/?)([a-zA-Z][^\s/>]*)/y;
+  while (at < html.length) {
+    const lt = html.indexOf('<', at);
+    if (lt === -1) {
+      text += shown(html.slice(at));
+      break;
+    }
+    text += shown(html.slice(at, lt));
+    if (html.startsWith('<!--', lt) || html[lt + 1] === '!' || html[lt + 1] === '?') {
+      const comment = html.startsWith('<!--', lt);
+      const close = comment ? html.indexOf('-->', lt + 4) : html.indexOf('>', lt);
+      if (close === -1) break;
+      text += ' ';
+      at = close + (comment ? 3 : 1);
+      continue;
+    }
+    tagName.lastIndex = lt;
+    const named = tagName.exec(html);
+    if (!named) {
+      text += '<';
+      at = lt + 1;
+      continue;
+    }
+    const tag = scanTag(html, lt + named[0].length);
+    if (!tag) break;
+    at = tag.end;
+    const closing = named[1] === '/';
+    const name = named[2].toLowerCase();
+    if (name === 'pre') preformatted = Math.max(0, preformatted + (closing ? -1 : 1));
+    if (!closing && HIDDEN_ELEMENTS.has(name) && !unterminated.has(name)) {
+      const end = new RegExp(`</${name}\\s*>`, 'gi');
+      end.lastIndex = at;
+      const found = end.exec(html);
+      if (found) {
+        text += ' ';
+        at = found.index + found[0].length;
+        continue;
+      }
+      if (name === 'script' || name === 'style') break;
+      unterminated.add(name);
+    }
+    text +=
+      BLOCK_ELEMENTS.has(name) || (!closing && (name === 'br' || name === 'hr'))
+        ? '\n'
+        : !closing && (name === 'td' || name === 'th')
+          ? ' | '
+          : ' ';
+  }
   return decodeHTML(text)
     .split('\n')
     .map((line) => line.replace(/\s+/g, ' ').trim())
@@ -76,16 +194,13 @@ export type PageLink = { url: string; text: string };
 const MAX_LINKS = 5000;
 const MAX_LINK_TEXT = 150;
 
-/** The value of an HTML attribute, decoded, or undefined when the tag has no such attribute. */
-function attribute(tag: string, name: string): string | undefined {
-  const match = new RegExp(`(?:^|\\s)${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(
-    tag,
-  );
-  const value = match?.[1] ?? match?.[2] ?? match?.[3];
-  return value === undefined ? undefined : decodeHTMLAttribute(value);
-}
-
 const collapse = (text: string) => text.replace(/\s+/g, ' ').trim();
+
+/** The first start tag of an element in the HTML, or undefined. */
+function firstTag(html: string, name: string): Tag | undefined {
+  const start = new RegExp(`<${name}(?=[\\s/>])`, 'i').exec(html);
+  return start ? scanTag(html, start.index + name.length + 1, true) : undefined;
+}
 
 /**
  * The links of an HTML page in page order, as absolute http(s) URLs without fragments, each
@@ -98,7 +213,7 @@ export function extractLinks(html: string, pageUrl: string): PageLink[] {
   const self = new URL(pageUrl);
   self.hash = '';
   let base = self;
-  const baseHref = attribute(tagPattern(String.raw`base\b`).exec(html)?.[0] ?? '', 'href')?.trim();
+  const baseHref = firstTag(html, 'base')?.attributes.get('href')?.trim();
   if (baseHref) {
     try {
       base = new URL(baseHref, self);
@@ -107,9 +222,18 @@ export function extractLinks(html: string, pageUrl: string): PageLink[] {
     }
   }
   const links = new Map<string, string>();
-  const anchors = new RegExp(String.raw`<a\b(${ATTRIBUTES})>([\s\S]*?)</a\s*>`, 'gi');
-  for (const [, anchor, inner] of html.matchAll(anchors)) {
-    const href = attribute(anchor, 'href')?.trim();
+  const anchors = /<a(?=[\s/>])/gi;
+  const ends = /<\/a\s*>/gi;
+  for (let found = anchors.exec(html); found; found = anchors.exec(html)) {
+    const anchor = scanTag(html, found.index + 2, true);
+    if (!anchor) break;
+    ends.lastIndex = anchor.end;
+    const end = ends.exec(html);
+    // An anchor with no end tag is no link, and none after it has one either.
+    if (!end) break;
+    anchors.lastIndex = end.index + end[0].length;
+    const inner = html.slice(anchor.end, end.index);
+    const href = anchor.attributes.get('href')?.trim();
     if (!href) continue;
     let url: URL;
     try {
@@ -121,9 +245,9 @@ export function extractLinks(html: string, pageUrl: string): PageLink[] {
     if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.href === self.href) continue;
     const text = collapse(
       htmlToText(inner) ||
-        attribute(anchor, 'aria-label') ||
-        attribute(anchor, 'title') ||
-        attribute(tagPattern(String.raw`img\b`).exec(inner)?.[0] ?? '', 'alt') ||
+        anchor.attributes.get('aria-label') ||
+        anchor.attributes.get('title') ||
+        firstTag(inner, 'img')?.attributes.get('alt') ||
         '',
     );
     const shown = text.length > MAX_LINK_TEXT ? `${text.slice(0, MAX_LINK_TEXT)}...` : text;

@@ -58,6 +58,7 @@ import {
   isNetworkCut,
   printPart,
   shellQuote,
+  menuOnlyWarning,
   unreadableWarning,
 } from './reading';
 import {
@@ -399,16 +400,17 @@ function notRequestedWarning(reason: string): string {
  * read of the stored copy), or undefined without a redirect. A page that is not the one requested
  * gets its warning instead, every time.
  */
-export function redirectNote(record: EvidenceRecord): string | undefined {
+export function redirectNote(record: EvidenceRecord, revision = false): string | undefined {
   if (record.finalUrl === record.requestedUrl) return undefined;
   if (notTheRequestedPage(record)) return `Redirected to ${record.finalUrl}.`;
+  const sharedIds = revision ? ` ${SHARED_ID_NOTE}` : '';
   switch (redirectKind(record)) {
     case 'file':
-      return `Redirected to ${record.finalUrl}, the file the link downloads. Cite the file's URL, ${record.finalUrl}: a download link may change or lead somewhere else later. ${SHARED_ID_NOTE}`;
+      return `Redirected to ${record.finalUrl}, the file the link downloads. Cite the file's URL, ${record.finalUrl}: a download link may change or lead somewhere else later.${sharedIds}`;
     case 'unrelated':
-      return `WARNING: redirected to ${record.finalUrl}, whose address shares no word with the one asked for, so it may be an error, search or index page. Read it before you cite it; if it is the page you wanted, cite ${record.finalUrl}. ${SHARED_ID_NOTE}`;
+      return `WARNING: redirected to ${record.finalUrl}, whose address shares no word with the one asked for, so it may be an error, search or index page. Read it before you cite it; if it is the page you wanted, cite ${record.finalUrl}.${sharedIds}`;
     default:
-      return `Redirected to ${record.finalUrl}; either URL may be cited. ${SHARED_ID_NOTE}`;
+      return `Redirected to ${record.finalUrl}; either URL may be cited.${sharedIds}`;
   }
 }
 
@@ -417,7 +419,7 @@ export function redirectNote(record: EvidenceRecord): string | undefined {
  * that part's URL (checkRevisions), so citing the other URL under the same ID changes nothing.
  */
 const SHARED_ID_NOTE =
-  "In a revision, a source ID that a part you are not revising also declares keeps that part's URL, whichever you cite; submit prints a notice when that happens. To cite the other URL, give it its own source ID.";
+  "In this revision, a source ID that a part you are not revising also declares keeps that part's URL, whichever you cite; submit prints a notice when that happens. To cite the other URL, give it its own source ID.";
 
 /** The note for a page asked for over http, since sources are cited by their https URL. */
 export function httpNote(url: URL): string | undefined {
@@ -492,11 +494,14 @@ export async function fetchCommand(options: FetchOptions, deps: AgentDeps): Prom
   deps.out(describeRecord(record));
   const notRequested = notTheRequestedPage(record);
   if (fresh) {
-    for (const note of [httpNote(parsedUrl), redirectNote(record)]) if (note) deps.out(note);
+    for (const note of [httpNote(parsedUrl), redirectNote(record, Boolean(session.revisions))])
+      if (note) deps.out(note);
   }
   if (notRequested) deps.out(notRequestedWarning(notRequested));
   const unreadable = unreadableWarning(record);
   if (unreadable) deps.out(unreadable);
+  const menuOnly = menuOnlyWarning(record);
+  if (menuOnly) deps.out(menuOnly);
   return printPart(
     record,
     { ...options, matches },

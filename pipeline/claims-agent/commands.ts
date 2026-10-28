@@ -23,6 +23,7 @@ import {
   isNetworkCut,
   printPart,
   shellQuote,
+  menuOnlyWarning,
   unreadableWarning,
 } from '../agent/reading';
 import { notTheRequestedPage } from '../agent/page-check';
@@ -348,6 +349,8 @@ export async function fetchCommand(options: FetchOptions, deps: ClaimsAgentDeps)
       `${unreadable.replace(/; choose another source or another copy of the document\.$/, '.')} If no other copy is cited, mark ${source.id} unreachable with this reason.`,
     );
   }
+  const menuOnly = menuOnlyWarning(record);
+  if (menuOnly) deps.out(menuOnly);
   return printPart(
     record,
     { offset: options.offset, find: options.find, matches },
