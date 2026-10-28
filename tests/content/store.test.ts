@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import * as content from '../../src/content';
+import * as loaders from '../../src/content';
 import { getPlace } from '../../src/content/geo';
 import { localeContentDir, readContentTree } from '../../src/content/files';
 import { CountryFile } from '../../src/content/schema';
 import { createContentStore, type ContentSources } from '../../src/content/store';
-import { readJson } from './load';
+import { FIXTURE_CONTENT_DIR, readJson } from './load';
 
 const entry = (file: string) => ({ file, data: readJson(file) });
+const fixture = (path: string) => `${FIXTURE_CONTENT_DIR}/${path}`;
+
+// Everything below runs on the fixture tree (tests/fixtures/content/en), never on content/en, so
+// it holds however many countries production content has and whatever is reviewed in it. The
+// last test checks that the default loaders read content/en the way a store built here does.
+const content = createContentStore(readContentTree(FIXTURE_CONTENT_DIR), { includeDrafts: false });
 
 describe('loaders', () => {
   it('find countries by ID or slug', () => {
@@ -14,20 +20,30 @@ describe('loaders', () => {
     expect(content.getCountry('sgp')?.id).toBe('SGP');
     expect(content.getCountry('united-states')?.id).toBe('USA');
     expect(content.getCountry('atlantis')).toBeUndefined();
-    expect(content.listCountries().map((country) => country.id)).toHaveLength(10);
+    // By name.
+    expect(content.listCountries().map((country) => country.id)).toEqual([
+      'FRA',
+      'MYS',
+      'SGP',
+      'USA',
+    ]);
   });
 
   it('find stories by ID or slug', () => {
     expect(content.getStory('SGP', 'shipping')?.countryId).toBe('SGP');
     expect(content.getStoryBySlug('singapore', 'shipping')?.id).toBe('shipping');
+    expect(content.getStoryBySlug('atlantis', 'shipping')).toBeUndefined();
     expect(content.getStory('SGP', 'no-such-story')).toBeUndefined();
     expect(content.listStories('SGP').map((story) => story.id)).toEqual([
       'wealth',
       'shipping',
       'identity',
     ]);
-    expect(content.listStories()).toHaveLength(30);
-    expect(content.listTrails().length).toBeGreaterThan(0);
+    expect(content.listStories()).toHaveLength(12);
+    expect(content.listTrails().map((trail) => trail.id)).toEqual([
+      'water-connects',
+      'made-together',
+    ]);
   });
 });
 
@@ -72,7 +88,8 @@ describe('resolveScene', () => {
   });
 
   it('keeps the camera of a country scene', () => {
-    const country = content.getCountry('JPN')!;
+    const country = content.getCountry('SGP')!;
+    expect(country.scene.camera).toBeDefined();
     expect(content.resolveScene(country.scene).camera).toEqual(country.scene.camera);
   });
 
@@ -85,8 +102,8 @@ describe('resolveScene', () => {
 describe('draft filtering', () => {
   // Singapore stays reviewed apart from one draft story; Malaysia becomes a draft country.
   function sources(): ContentSources {
-    const singapore = CountryFile.parse(readJson('content/en/countries/singapore.json'));
-    const malaysia = CountryFile.parse(readJson('content/en/countries/malaysia.json'));
+    const singapore = CountryFile.parse(readJson(fixture('countries/singapore.json')));
+    const malaysia = CountryFile.parse(readJson(fixture('countries/malaysia.json')));
     const draft = {
       generatedBy: 'claude-opus-5-5',
       generatedAt: '2026-10-01',
@@ -99,8 +116,8 @@ describe('draft filtering', () => {
         { file: 'singapore.json', data: singapore },
         { file: 'malaysia.json', data: malaysia },
       ],
-      trails: entry('content/en/trails.json'),
-      placeNotes: entry('content/en/places.json'),
+      trails: entry(fixture('trails.json')),
+      placeNotes: entry(fixture('places.json')),
       home: {
         file: 'home.json',
         data: {
@@ -145,14 +162,23 @@ describe('draft filtering', () => {
     expect(store.getCountry('SGP')!.starterStoryIds).toContain(draftStory);
     expect(store.getHome().suggestedQuestions).toHaveLength(3);
   });
+});
 
-  it('is what the default loaders do for the build environment', () => {
-    // Tests run outside production, so the default store includes drafts; all English content
-    // is reviewed, so the result is the same either way.
-    const production = createContentStore(readContentTree(localeContentDir('en')), {
-      includeDrafts: false,
-    });
-    expect(production.listStories()).toEqual(content.listStories());
-    expect(production.getHome()).toEqual(content.getHome());
+describe('default loaders', () => {
+  it('are the build environment: drafts in development, reviewed content in production', () => {
+    // The loaders read content/en. Tests run outside production, so they include drafts, while
+    // publishedContent never does. Compare them with stores built here from the same tree, so the
+    // result does not depend on what content/en holds or which of it is reviewed.
+    const tree = () => readContentTree(localeContentDir('en'));
+    const development = createContentStore(tree, { includeDrafts: true });
+    const production = createContentStore(tree, { includeDrafts: false });
+
+    expect(loaders.listCountries()).toEqual(development.listCountries());
+    expect(loaders.listStories()).toEqual(development.listStories());
+    expect(loaders.getHome()).toEqual(development.getHome());
+    expect(loaders.listTrails()).toEqual(development.listTrails());
+    expect(loaders.publishedContent.listCountries()).toEqual(production.listCountries());
+    expect(loaders.publishedContent.listStories()).toEqual(production.listStories());
+    expect(loaders.publishedContent.getHome()).toEqual(production.getHome());
   });
 });

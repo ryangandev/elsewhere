@@ -1,0 +1,214 @@
+{
+  "country": {
+    "id": "MYS",
+    "slug": "malaysia",
+    "name": "Malaysia",
+    "region": "Southeast Asia",
+    "kicker": "A fixture kicker for Malaysia.",
+    "overview": {
+      "summary": "Fixture summary of Malaysia.",
+      "geography": "Fixture geography of Malaysia.",
+      "sourceIds": ["mys-overview"],
+      "whyItMatters": [
+        {
+          "title": "Fixture reason",
+          "text": "Fixture text.",
+          "sourceIds": ["mys-overview"]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Capital",
+        "value": "Fixture City",
+        "sourceIds": ["mys-overview"]
+      }
+    ],
+    "starterStoryIds": ["electronics", "two-shores", "rainforest"],
+    "scene": {
+      "focusCountryId": "MYS",
+      "highlights": [],
+      "placeIds": [],
+      "routes": []
+    },
+    "sources": [
+      {
+        "id": "mys-overview",
+        "title": "Fixture source for overview",
+        "publisher": "Fixture Publisher",
+        "url": "https://example.org/mys/overview"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-01-01",
+      "reviewedBy": "fixture",
+      "reviewedAt": "2026-01-02",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "electronics",
+      "countryId": "MYS",
+      "slug": "electronics",
+      "question": "Why does Malaysia make so many chips?",
+      "category": "Economy",
+      "summary": "A one-line fixture answer to \"Why does Malaysia make so many chips?\"",
+      "sections": [
+        {
+          "title": "First part",
+          "text": "Fixture text for the first part.",
+          "sourceIds": ["mys-electronics"]
+        },
+        {
+          "title": "Second part",
+          "text": "Fixture text for the second part.",
+          "sourceIds": ["mys-electronics"]
+        }
+      ],
+      "takeaway": "A fixture takeaway.",
+      "scene": {
+        "focusCountryId": "MYS",
+        "highlights": [],
+        "placeIds": [],
+        "routes": [],
+        "mapNote": "Look at the highlighted place."
+      },
+      "next": [
+        {
+          "countryId": "MYS",
+          "storyId": "two-shores"
+        },
+        {
+          "countryId": "SGP",
+          "storyId": "wealth",
+          "reason": "Fixture reason to go to Singapore."
+        }
+      ],
+      "sources": [
+        {
+          "id": "mys-electronics",
+          "title": "Fixture source for electronics",
+          "publisher": "Fixture Publisher",
+          "url": "https://example.org/mys/electronics"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-01-01",
+        "reviewedBy": "fixture",
+        "reviewedAt": "2026-01-02",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "two-shores",
+      "countryId": "MYS",
+      "slug": "two-shores",
+      "question": "Why is one country split by sea?",
+      "category": "Geography",
+      "summary": "A one-line fixture answer to \"Why is one country split by sea?\"",
+      "sections": [
+        {
+          "title": "First part",
+          "text": "Fixture text for the first part.",
+          "sourceIds": ["mys-two-shores"]
+        },
+        {
+          "title": "Second part",
+          "text": "Fixture text for the second part.",
+          "sourceIds": ["mys-two-shores"]
+        }
+      ],
+      "takeaway": "A fixture takeaway.",
+      "scene": {
+        "focusCountryId": "MYS",
+        "highlights": [],
+        "placeIds": [],
+        "routes": [],
+        "mapNote": "Look at the highlighted place."
+      },
+      "next": [
+        {
+          "countryId": "MYS",
+          "storyId": "rainforest"
+        },
+        {
+          "countryId": "SGP",
+          "storyId": "wealth",
+          "reason": "Fixture reason to go to Singapore."
+        }
+      ],
+      "sources": [
+        {
+          "id": "mys-two-shores",
+          "title": "Fixture source for two-shores",
+          "publisher": "Fixture Publisher",
+          "url": "https://example.org/mys/two-shores"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-01-01",
+        "reviewedBy": "fixture",
+        "reviewedAt": "2026-01-02",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "rainforest",
+      "countryId": "MYS",
+      "slug": "rainforest",
+      "question": "Why is Malaysia so green?",
+      "category": "Nature",
+      "summary": "A one-line fixture answer to \"Why is Malaysia so green?\"",
+      "sections": [
+        {
+          "title": "First part",
+          "text": "Fixture text for the first part.",
+          "sourceIds": ["mys-rainforest"]
+        },
+        {
+          "title": "Second part",
+          "text": "Fixture text for the second part.",
+          "sourceIds": ["mys-rainforest"]
+        }
+      ],
+      "takeaway": "A fixture takeaway.",
+      "scene": {
+        "focusCountryId": "MYS",
+        "highlights": [],
+        "placeIds": [],
+        "routes": [],
+        "mapNote": "Look at the highlighted place."
+      },
+      "next": [
+        {
+          "countryId": "MYS",
+          "storyId": "electronics"
+        },
+        {
+          "countryId": "SGP",
+          "storyId": "wealth",
+          "reason": "Fixture reason to go to Singapore."
+        }
+      ],
+      "sources": [
+        {
+          "id": "mys-rainforest",
+          "title": "Fixture source for rainforest",
+          "publisher": "Fixture Publisher",
+          "url": "https://example.org/mys/rainforest"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-01-01",
+        "reviewedBy": "fixture",
+        "reviewedAt": "2026-01-02",
+        "status": "reviewed"
+      }
+    }
+  ]
+}

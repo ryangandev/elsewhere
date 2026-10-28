@@ -1,0 +1,232 @@
+{
+  "country": {
+    "id": "SGP",
+    "slug": "singapore",
+    "name": "Singapore",
+    "nativeName": "Singapura",
+    "region": "Southeast Asia",
+    "kicker": "A fixture kicker for Singapore.",
+    "overview": {
+      "summary": "Fixture summary of Singapore.",
+      "geography": "Fixture geography of Singapore.",
+      "sourceIds": ["sgp-overview"],
+      "whyItMatters": [
+        {
+          "title": "Fixture reason",
+          "text": "Fixture text.",
+          "sourceIds": ["sgp-overview"]
+        }
+      ]
+    },
+    "quickFacts": [
+      {
+        "label": "Capital",
+        "value": "Fixture City",
+        "sourceIds": ["sgp-overview"]
+      }
+    ],
+    "starterStoryIds": ["wealth", "shipping", "identity"],
+    "scene": {
+      "focusCountryId": "SGP",
+      "highlights": [],
+      "placeIds": [],
+      "routes": [],
+      "camera": {
+        "lat": 1.35,
+        "lng": 103.82,
+        "altitude": 0.55
+      }
+    },
+    "sources": [
+      {
+        "id": "sgp-overview",
+        "title": "Fixture source for overview",
+        "publisher": "Fixture Publisher",
+        "url": "https://example.org/sgp/overview"
+      }
+    ],
+    "provenance": {
+      "generatedBy": "human",
+      "generatedAt": "2026-01-01",
+      "reviewedBy": "fixture",
+      "reviewedAt": "2026-01-02",
+      "status": "reviewed"
+    }
+  },
+  "stories": [
+    {
+      "id": "wealth",
+      "countryId": "SGP",
+      "slug": "wealth",
+      "question": "How did a tiny island become so wealthy?",
+      "category": "Economy",
+      "summary": "A one-line fixture answer to \"How did a tiny island become so wealthy?\"",
+      "sections": [
+        {
+          "title": "First part",
+          "text": "Fixture text for the first part.",
+          "sourceIds": ["sgp-wealth"]
+        },
+        {
+          "title": "Second part",
+          "text": "Fixture text for the second part.",
+          "sourceIds": ["sgp-wealth"]
+        }
+      ],
+      "takeaway": "A fixture takeaway.",
+      "scene": {
+        "focusCountryId": "SGP",
+        "highlights": [],
+        "placeIds": ["malaysia", "indonesia", "strait-of-malacca", "south-china-sea"],
+        "routes": [
+          {
+            "id": "malacca-passage",
+            "kind": "sea",
+            "via": ["andaman-sea", "strait-of-malacca", "singapore-strait", "south-china-sea"]
+          }
+        ],
+        "mapNote": "Look at the highlighted place."
+      },
+      "next": [
+        {
+          "countryId": "SGP",
+          "storyId": "shipping"
+        },
+        {
+          "countryId": "USA",
+          "storyId": "dollar",
+          "reason": "Fixture reason to go to United States."
+        }
+      ],
+      "sources": [
+        {
+          "id": "sgp-wealth",
+          "title": "Fixture source for wealth",
+          "publisher": "Fixture Publisher",
+          "url": "https://example.org/sgp/wealth"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-01-01",
+        "reviewedBy": "fixture",
+        "reviewedAt": "2026-01-02",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "shipping",
+      "countryId": "SGP",
+      "slug": "shipping",
+      "question": "Why is Singapore a shipping crossroads?",
+      "category": "Geography",
+      "summary": "A one-line fixture answer to \"Why is Singapore a shipping crossroads?\"",
+      "sections": [
+        {
+          "title": "First part",
+          "text": "Fixture text for the first part.",
+          "sourceIds": ["sgp-shipping"]
+        },
+        {
+          "title": "Second part",
+          "text": "Fixture text for the second part.",
+          "sourceIds": ["sgp-shipping"]
+        }
+      ],
+      "takeaway": "A fixture takeaway.",
+      "scene": {
+        "focusCountryId": "SGP",
+        "highlights": [],
+        "placeIds": ["malaysia", "indonesia", "strait-of-malacca", "south-china-sea"],
+        "routes": [
+          {
+            "id": "malacca-passage",
+            "kind": "sea",
+            "via": ["andaman-sea", "strait-of-malacca", "singapore-strait", "south-china-sea"]
+          }
+        ],
+        "mapNote": "Look at the highlighted place."
+      },
+      "next": [
+        {
+          "countryId": "SGP",
+          "storyId": "identity"
+        },
+        {
+          "countryId": "USA",
+          "storyId": "dollar",
+          "reason": "Fixture reason to go to United States."
+        }
+      ],
+      "sources": [
+        {
+          "id": "sgp-shipping",
+          "title": "Fixture source for shipping",
+          "publisher": "Fixture Publisher",
+          "url": "https://example.org/sgp/shipping"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-01-01",
+        "reviewedBy": "fixture",
+        "reviewedAt": "2026-01-02",
+        "status": "reviewed"
+      }
+    },
+    {
+      "id": "identity",
+      "countryId": "SGP",
+      "slug": "identity",
+      "question": "Why does Singapore have four official languages?",
+      "category": "Society",
+      "summary": "A one-line fixture answer to \"Why does Singapore have four official languages?\"",
+      "sections": [
+        {
+          "title": "First part",
+          "text": "Fixture text for the first part.",
+          "sourceIds": ["sgp-identity"]
+        },
+        {
+          "title": "Second part",
+          "text": "Fixture text for the second part.",
+          "sourceIds": ["sgp-identity"]
+        }
+      ],
+      "takeaway": "A fixture takeaway.",
+      "scene": {
+        "focusCountryId": "SGP",
+        "highlights": [],
+        "placeIds": [],
+        "routes": [],
+        "mapNote": "Look at the highlighted place."
+      },
+      "next": [
+        {
+          "countryId": "SGP",
+          "storyId": "wealth"
+        },
+        {
+          "countryId": "USA",
+          "storyId": "dollar",
+          "reason": "Fixture reason to go to United States."
+        }
+      ],
+      "sources": [
+        {
+          "id": "sgp-identity",
+          "title": "Fixture source for identity",
+          "publisher": "Fixture Publisher",
+          "url": "https://example.org/sgp/identity"
+        }
+      ],
+      "provenance": {
+        "generatedBy": "human",
+        "generatedAt": "2026-01-01",
+        "reviewedBy": "fixture",
+        "reviewedAt": "2026-01-02",
+        "status": "reviewed"
+      }
+    }
+  ]
+}
