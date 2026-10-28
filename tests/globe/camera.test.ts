@@ -161,6 +161,103 @@ describe('scene framing', () => {
     expect(sceneView(overview, egypt)).toEqual(countryView(egypt.get('EGY')!));
   });
 
+  it('marks only open-sea label points as open sea', () => {
+    const scene = resolveScene({
+      focusCountryId: 'NLD',
+      highlights: [],
+      placeIds: ['north-sea', 'english-channel', 'lake-victoria', 'white-nile-river', 'rotterdam'],
+      routes: [
+        {
+          id: 'approach',
+          kind: 'sea',
+          via: ['north-atlantic-ocean', 'strait-of-dover', 'rotterdam'],
+        },
+      ],
+    });
+    expect(scene.places.filter((item) => item.openSea).map((item) => item.id)).toEqual([
+      'north-sea',
+    ]);
+    const [start, ...rest] = scene.routes[0].waypoints;
+    expect(start).toMatchObject({ lat: 29.241, lng: -37.31, openSea: true });
+    expect(rest.length).toBeGreaterThan(2);
+    expect(rest.every((point) => !point.openSea)).toBe(true);
+  });
+
+  it('reaches only a bounded way toward an open sea, as a place or a route stop', () => {
+    const countries = new Map([['USA', getMapCountry('USA')!]]);
+    const overview = (placeIds: string[]) =>
+      sceneView(
+        resolveScene({ focusCountryId: 'USA', highlights: [], placeIds, routes: [] }),
+        countries,
+      );
+    const country = countryView(countries.get('USA')!);
+    const withOceans = overview([
+      'canada',
+      'mexico',
+      'north-atlantic-ocean',
+      'north-pacific-ocean',
+    ]);
+    // Naming two oceans moves the view out a little, nowhere near the whole globe.
+    expect(withOceans.altitude).toBeLessThan(country.altitude * 1.3);
+    expect(withOceans.altitude).toBeLessThan(HOME_VIEW.altitude);
+    // The same points framed in full would need the whole globe.
+    const full = resolveScene({
+      focusCountryId: 'USA',
+      highlights: [],
+      placeIds: ['canada', 'mexico', 'north-atlantic-ocean', 'north-pacific-ocean'],
+      routes: [],
+    });
+    full.places = full.places.map((item) => ({ ...item, openSea: undefined }));
+    expect(sceneView(full, countries).altitude).toBe(HOME_VIEW.altitude);
+
+    // As a route stop, the open sea is a direction: the route leaves the frame toward it.
+    const egyptRoute = resolveScene({
+      focusCountryId: 'EGY',
+      highlights: [],
+      placeIds: [],
+      routes: [{ id: 'tea', kind: 'sea', via: ['indian-ocean', 'red-sea', 'suez-canal'] }],
+    });
+    const view = sceneView(egyptRoute, egypt);
+    expect(view.altitude).toBeLessThan(1.3);
+    const ocean = egyptRoute.routes[0].waypoints[0];
+    expect(viewOffset(view, ocean)).toBeGreaterThan(1);
+  });
+
+  it('frames Rotterdam from the Channel to the Rhine, not from the mid-Atlantic', () => {
+    const netherlands = new Map([['NLD', getMapCountry('NLD')!]]);
+    const rotterdam = resolveScene({
+      focusCountryId: 'NLD',
+      highlights: [],
+      placeIds: ['rotterdam', 'rhine-river', 'north-sea', 'english-channel'],
+      routes: [
+        {
+          id: 'ship-approach',
+          kind: 'sea',
+          via: ['north-atlantic-ocean', 'english-channel', 'strait-of-dover', 'rotterdam'],
+        },
+        { id: 'rhine-hinterland', kind: 'river', via: ['rotterdam', 'rhine-river'] },
+        { id: 'meuse-hinterland', kind: 'river', via: ['rotterdam', 'meuse-river'] },
+      ],
+    });
+    const view = sceneView(rotterdam, netherlands);
+    // The Channel, the Strait of Dover, Rotterdam and the Rhine and Meuse count in full.
+    const full = [
+      ...rotterdam.places.filter((item) => !item.openSea),
+      ...rotterdam.routes.flatMap((route) => route.waypoints.filter((point) => !point.openSea)),
+    ];
+    for (const point of full)
+      expect(viewOffset(view, point)).toBeLessThanOrEqual(SCENE_FILL + 1e-6);
+    // The North Sea stays in view; the mid-Atlantic start of the ship route does not.
+    const northSea = rotterdam.places.find((item) => item.id === 'north-sea')!;
+    expect(viewOffset(view, northSea)).toBeLessThan(1);
+    expect(viewOffset(view, { lat: 29.241, lng: -37.31 })).toBeGreaterThan(1);
+    expect(view.lat).toBeGreaterThan(46);
+    expect(view.lat).toBeLessThan(55);
+    expect(view.lng).toBeGreaterThan(-6);
+    expect(view.lng).toBeLessThan(10);
+    expect(view.altitude).toBeLessThan(0.8);
+  });
+
   it('still prefers an explicit camera, a focused place and home', () => {
     const camera = { lat: 26, lng: 30, altitude: 0.8 };
     expect(sceneView({ ...nileSource, camera }, egypt)).toEqual(camera);

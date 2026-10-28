@@ -170,6 +170,30 @@ export function routePoints(route: Pick<SceneRouteSpec, 'kind' | 'via'>): LatLng
 }
 
 /**
+ * Whether a place's label point is only a spot in a large open sea: an ocean, sea or gulf from
+ * Natural Earth's marine areas. Straits, channels and canals carry a path, and lakes and rivers
+ * lie on land, so they are never open sea.
+ */
+export function isOpenSea(place: GazetteerPlace): boolean {
+  return place.kind === 'water' && place.surface === 'sea' && !place.path;
+}
+
+/**
+ * The points a route is drawn through before the great-circle steps between them: its stops, and
+ * the path points of the passages and rivers a sea or river route follows. Open-sea stops are
+ * marked, so the globe frames them only as a direction.
+ */
+export function routeWaypoints(
+  route: Pick<SceneRouteSpec, 'kind' | 'via'>,
+): { lat: number; lng: number; openSea?: true }[] {
+  return expandRouteStops(routeStops(route)).map(({ id, point: [lat, lng], passage }) => ({
+    lat: round(lat),
+    lng: round(lng),
+    ...(passage === undefined && isOpenSea(requirePlace(id)) ? { openSea: true as const } : {}),
+  }));
+}
+
+/**
  * Where a route crosses land. Only sea routes are checked: land and river routes are on land
  * by definition, and flows are illustrative arcs.
  */

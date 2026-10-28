@@ -33,8 +33,8 @@ function toLatLng([x, y, z]: Vector) {
   return { lat: Math.atan2(z, Math.hypot(x, y)) / RADIANS, lng: Math.atan2(y, x) / RADIANS };
 }
 
-const angle = (a: Vector, b: Vector) =>
-  Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
+const dot = (a: Vector, b: Vector) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const angle = (a: Vector, b: Vector) => Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
 
 // globe.gl's camera has a 50 degree vertical field of view. The globe area already sits beside
 // the reading panel, so framing only has to keep the scene clear of the map note at the bottom.
@@ -61,12 +61,31 @@ function capAltitude(radius: number) {
   return Math.cos(radius) + Math.sin(radius) / (SCENE_FILL * Math.tan(HALF_FOV)) - 1;
 }
 
-// Every point the scene shows: its places and each point of its routes.
+// The scene's places and route waypoints, split into the points framed in full and the open-sea
+// points framed only as a direction. Waypoints are enough: a great-circle step between two points
+// of a cap smaller than a hemisphere stays inside it.
 function scenePoints(scene: MapScene) {
-  return [
-    ...scene.places,
-    ...scene.routes.flatMap((route) => route.points.map(([lat, lng]) => ({ lat, lng }))),
-  ];
+  const points = [...scene.places, ...scene.routes.flatMap((route) => route.waypoints)];
+  return {
+    full: points.filter((point) => !point.openSea).map(toVector),
+    openSea: points.filter((point) => point.openSea).map(toVector),
+  };
+}
+
+// The camera reaches at most this far past the rest of the scene toward an open-sea point:
+// 500 km, in radians of the globe.
+const OPEN_SEA_REACH = 500 / 6371;
+
+// The point at most `limit` radians from `center`, on the great circle toward `point`.
+function pullToward(center: Vector, point: Vector, limit: number): Vector {
+  if (angle(center, point) <= limit) return point;
+  const along = point.map((value, axis) => value - center[axis] * dot(center, point));
+  const length = Math.hypot(...along);
+  // A point opposite the center gives no direction to pull along.
+  if (length < 1e-9) return center;
+  return center.map(
+    (value, axis) => value * Math.cos(limit) + (along[axis] / length) * Math.sin(limit),
+  ) as Vector;
 }
 
 // A small cap holding every point and the focus country, taken as a disc of its area.
@@ -111,12 +130,19 @@ export function sceneView(
   const country = scene.focusCountryId ? countries.get(scene.focusCountryId) : undefined;
   if (!country) return home;
   const view = countryView(country);
-  const points = scenePoints(scene);
+  const { full, openSea } = scenePoints(scene);
+  // Open-sea points are pulled toward the cap of everything else, to reach at most a fixed
+  // distance past it.
+  const core = enclosingCap(full, country);
+  const points = [
+    ...full,
+    ...openSea.map((point) => pullToward(core.center, point, core.radius + OPEN_SEA_REACH)),
+  ];
   // A scene inside or near its country keeps the country's view, so overviews hold still.
-  if (points.every((point) => viewOffset(view, point) <= COUNTRY_FILL)) return view;
+  if (points.every((point) => viewOffset(view, toLatLng(point)) <= COUNTRY_FILL)) return view;
   // Otherwise the view frames the whole scene, never closer than the country's view and never
   // farther out than home.
-  const cap = enclosingCap(points.map(toVector), country);
+  const cap = enclosingCap(points, country);
   const altitude = Math.max(view.altitude, capAltitude(cap.radius));
   return { ...toLatLng(cap.center), altitude: Math.min(home.altitude, altitude) };
 }

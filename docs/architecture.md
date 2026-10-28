@@ -159,6 +159,7 @@ Home        suggestedQuestions[{countryId, storyId}] (3 to 4, distinct, shown in
 
 Content stores a `SceneSpec`, which only names places.
 `resolveScene(spec)` turns it into the globe's `MapScene`: coordinates from the gazetteer, notes from `places.json`, and route polylines along great circles; sea and river routes follow the path of each passage or river they name.
+It also gives each route its waypoints, the points the polyline is drawn through, and marks open-sea places and stops (an ocean, sea or gulf's label point, with no path) so the globe frames them only as a direction.
 A country place marks the part of the country the scene looks at.
 Its gazetteer point is Natural Earth's label point, which for a country in several parts can sit far from the story: Malaysia's is on Borneo, while the Singapore stories are about the peninsula.
 `countryPlacePoint` in `src/content/geo.ts` takes the label point unless one of the country's interior label candidates (the same points the globe names it at, from `label-candidates.ts` over `public/maps/countries.geojson`) is less than half as far from the scene's center, which is the scene's camera or else the focus country's label point.
@@ -730,7 +731,9 @@ How a scene is applied:
 - Scenes are diffed (`scene-diff.ts`); a structurally equal scene does nothing, and each changed layer updates on its own.
 - The camera moves only when the scene's target view changes.
   The target is the focused place, else the explicit `camera`, else a view framed from the focus country and everything the scene shows (`camera.ts`), else home.
-  That view is the focus country's own, from its label point and area, while every place and route point sits within 60% of the view's half-height from its middle, so a country overview holds still.
+  The points are the scene's places and its routes' waypoints: their stops and the path points of the straits, canals and rivers they follow.
+  An open-sea point is only a spot in a large ocean or sea that a scene names as a direction, so it counts only up to 500 km past the cap of everything else, pulled toward it along a great circle; straits, channels, canals, rivers and lakes count in full.
+  That view is the focus country's own, from its label point and area, while every point sits within 60% of the view's half-height from its middle, so a country overview holds still.
   A scene that reaches farther is framed as a whole: the camera looks at the center of a near-smallest cap on the sphere holding the country and every point (Badoiu and Clarkson's method), from the altitude at which that cap fills half of the half-height.
   It is never closer than the country's own view nor farther out than home, which also frames a scene wider than a hemisphere, and working on unit vectors keeps it right across the antimeridian.
   The globe area already sits beside the reading panel, so the fill only has to keep the outermost places and their labels clear of the map note at the bottom.
