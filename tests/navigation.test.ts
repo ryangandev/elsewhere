@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import { listMapCountries, listStories, listTrails } from '@/content';
 import { destinationKey, parseDestination } from '@/domain/destination';
 import {
@@ -10,6 +10,9 @@ import {
 } from '@/domain/page-views';
 import { destinationPath } from '@/domain/paths';
 import { countryFromSegment, countrySlug, storyFromSegment } from '@/domain/slugs';
+
+// The content these tests read: the frozen hand-converted tree, not content/en.
+vi.mock('@/content', async () => (await import('./support/hand-converted-content')).loaders());
 
 test('paths use readable slugs of permanent IDs', () => {
   assert.equal(destinationPath(null), '/');

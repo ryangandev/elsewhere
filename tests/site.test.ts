@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { listCountries, listStories } from '@/content';
 import { buildRobots, buildSitemap, pageMetadata, siteOrigin } from '@/domain/site';
 
+// The content these tests read: the frozen hand-converted tree, not content/en.
+vi.mock('@/content', async () => (await import('./support/hand-converted-content')).loaders());
+
 afterEach(() => {
   vi.unstubAllEnvs();
 });
