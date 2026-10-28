@@ -170,8 +170,12 @@ const PASSAGE_MARGIN_KM = 30;
 const CANAL_TOLERANCE_KM = 0.5;
 /** River courses are simplified to within this distance, under a texel of the 4K basemap. */
 const RIVER_TOLERANCE_KM = 3;
-/** River pieces that share no vertex are joined across gaps up to this long (a lake or reservoir). */
-const RIVER_GAP_KM = 25;
+/**
+ * River pieces that share no vertex are joined across gaps up to this long. The pieces of one
+ * river's course come within 1.3 km of each other; separate delta branches, such as the
+ * Irrawaddy's, are 2.7 km or more apart over land.
+ */
+const RIVER_GAP_KM = 2;
 
 /**
  * The two ends of a strait or channel: interior points at either end of the feature's long axis,
@@ -436,7 +440,7 @@ const riversApart = [];
     rivers.set(key, river);
     // Lake centerlines carry the river's course through a lake, such as the Rhine through Lake
     // Constance, but are not rivers of their own.
-    river.course.push(...lines);
+    river.course.push(...lines.map((line) => ({ line, lake: isLake })));
     if (isLake) continue;
     // A rename counts as used only when it names a river that reaches the gazetteer's candidates.
     if (renameKey) renamesUsed.add(renameKey);

@@ -18,6 +18,7 @@ import {
   routePolyline,
 } from '../../src/content/geo';
 import { findPlaces, sharedListing } from '../../pipeline/generate/gazetteer-context';
+import { mainStem } from '../../scripts/passage-paths.mjs';
 import { CountryFile, type SceneRouteSpec } from '../../src/content/schema';
 import { contentInput, landIndex } from './load';
 
@@ -428,6 +429,45 @@ describe('routes', () => {
     expect(length).toBeGreaterThan(1000);
     expect(closestKm(rhine, placeCoordinates('vaduz'))).toBeLessThan(10);
     expect(Math.min(...[rhine[0], rhine.at(-1)!].map((end) => distanceKm(end, placeCoordinates('rotterdam'))))).toBeLessThan(50);
+  });
+
+  it('take a river course through the lakes it crosses, but not across the lake it leaves', () => {
+    // Pieces as [lng, lat] lines: a centerline across the lake the river leaves, the river, a
+    // lake it flows through, and the river again.
+    const piece = (lake: boolean, ...line: [number, number][]) => ({ line, lake });
+    const { path } = mainStem(
+      [
+        piece(true, [30, 0], [30.5, 0], [31, 0]),
+        piece(false, [31, 0], [31, 0.5], [31, 1]),
+        piece(true, [31, 1], [31, 1.5]),
+        piece(false, [31, 1.5], [31, 2], [31, 3]),
+      ],
+      2,
+    );
+    // Either end may come first.
+    expect([path[0], path.at(-1)]).toEqual(expect.arrayContaining([[0, 31], [3, 31]]));
+    expect(path).toContainEqual([1.5, 31]);
+    expect(path).not.toContainEqual([0, 30.5]);
+
+    // The Victoria Nile leaves Lake Victoria at its outlet, north of the equator, instead of
+    // crossing the lake from the Kagera's mouth, south of it.
+    const victoriaNile = getPlace('victoria-nile-river')!.path!;
+    expect(Math.min(...victoriaNile.map(([lat]) => lat))).toBeGreaterThan(0);
+  });
+
+  it('keep separate delta branches apart', () => {
+    // Pieces of one river meet within 2 km; branches of a delta are farther apart over land.
+    const branches = [
+      { line: [[0, 0], [0, 1]] as [number, number][], lake: false },
+      { line: [[0.05, 0], [0.05, 1.5]] as [number, number][], lake: false },
+    ];
+    const { path, leftOutKm } = mainStem(branches, 2);
+    expect(path).toHaveLength(2);
+    expect(leftOutKm).toBeGreaterThan(100);
+    // The Irrawaddy delta is one branch, from near the delta's head to the sea, not a line
+    // stitched from branch to branch with both ends near Yangon.
+    const irrawaddy = getPlace('irrawaddy-delta-river')!.path!;
+    expect(distanceKm(irrawaddy[0], irrawaddy.at(-1)!)).toBeGreaterThan(150);
   });
 
   it('follow a river along its course instead of a straight line through its label point', () => {

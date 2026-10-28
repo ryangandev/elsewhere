@@ -411,10 +411,15 @@ export function joinLines(lines, gapKm = 2) {
  * side channels, delta branches and the centerlines of lakes the river flows through under the
  * same name; the longest way through them runs from the source to the mouth.
  *
+ * Each piece is `{ line, lake }`, with `lake` set for a lake centerline. A lake centerline stays
+ * in the stem where the river flows through the lake (the Rhine through Lake Constance), but not
+ * at either end: a river that begins at a lake's outlet starts there, not across the lake (Natural
+ * Earth draws a "Victoria Nile" centerline across Lake Victoria to the Kagera's mouth).
+ *
  * Pieces that share no vertex are joined where they come within `gapKm` of each other. Pieces
  * that stay apart from the longest connected stretch are left out; `leftOutKm` is their length.
  */
-export function mainStem(lines, gapKm) {
+export function mainStem(pieces, gapKm) {
   const keys = new Map();
   const points = [];
   const edges = [];
@@ -427,15 +432,15 @@ export function mainStem(lines, gapKm) {
     }
     return keys.get(key);
   };
-  const connect = (a, b) => {
+  const connect = (a, b, lake = false) => {
     const km = distanceKm(points[a], points[b]);
-    edges[a].push({ to: b, km });
-    edges[b].push({ to: a, km });
+    edges[a].push({ to: b, km, lake });
+    edges[b].push({ to: a, km, lake });
   };
-  for (const line of lines) {
+  for (const { line, lake } of pieces) {
     for (let index = 1; index < line.length; index += 1) {
       const [a, b] = [node(line[index - 1]), node(line[index])];
-      if (a !== b) connect(a, b);
+      if (a !== b) connect(a, b, lake);
     }
   }
 
@@ -452,13 +457,13 @@ export function mainStem(lines, gapKm) {
     if (!groups.has(root)) groups.set(root, []);
     groups.get(root).push(index);
   }
-  const pieces = [...groups.values()];
+  const connected = [...groups.values()];
   const gaps = [];
-  for (let i = 0; i < pieces.length; i += 1) {
-    for (let j = i + 1; j < pieces.length; j += 1) {
+  for (let i = 0; i < connected.length; i += 1) {
+    for (let j = i + 1; j < connected.length; j += 1) {
       let best;
-      for (const a of pieces[i]) {
-        for (const b of pieces[j]) {
+      for (const a of connected[i]) {
+        for (const b of connected[j]) {
           const km = distanceKm(points[a], points[b]);
           if (!best || km < best.km) best = { a, b, km };
         }
@@ -516,11 +521,18 @@ export function mainStem(lines, gapKm) {
   const first = points.findIndex((_, index) => find(index) === main);
   const start = farthest(shortest(first).distance);
   const { distance, previous } = shortest(start);
-  const path = [];
-  for (let index = farthest(distance); index !== -1; index = previous[index]) {
-    path.push(points[index]);
-  }
-  return { path: path.reverse(), leftOutKm };
+  const stem = [];
+  for (let index = farthest(distance); index !== -1; index = previous[index]) stem.push(index);
+  stem.reverse();
+
+  // Leave out lake centerlines at either end of the stem.
+  const isLake = (a, b) => edges[a].every((edge) => edge.to !== b || edge.lake);
+  let from = 0;
+  let to = stem.length - 1;
+  while (from < to && isLake(stem[from], stem[from + 1])) from += 1;
+  while (to > from && isLake(stem[to - 1], stem[to])) to -= 1;
+  const path = (from < to ? stem.slice(from, to + 1) : stem).map((index) => points[index]);
+  return { path, leftOutKm };
 }
 
 /** A centerline simplified to within `toleranceKm`, as [lat, lng] points. */
