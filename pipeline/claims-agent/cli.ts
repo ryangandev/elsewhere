@@ -29,8 +29,10 @@ Commands:
     --claims-dir <dir>      where results are saved (default: claims/ in the content directory)
     --model <id>            recorded as the model that judged (default ${DEFAULT_MODEL})
     --effort <level>        recorded with it (default "default", the subagent's own)
-    --fresh                 move every existing session of the country to finished/ first,
-                            unfinished ones too
+    --fresh                 move the existing sessions that overlap the requested scope (the
+                            whole country, [story] or --overview) to finished/ first,
+                            unfinished ones too, even when nothing is due; sessions of other
+                            parts of the country stay
                             Without it, start moves a finished session of the same name to
                             finished/ (fetch records and submissions stay), and refuses while
                             an unfinished one holds a unit it would hand out.

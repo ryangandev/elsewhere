@@ -458,8 +458,8 @@ describe('agent claim check sessions', () => {
       expect(readSession(dir, 'CHL-length').fetches).toEqual([]);
     });
 
-    it('--fresh with nothing to check leaves every session where it is', async () => {
-      const { deps, root, startOptions, claimsDir, text } = await lengthSession();
+    /** A result for every unit of the country, so nothing is due. */
+    const saveEverything = (claimsDir: string) => {
       const file = chileFile();
       for (const scope of allScopes(file)) {
         for (const unit of scopeUnits(file, scope)) {
@@ -480,10 +480,64 @@ describe('agent claim check sessions', () => {
           });
         }
       }
+    };
+
+    it('--fresh sets an unfinished session aside even when nothing is due', async () => {
+      const { deps, root, startOptions, claimsDir, text } = await lengthSession();
+      saveEverything(claimsDir);
       expect(start(startOptions({ fresh: true }), deps())).toBe(0);
+      expect(text()).toContain('Nothing to check');
+      expect(listSessions(root)).toEqual([]);
+      expect(readdirSync(join(root, 'finished'))).toEqual([STAMP]);
+    });
+
+    it('without --fresh, nothing to check leaves every session where it is', async () => {
+      const { deps, root, startOptions, claimsDir, text } = await lengthSession();
+      saveEverything(claimsDir);
+      expect(start(startOptions(), deps())).toBe(0);
       expect(text()).toContain('Nothing to check');
       expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL-length']);
       expect(existsSync(join(root, 'finished'))).toBe(false);
+    });
+
+    describe('--fresh scope', () => {
+      /** CHL-length (unfinished) and CHL-overview side by side, then --fresh with these options. */
+      const freshAmong = (options: Partial<StartOptions>) => {
+        const env = setup();
+        expect(start(env.startOptions({ storyId: 'length' }), env.deps())).toBe(0);
+        expect(start(env.startOptions({ overviewOnly: true }), env.deps())).toBe(0);
+        expect(listSessions(env.root).map(({ id }) => id)).toEqual(['CHL-length', 'CHL-overview']);
+        env.text();
+        const code = start(env.startOptions({ ...options, fresh: true }), env.deps());
+        return { ...env, code };
+      };
+
+      it('--overview sets aside the overview session and leaves an unfinished story session alone', () => {
+        const { code, root, text } = freshAmong({ overviewOnly: true });
+        expect(code).toBe(0);
+        expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL-length', 'CHL-overview']);
+        expect(readdirSync(join(root, 'finished')).length).toBe(1);
+        expect(readdirSync(join(root, 'finished'))[0]).toMatch(/^CHL-overview-/);
+        expect(text()).not.toContain('CHL-length-');
+      });
+
+      it('[story] sets aside that story session and leaves the overview session alone', () => {
+        const { code, root } = freshAmong({ storyId: 'length' });
+        expect(code).toBe(0);
+        expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL-length', 'CHL-overview']);
+        expect(readdirSync(join(root, 'finished')).length).toBe(1);
+        expect(readdirSync(join(root, 'finished'))[0]).toMatch(/^CHL-length-/);
+      });
+
+      it('the whole country sets aside every session that overlaps it', () => {
+        const { code, root } = freshAmong({});
+        expect(code).toBe(0);
+        expect(listSessions(root).map(({ id }) => id)).toEqual(['CHL']);
+        expect(readdirSync(join(root, 'finished')).sort()).toEqual(
+          expect.arrayContaining([expect.stringMatching(/^CHL-length-/)]),
+        );
+        expect(readdirSync(join(root, 'finished')).length).toBe(2);
+      });
     });
   });
 

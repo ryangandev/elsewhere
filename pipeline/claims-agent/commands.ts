@@ -128,7 +128,7 @@ export type StartOptions = {
   draftsOnly: boolean;
   /** Most cited sources in one session; a country citing more is split into several sessions. */
   maxSources: number;
-  /** Set every existing session of the country aside (into finished/) first. */
+  /** Set the existing sessions of the country that overlap the requested scope aside (into finished/) first, even when nothing is due. */
   fresh: boolean;
 };
 
@@ -183,15 +183,28 @@ export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
     },
     claimsDir,
   );
+  if (options.fresh) {
+    // Set aside what overlaps the requested scope before anything else, so --fresh does its job
+    // even when nothing is due, and leaves a session of another part of the country alone.
+    const inScope = new Set(
+      (scopes ?? allScopes(file))
+        .flatMap((scope) => scopeUnits(file, scope))
+        .map((unit) => unit.id),
+    );
+    for (const { session } of existing) {
+      if (session.units.some((unit) => inScope.has(unit.id))) {
+        archived.push(archiveSession(root, session));
+      }
+    }
+  }
   if (!jobs.length) {
+    for (const target of archived) deps.out(`Moved the earlier session to ${target}.`);
     deps.out(
       'Nothing to check: every unit has a result for its current text. Pass --recheck to check again.',
     );
     return 0;
   }
-  if (options.fresh) {
-    for (const { session } of existing) archived.push(archiveSession(root, session));
-  } else {
+  if (!options.fresh) {
     const wanted = new Set(jobs.flatMap(jobUnits).map((unit) => unit.key));
     const holding = existing.filter(({ session }) =>
       dueUnits(session).some((unit) => wanted.has(unit.key)),
@@ -202,8 +215,8 @@ export function start(options: StartOptions, deps: ClaimsAgentDeps): number {
         [
           `Unfinished sessions already hold some of these units: ${holding.map(({ id }) => id).join(', ')}.`,
           outdated.length
-            ? `${outdated.map(({ id }) => id).join(', ')} started on older prompts, whose brief describes the fetch command as it no longer works, so pass --fresh to set every session of this country aside and plan again.`
-            : 'Continue them (a new subagent can pick up a session where the last one stopped), or pass --fresh to set every session of this country aside (into finished/) and plan again.',
+            ? `${outdated.map(({ id }) => id).join(', ')} started on older prompts, whose brief describes the fetch command as it no longer works, so pass --fresh to set the sessions of this country that overlap this scope aside and plan again.`
+            : 'Continue them (a new subagent can pick up a session where the last one stopped), or pass --fresh to set the sessions of this country that overlap this scope aside (into finished/) and plan again.',
         ].join('\n'),
       );
       return 1;
